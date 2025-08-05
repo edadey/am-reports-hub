@@ -2654,8 +2654,12 @@
 let deletedAccountManagers = [];
     
     async function deleteTemplate(templateId) {
-      const template = templates.find(t => t.id === templateId);
+      // Ensure templateId is a string for consistent comparison
+      const templateIdStr = String(templateId);
+      const template = templates.find(t => String(t.id) === templateIdStr);
       if (!template) {
+        console.error('Template not found for ID:', templateIdStr);
+        console.log('Available templates:', templates.map(t => ({ id: t.id, type: typeof t.id, name: t.name })));
         showStatus('Template not found', 'error');
         return;
       }
@@ -2667,7 +2671,7 @@ let deletedAccountManagers = [];
         'Delete Template',
         async () => {
           try {
-            await axios.delete(`/api/templates/${templateId}`);
+            await axios.delete(`/api/templates/${templateIdStr}`);
             
             // Store the deleted template for undo
             deletedTemplates.push({
@@ -2681,7 +2685,7 @@ let deletedAccountManagers = [];
             
             // Auto-remove undo option after 30 seconds
             setTimeout(() => {
-              const index = deletedTemplates.findIndex(dt => dt.template.id === templateId);
+              const index = deletedTemplates.findIndex(dt => String(dt.template.id) === templateIdStr);
               if (index !== -1) {
                 deletedTemplates[index].canUndo = false;
               }

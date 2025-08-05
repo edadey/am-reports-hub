@@ -2039,7 +2039,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('👤 User:', req.user);
     console.log('🍪 Cookies:', req.cookies);
     console.log('📋 Headers:', req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
-    console.log('📄 Template data:', { name: req.body.name, columns: req.body.columns?.length || 0, rows: req.body.data?.length || 0 });
+    console.log('📄 Template data:', { name: req.body.name, columns: req.body.headers?.length || 0, rows: req.body.tableData?.length || 0 });
     
     // Ensure data directory exists
     console.log('📁 Ensuring data directory exists...');
@@ -2051,10 +2051,10 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('📄 Template data structure:', {
       hasName: !!req.body.name,
       hasHeaders: !!req.body.headers,
-      hasRows: !!req.body.rows,
+      hasTableData: !!req.body.tableData,
       name: req.body.name,
       headers: req.body.headers,
-      rows: req.body.rows
+      tableData: req.body.tableData
     });
     
     // Transform frontend data to match validation expectations
@@ -2066,10 +2066,11 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
                    Array.from({ length: columnCount }, (_, i) => `Column ${i + 1}`);
     
     const templateData = {
-      id: req.body.id || Date.now(),
+      id: String(req.body.id || Date.now()),
       name: req.body.name,
       description: req.body.description || '',
       headers: headers,
+      tableData: req.body.tableData || [], // Include the actual table data
       columnCount: columnCount,
       rowCount: rowCount,
       createdAt: req.body.createdAt || new Date().toISOString()
@@ -2101,11 +2102,12 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     
     // Check if this is a restoration (template already has an ID)
     if (req.body.id && req.body.id !== Date.now()) {
-      // This is a restoration, preserve the original ID
+      // This is a restoration, preserve the original ID and data
       console.log('🔄 Restoring existing template...');
       const restoredTemplate = {
         ...templateData,
-        id: req.body.id,
+        id: String(req.body.id),
+        tableData: req.body.tableData || [], // Ensure tableData is preserved during restoration
         createdAt: req.body.createdAt || new Date().toISOString(),
         validationChecksum: validationResult.checksum,
         validationTime: validationResult.validationTime
@@ -2167,10 +2169,11 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
       templates = [];
     }
     
+    // Ensure both IDs are strings for comparison
     const templateIndex = templates.findIndex(t => String(t.id) === String(id));
     console.log('Template index found:', templateIndex);
     if (templateIndex === -1) {
-      console.log('Template not found. Available IDs:', templates.map(t => t.id));
+      console.log('Template not found. Available IDs:', templates.map(t => ({ id: t.id, type: typeof t.id, name: t.name })));
       return res.status(404).json({ error: 'Template not found' });
     }
     

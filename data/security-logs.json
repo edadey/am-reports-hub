@@ -977,5 +977,38 @@
       "userAgent": "axios/1.11.0"
     },
     "timestamp": "2025-08-05T11:19:01.043Z"
+  },
+  {
+    "id": "1754393260550",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36 Edg/128.0.0.0"
+    },
+    "timestamp": "2025-08-05T11:27:40.550Z"
+  },
+  {
+    "id": "1754393727042",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36 Edg/128.0.0.0"
+    },
+    "timestamp": "2025-08-05T11:35:27.042Z"
+  },
+  {
+    "id": "1754394180318",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36 Edg/128.0.0.0"
+    },
+    "timestamp": "2025-08-05T11:43:00.318Z"
   }
 ]

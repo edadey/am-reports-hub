@@ -1,6 +1,6 @@
 {
   "collegeId": "1753277599076",
-  "lastUpdated": "2025-07-30T14:45:38.846Z",
+  "lastUpdated": "2025-08-05T11:48:44.441Z",
   "version": "1.0",
   "timeSeries": {
     "placements": [
@@ -39,6 +39,12 @@
         "value": 110,
         "reportId": "1753886738841",
         "timestamp": "2025-07-30T14:45:38.841Z"
+      },
+      {
+        "date": "2025-08-05",
+        "value": 953,
+        "reportId": "1754394524367",
+        "timestamp": "2025-08-05T11:48:44.367Z"
       }
     ],
     "activities": [
@@ -77,6 +83,12 @@
         "value": 3,
         "reportId": "1753886738841",
         "timestamp": "2025-07-30T14:45:38.841Z"
+      },
+      {
+        "date": "2025-08-05",
+        "value": 580,
+        "reportId": "1754394524367",
+        "timestamp": "2025-08-05T11:48:44.367Z"
       }
     ],
     "assessments": [
@@ -127,6 +139,14 @@
         "total": 110,
         "reportId": "1753886738841",
         "timestamp": "2025-07-30T14:45:38.841Z"
+      },
+      {
+        "date": "2025-08-05",
+        "completed": 0,
+        "pending": 953,
+        "total": 953,
+        "reportId": "1754394524367",
+        "timestamp": "2025-08-05T11:48:44.367Z"
       }
     ],
     "careers": [
@@ -165,30 +185,36 @@
         "value": 17,
         "reportId": "1753886738841",
         "timestamp": "2025-07-30T14:45:38.841Z"
+      },
+      {
+        "date": "2025-08-05",
+        "value": 143,
+        "reportId": "1754394524367",
+        "timestamp": "2025-08-05T11:48:44.367Z"
       }
     ]
   },
   "summary": {
-    "totalReports": 6,
+    "totalReports": 7,
     "dateRange": {
       "firstReport": "2025-07-23T15:13:13.822Z",
-      "lastReport": "2025-07-30T14:45:38.841Z"
+      "lastReport": "2025-08-05T11:48:44.367Z"
     },
     "averages": {
-      "placements": 1245,
-      "activities": 917,
-      "assessments": 110,
-      "careers": 343
+      "placements": 1204,
+      "activities": 869,
+      "assessments": 953,
+      "careers": 314
     },
     "trends": {
-      "placements": "decreasing",
+      "placements": "increasing",
       "activities": "decreasing",
       "assessments": "stable",
       "careers": "decreasing"
     }
   },
   "metadata": {
-    "lastProcessedReport": "1753886738841",
+    "lastProcessedReport": "1754394524367",
     "dataIntegrity": {
       "checksum": null,
       "lastValidated": null

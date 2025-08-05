@@ -165,16 +165,32 @@ class UserManager {
   }
 
   async updateCollege(collegeId, updates) {
+    console.log('🔄 UserManager.updateCollege called with:', { collegeId, updates });
+    
     const colleges = await this.getColleges();
+    console.log('📋 Found colleges:', colleges.length);
+    
     const index = colleges.findIndex(c => c.id === collegeId);
+    console.log('🔍 College index found:', index);
+    
     if (index !== -1) {
+      console.log('📝 Original college data:', colleges[index]);
       colleges[index] = { ...colleges[index], ...updates };
-      if (this.volumeService) {
-        await this.volumeService.writeFile(this.collegesFile, colleges);
-      } else {
-        await fs.writeJson(`data/${this.collegesFile}`, colleges, { spaces: 2 });
+      console.log('📝 Updated college data:', colleges[index]);
+      
+      try {
+        if (this.volumeService) {
+          await this.volumeService.writeFile(this.collegesFile, colleges);
+          console.log('✅ College data written to volume service');
+        } else {
+          await fs.writeJson(`data/${this.collegesFile}`, colleges, { spaces: 2 });
+          console.log('✅ College data written to file system');
+        }
+        return colleges[index];
+      } catch (error) {
+        console.error('❌ Error writing college data:', error);
+        throw error;
       }
-      return colleges[index];
     }
     throw new Error('College not found');
   }

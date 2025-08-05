@@ -5,15 +5,21 @@
     "numberOfProviders": "2",
     "accountManagerId": "1752605613330",
     "keyStakeholder": "",
-    "superUsers": [],
+    "superUsers": [
+      {
+        "name": "Ricardo Mendes",
+        "position": "Work Experience Lead",
+        "email": ""
+      }
+    ],
     "misContact": "",
-    "dataTransferMethod": "Manual Upload",
+    "dataTransferMethod": "",
     "status": "A",
     "ofstedRating": "O",
     "reportFrequency": "monthly",
     "template": "standard",
     "initialConcerns": "",
-    "lastReportDate": "2025-07-30T14:45:38.847Z",
+    "lastReportDate": "2025-08-05T11:48:44.442Z",
     "createdAt": "2025-07-23T13:33:19.076Z",
     "misContactName": "Test Contact",
     "misContactEmail": "test@example.com",
