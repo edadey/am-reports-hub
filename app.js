@@ -2040,15 +2040,28 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('🔍 Validating template data...');
     console.log('📄 Template data structure:', {
       hasName: !!req.body.name,
-      hasColumns: !!req.body.columns,
-      hasData: !!req.body.data,
+      hasHeaders: !!req.body.headers,
+      hasRows: !!req.body.rows,
       name: req.body.name,
-      columnsCount: req.body.columns?.length || 0,
-      dataCount: req.body.data?.length || 0
+      headers: req.body.headers,
+      rows: req.body.rows
     });
     
+    // Transform frontend data to match validation expectations
+    const templateData = {
+      id: Date.now(),
+      name: req.body.name,
+      description: req.body.description || '',
+      headers: Array.isArray(req.body.headers) ? req.body.headers : [],
+      columnCount: Array.isArray(req.body.headers) ? req.body.headers.length : (req.body.headers || 0),
+      rowCount: req.body.rows || 0,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('🔄 Transformed template data:', templateData);
+    
     try {
-      const validationResult = await dataValidationService.validateTemplateData(req.body);
+      const validationResult = await dataValidationService.validateTemplateData(templateData);
       
       if (!validationResult.isValid) {
         console.error('❌ Template validation failed:', validationResult.errors);
@@ -2056,11 +2069,12 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
           error: 'Template validation failed', 
           errors: validationResult.errors,
           warnings: validationResult.warnings,
-          dataStructure: {
+          originalData: {
             hasName: !!req.body.name,
-            hasColumns: !!req.body.columns,
-            hasData: !!req.body.data
-          }
+            hasHeaders: !!req.body.headers,
+            hasRows: !!req.body.rows
+          },
+          transformedData: templateData
         });
       }
       
@@ -2074,11 +2088,12 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       return res.status(400).json({ 
         error: 'Template validation error: ' + validationError.message,
         stack: validationError.stack,
-        dataStructure: {
+        originalData: {
           hasName: !!req.body.name,
-          hasColumns: !!req.body.columns,
-          hasData: !!req.body.data
-        }
+          hasHeaders: !!req.body.headers,
+          hasRows: !!req.body.rows
+        },
+        transformedData: templateData
       });
     }
     
@@ -2099,19 +2114,18 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       // This is a restoration, preserve the original ID
       console.log('🔄 Restoring existing template...');
       const restoredTemplate = {
-        ...req.body,
+        ...templateData,
+        id: req.body.id,
         createdAt: req.body.createdAt || new Date().toISOString(),
         validationChecksum: validationResult.checksum,
         validationTime: validationResult.validationTime
       };
       templates.push(restoredTemplate);
     } else {
-      // This is a new template, create new ID
+      // This is a new template, use the transformed data
       console.log('🆕 Creating new template...');
       const newTemplate = {
-        ...req.body,
-        id: Date.now(),
-        createdAt: new Date().toISOString(),
+        ...templateData,
         validationChecksum: validationResult.checksum,
         validationTime: validationResult.validationTime
       };
