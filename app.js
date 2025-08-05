@@ -1891,36 +1891,53 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('📋 Headers:', req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
     console.log('📄 Template data:', { name: req.body.name, columns: req.body.columns?.length || 0, rows: req.body.data?.length || 0 });
     
+    // Ensure data directory exists
+    console.log('📁 Ensuring data directory exists...');
+    await fs.ensureDir('data');
+    console.log('✅ Data directory ready');
+    
     // Validate template data before saving
     console.log('🔍 Validating template data...');
-    const validationResult = await dataValidationService.validateTemplateData(req.body);
-    
-    if (!validationResult.isValid) {
-      console.error('❌ Template validation failed:', validationResult.errors);
+    try {
+      const validationResult = await dataValidationService.validateTemplateData(req.body);
+      
+      if (!validationResult.isValid) {
+        console.error('❌ Template validation failed:', validationResult.errors);
+        return res.status(400).json({ 
+          error: 'Template validation failed', 
+          errors: validationResult.errors,
+          warnings: validationResult.warnings
+        });
+      }
+      
+      if (validationResult.warnings.length > 0) {
+        console.warn('⚠️ Template validation warnings:', validationResult.warnings);
+      }
+      
+      console.log('✅ Template validation passed');
+    } catch (validationError) {
+      console.error('❌ Template validation error:', validationError);
       return res.status(400).json({ 
-        error: 'Template validation failed', 
-        errors: validationResult.errors,
-        warnings: validationResult.warnings
+        error: 'Template validation error: ' + validationError.message 
       });
     }
     
-    if (validationResult.warnings.length > 0) {
-      console.warn('⚠️ Template validation warnings:', validationResult.warnings);
-    }
-    
-    console.log('✅ Template validation passed');
-    
     const templatesFile = 'data/templates.json';
     let templates = [];
+    
+    console.log('📖 Reading existing templates...');
     try {
       templates = await fs.readJson(templatesFile);
+      console.log(`✅ Read ${templates.length} existing templates`);
     } catch (e) {
+      console.log('📝 No existing templates file, starting fresh');
       templates = [];
     }
     
     // Check if this is a restoration (template already has an ID)
     if (req.body.id && req.body.id !== Date.now()) {
       // This is a restoration, preserve the original ID
+      console.log('🔄 Restoring existing template...');
       const restoredTemplate = {
         ...req.body,
         createdAt: req.body.createdAt || new Date().toISOString(),
@@ -1930,6 +1947,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       templates.push(restoredTemplate);
     } else {
       // This is a new template, create new ID
+      console.log('🆕 Creating new template...');
       const newTemplate = {
         ...req.body,
         id: Date.now(),
@@ -1940,10 +1958,13 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       templates.push(newTemplate);
     }
     
+    console.log('💾 Writing templates to file...');
     await fs.writeJson(templatesFile, templates, { spaces: 2 });
+    console.log('✅ Templates file written successfully');
     
     // Create backup after successful save
     try {
+      console.log('💾 Creating backup...');
       await backupService.createBackup(`manual-template-${Date.now()}`);
       console.log('✅ Backup created after template save');
     } catch (backupError) {
@@ -1951,14 +1972,19 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       // Don't fail the save if backup fails
     }
     
+    console.log('✅ Template save completed successfully');
     res.json({ 
       success: true, 
       template: templates[templates.length - 1],
       validation: validationResult
     });
   } catch (error) {
-    console.error('Error saving template:', error);
-    res.status(500).json({ error: 'Failed to save template' });
+    console.error('❌ Error saving template:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to save template: ' + error.message,
+      details: error.stack
+    });
   }
 });
 
