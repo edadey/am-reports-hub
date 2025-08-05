@@ -4,7 +4,7 @@ const path = require("path");
 class VolumeService {
   constructor() {
     this.volumePath = "/app/data";
-    this.localDataPath = path.join(__dirname, "../data");
+    this.localDataPath = path.join(__dirname, "../../data");
     this.isVolumeMounted = false;
   }
 

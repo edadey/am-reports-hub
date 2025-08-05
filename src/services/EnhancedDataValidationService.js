@@ -83,35 +83,15 @@ class EnhancedDataValidationService {
     };
 
     try {
-      // Basic structure validation
+      // Basic structure validation only - skip complex business rules to prevent memory issues
       const structureValidation = this.validateDataStructure(reportData, 'report');
       if (!structureValidation.isValid) {
         validationResult.errors.push(...structureValidation.errors);
         validationResult.isValid = false;
       }
 
-      // Business rule validation
-      const businessValidation = await this.validateBusinessRules(reportData, 'report', { collegeId });
-      if (!businessValidation.isValid) {
-        validationResult.errors.push(...businessValidation.errors);
-        validationResult.isValid = false;
-      }
-
-      // Data integrity checks
-      const integrityValidation = await this.validateDataIntegrity(reportData, 'report');
-      if (!integrityValidation.isValid) {
-        validationResult.errors.push(...integrityValidation.errors);
-        validationResult.isValid = false;
-      }
-
-      // Generate checksum for data integrity
+      // Simple checksum generation
       validationResult.checksum = this.generateChecksum(reportData);
-
-      // Performance validation
-      const performanceValidation = this.validatePerformance(reportData, 'report');
-      if (!performanceValidation.isValid) {
-        validationResult.warnings.push(...performanceValidation.warnings);
-      }
 
       return validationResult;
 
@@ -135,27 +115,14 @@ class EnhancedDataValidationService {
     };
 
     try {
-      // Basic structure validation
+      // Basic structure validation only - skip complex business rules to prevent memory issues
       const structureValidation = this.validateDataStructure(templateData, 'template');
       if (!structureValidation.isValid) {
         validationResult.errors.push(...structureValidation.errors);
         validationResult.isValid = false;
       }
 
-      // Business rule validation
-      const businessValidation = await this.validateBusinessRules(templateData, 'template');
-      if (!businessValidation.isValid) {
-        validationResult.errors.push(...businessValidation.errors);
-        validationResult.isValid = false;
-      }
-
-      // Duplicate detection
-      const duplicateValidation = await this.checkForDuplicates(templateData, 'template');
-      if (!duplicateValidation.isValid) {
-        validationResult.warnings.push(...duplicateValidation.warnings);
-      }
-
-      // Generate checksum
+      // Simple checksum generation
       validationResult.checksum = this.generateChecksum(templateData);
 
       return validationResult;
@@ -559,32 +526,7 @@ class EnhancedDataValidationService {
     return result;
   }
 
-  /**
-   * Validate template data
-   */
-  async validateTemplateData(data) {
-    const result = { isValid: true, errors: [] };
 
-    if (data.tableData && Array.isArray(data.tableData)) {
-      const headers = data.headers || [];
-      
-      for (let i = 0; i < data.tableData.length; i++) {
-        const row = data.tableData[i];
-        if (!Array.isArray(row)) {
-          result.errors.push(`Template data row ${i + 1} is not an array`);
-          result.isValid = false;
-          continue;
-        }
-
-        if (row.length !== headers.length) {
-          result.errors.push(`Template data row ${i + 1} has ${row.length} columns but should have ${headers.length}`);
-          result.isValid = false;
-        }
-      }
-    }
-
-    return result;
-  }
 
   /**
    * Validate college data
