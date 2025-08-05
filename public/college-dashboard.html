@@ -1639,6 +1639,10 @@
           return;
         }
 
+        // Show environment indicator
+        const isCloud = window.location.hostname !== 'localhost';
+        console.log(`🌐 Using ${isCloud ? 'CLOUD' : 'LOCAL'} environment: ${window.location.origin}`);
+
         // Load college details
         const collegeResponse = await fetch(`/api/colleges/${collegeId}`, {
           credentials: 'include'
@@ -1707,6 +1711,13 @@
 
         // Update the dashboard with real data
         updateDashboardData();
+        
+        // Show environment indicator in UI
+        const isCloud = window.location.hostname !== 'localhost';
+        const envIndicator = document.createElement('div');
+        envIndicator.className = 'fixed top-4 right-4 bg-blue-100 border border-blue-400 text-blue-700 px-3 py-1 rounded text-sm font-medium z-50';
+        envIndicator.textContent = `${isCloud ? '☁️ CLOUD' : '💻 LOCAL'}`;
+        document.body.appendChild(envIndicator);
         
         // Load all AI insights after college data is loaded
         loadAllAIInsights();
@@ -5349,6 +5360,8 @@
           showNotification('College details saved successfully', 'success');
           collegeData = { ...collegeData, ...updatedData };
           formDataChanged = false;
+          // Reload college data from server to ensure consistency
+          await loadCollegeData();
           // Trigger global event for dashboards to refresh
           window.dispatchEvent(new Event('collegeDataUpdated'));
         } else {

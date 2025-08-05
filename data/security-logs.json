@@ -845,5 +845,137 @@
       "userAgent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36 Edg/128.0.0.0"
     },
     "timestamp": "2025-08-05T07:25:21.727Z"
+  },
+  {
+    "id": "1754391183001",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:53:03.001Z"
+  },
+  {
+    "id": "1754391218172",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:53:38.172Z"
+  },
+  {
+    "id": "1754391228984",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:53:48.984Z"
+  },
+  {
+    "id": "1754391240800",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:54:00.800Z"
+  },
+  {
+    "id": "1754391289581",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:54:49.581Z"
+  },
+  {
+    "id": "1754391301255",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:55:01.255Z"
+  },
+  {
+    "id": "1754391347303",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:55:47.303Z"
+  },
+  {
+    "id": "1754391359869",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:55:59.869Z"
+  },
+  {
+    "id": "1754391413154",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:56:53.154Z"
+  },
+  {
+    "id": "1754391579773",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T10:59:39.773Z"
+  },
+  {
+    "id": "1754391848609",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T11:04:08.609Z"
+  },
+  {
+    "id": "1754392741043",
+    "eventType": "login_attempt",
+    "details": {
+      "username": "admin",
+      "success": true,
+      "ipAddress": "::1",
+      "userAgent": "axios/1.11.0"
+    },
+    "timestamp": "2025-08-05T11:19:01.043Z"
   }
 ]

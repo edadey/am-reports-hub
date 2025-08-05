@@ -5038,5 +5038,20 @@
     "rowCount": 5,
     "id": 1754034594012,
     "createdAt": "2025-08-01T07:49:54.012Z"
+  },
+  {
+    "id": 1754391848842,
+    "name": "Test Template",
+    "description": "Test template for functionality testing",
+    "headers": [
+      "Column 1",
+      "Column 2",
+      "Column 3"
+    ],
+    "columnCount": 3,
+    "rowCount": 2,
+    "createdAt": "2025-08-05T11:04:08.842Z",
+    "validationChecksum": "temp-checksum",
+    "validationTime": "2025-08-05T11:04:08.842Z"
   }
 ]

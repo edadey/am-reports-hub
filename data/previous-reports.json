@@ -1,4 +1,31 @@
 {
+  "1": {
+    "data": {
+      "headers": [
+        "Department",
+        "Students",
+        "Placements"
+      ],
+      "rows": [
+        [
+          "IT",
+          50,
+          45
+        ],
+        [
+          "Business",
+          30,
+          25
+        ],
+        [
+          "Engineering",
+          40,
+          35
+        ]
+      ]
+    },
+    "timestamp": "2025-08-05T11:04:08.890Z"
+  },
   "1752598562831": {
     "data": {
       "headers": [
