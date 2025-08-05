@@ -2,21 +2,21 @@ const fs = require('fs-extra');
 const path = require('path');
 
 class UserManager {
-  constructor() {
-    this.usersFile = 'data/users.json';
-    this.collegesFile = 'data/colleges.json';
-    this.accountManagersFile = 'data/accountManagers.json';
-    this.kpisFile = 'data/kpis.json';
-    this.ensureDataDirectory();
-  }
-
-  ensureDataDirectory() {
-    fs.ensureDirSync('data');
+  constructor(volumeService = null) {
+    this.volumeService = volumeService;
+    this.usersFile = 'users.json';
+    this.collegesFile = 'colleges.json';
+    this.accountManagersFile = 'accountManagers.json';
+    this.kpisFile = 'kpis.json';
   }
 
   async getUsers() {
     try {
-      return await fs.readJson(this.usersFile);
+      if (this.volumeService) {
+        return await this.volumeService.readFile(this.usersFile);
+      } else {
+        return await fs.readJson(`data/${this.usersFile}`);
+      }
     } catch (error) {
       return [];
     }
@@ -24,7 +24,11 @@ class UserManager {
 
   async getAccountManagers() {
     try {
-      return await fs.readJson(this.accountManagersFile);
+      if (this.volumeService) {
+        return await this.volumeService.readFile(this.accountManagersFile);
+      } else {
+        return await fs.readJson(`data/${this.accountManagersFile}`);
+      }
     } catch (error) {
       // Return default account managers if file doesn't exist
       return [
@@ -52,7 +56,11 @@ class UserManager {
       };
       
       accountManagers.push(newAccountManager);
-      await fs.writeJson(this.accountManagersFile, accountManagers, { spaces: 2 });
+      if (this.volumeService) {
+        await this.volumeService.writeFile(this.accountManagersFile, accountManagers);
+      } else {
+        await fs.writeJson(`data/${this.accountManagersFile}`, accountManagers, { spaces: 2 });
+      }
       return { success: true, manager: newAccountManager };
     } catch (error) {
       console.error('Add account manager error:', error);
@@ -66,7 +74,11 @@ class UserManager {
       const index = accountManagers.findIndex(am => am.id === parseInt(accountManagerId));
       if (index !== -1) {
         accountManagers[index] = { ...accountManagers[index], ...updates };
-        await fs.writeJson(this.accountManagersFile, accountManagers, { spaces: 2 });
+        if (this.volumeService) {
+          await this.volumeService.writeFile(this.accountManagersFile, accountManagers);
+        } else {
+          await fs.writeJson(`data/${this.accountManagersFile}`, accountManagers, { spaces: 2 });
+        }
         return { success: true, manager: accountManagers[index] };
       }
       return { success: false, message: 'Account manager not found' };
@@ -82,7 +94,11 @@ class UserManager {
       const index = accountManagers.findIndex(am => am.id === parseInt(accountManagerId));
       if (index !== -1) {
         const filteredManagers = accountManagers.filter(am => am.id !== parseInt(accountManagerId));
-        await fs.writeJson(this.accountManagersFile, filteredManagers, { spaces: 2 });
+        if (this.volumeService) {
+          await this.volumeService.writeFile(this.accountManagersFile, filteredManagers);
+        } else {
+          await fs.writeJson(`data/${this.accountManagersFile}`, filteredManagers, { spaces: 2 });
+        }
         return { success: true, message: 'Account manager deleted successfully' };
       }
       return { success: false, message: 'Account manager not found' };
@@ -94,7 +110,11 @@ class UserManager {
 
   async getColleges() {
     try {
-      return await fs.readJson(this.collegesFile);
+      if (this.volumeService) {
+        return await this.volumeService.readFile(this.collegesFile);
+      } else {
+        return await fs.readJson(`data/${this.collegesFile}`);
+      }
     } catch (error) {
       return [];
     }
@@ -136,7 +156,11 @@ class UserManager {
     };
     
     colleges.push(newCollege);
-    await fs.writeJson(this.collegesFile, colleges, { spaces: 2 });
+    if (this.volumeService) {
+      await this.volumeService.writeFile(this.collegesFile, colleges);
+    } else {
+      await fs.writeJson(`data/${this.collegesFile}`, colleges, { spaces: 2 });
+    }
     return newCollege;
   }
 
@@ -145,7 +169,11 @@ class UserManager {
     const index = colleges.findIndex(c => c.id === collegeId);
     if (index !== -1) {
       colleges[index] = { ...colleges[index], ...updates };
-      await fs.writeJson(this.collegesFile, colleges, { spaces: 2 });
+      if (this.volumeService) {
+        await this.volumeService.writeFile(this.collegesFile, colleges);
+      } else {
+        await fs.writeJson(`data/${this.collegesFile}`, colleges, { spaces: 2 });
+      }
       return colleges[index];
     }
     throw new Error('College not found');
@@ -159,7 +187,11 @@ class UserManager {
   async deleteCollege(collegeId) {
     const colleges = await this.getColleges();
     const filteredColleges = colleges.filter(c => c.id !== collegeId);
-    await fs.writeJson(this.collegesFile, filteredColleges, { spaces: 2 });
+    if (this.volumeService) {
+      await this.volumeService.writeFile(this.collegesFile, filteredColleges);
+    } else {
+      await fs.writeJson(`data/${this.collegesFile}`, filteredColleges, { spaces: 2 });
+    }
   }
 
   async assignCollegeToAccountManager(collegeId, accountManagerId) {
@@ -194,8 +226,13 @@ class UserManager {
   // KPI Management Methods
   async getKPIs(collegeId) {
     try {
-      const kpis = await fs.readJson(this.kpisFile);
-      return kpis.filter(kpi => kpi.collegeId === parseInt(collegeId)) || [];
+      if (this.volumeService) {
+        const kpis = await this.volumeService.readFile(this.kpisFile);
+        return kpis.filter(kpi => kpi.collegeId === parseInt(collegeId)) || [];
+      } else {
+        const kpis = await fs.readJson(`data/${this.kpisFile}`);
+        return kpis.filter(kpi => kpi.collegeId === parseInt(collegeId)) || [];
+      }
     } catch (error) {
       return [];
     }
@@ -205,7 +242,11 @@ class UserManager {
     try {
       let allKPIs = [];
       try {
-        allKPIs = await fs.readJson(this.kpisFile);
+        if (this.volumeService) {
+          allKPIs = await this.volumeService.readFile(this.kpisFile);
+        } else {
+          allKPIs = await fs.readJson(`data/${this.kpisFile}`);
+        }
       } catch (error) {
         // File doesn't exist, start with empty array
       }
@@ -226,7 +267,11 @@ class UserManager {
       }));
 
       allKPIs.push(...newKPIs);
-      await fs.writeJson(this.kpisFile, allKPIs, { spaces: 2 });
+      if (this.volumeService) {
+        await this.volumeService.writeFile(this.kpisFile, allKPIs);
+      } else {
+        await fs.writeJson(`data/${this.kpisFile}`, allKPIs, { spaces: 2 });
+      }
       
       return { success: true, kpis: newKPIs };
     } catch (error) {
@@ -237,7 +282,12 @@ class UserManager {
 
   async updateKPI(kpiId, updates) {
     try {
-      const kpis = await fs.readJson(this.kpisFile);
+      let kpis;
+      if (this.volumeService) {
+        kpis = await this.volumeService.readFile(this.kpisFile);
+      } else {
+        kpis = await fs.readJson(`data/${this.kpisFile}`);
+      }
       const index = kpis.findIndex(kpi => kpi.id === parseInt(kpiId));
       
       if (index !== -1) {
@@ -246,7 +296,11 @@ class UserManager {
           ...updates, 
           updatedAt: new Date().toISOString() 
         };
-        await fs.writeJson(this.kpisFile, kpis, { spaces: 2 });
+        if (this.volumeService) {
+          await this.volumeService.writeFile(this.kpisFile, kpis);
+        } else {
+          await fs.writeJson(`data/${this.kpisFile}`, kpis, { spaces: 2 });
+        }
         return { success: true, kpi: kpis[index] };
       }
       
@@ -259,9 +313,18 @@ class UserManager {
 
   async deleteKPI(kpiId) {
     try {
-      const kpis = await fs.readJson(this.kpisFile);
+      let kpis;
+      if (this.volumeService) {
+        kpis = await this.volumeService.readFile(this.kpisFile);
+      } else {
+        kpis = await fs.readJson(`data/${this.kpisFile}`);
+      }
       const filteredKPIs = kpis.filter(kpi => kpi.id !== parseInt(kpiId));
-      await fs.writeJson(this.kpisFile, filteredKPIs, { spaces: 2 });
+      if (this.volumeService) {
+        await this.volumeService.writeFile(this.kpisFile, filteredKPIs);
+      } else {
+        await fs.writeJson(`data/${this.kpisFile}`, filteredKPIs, { spaces: 2 });
+      }
       return { success: true, message: 'KPI deleted successfully' };
     } catch (error) {
       console.error('Delete KPI error:', error);

@@ -116,7 +116,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Initialize services
-const userManager = new UserManager();
+const userManager = new UserManager(volumeService);
 const aiAnalyzer = new AIAnalyzer();
 const reportScheduler = new ReportScheduler();
 const dataImporter = new DataImporter();
@@ -1798,8 +1798,8 @@ app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req
 // Helper function to get previous report data - use centralized method
 async function getPreviousReportData(collegeId) {
   try {
-    const previousReportsPath = 'data/previous-reports.json';
-    const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
+    const previousReportsPath = 'previous-reports.json';
+    const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
     return previousReports[collegeId] || null;
   } catch (error) {
     console.error('Get previous report error:', error);
@@ -1810,16 +1810,16 @@ async function getPreviousReportData(collegeId) {
 // Store current report as previous - use centralized method
 async function storeCurrentReportAsPrevious(collegeId, reportData) {
   try {
-    const previousReportsPath = 'data/previous-reports.json';
-    const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
+    const previousReportsPath = 'previous-reports.json';
+    const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
     
     previousReports[collegeId] = {
       data: reportData,
       timestamp: new Date().toISOString()
     };
     
-    await fs.writeJson(previousReportsPath, previousReports, { spaces: 2 });
-    console.log(`Stored previous report data for college ${collegeId}`);
+    await volumeService.writeFile(previousReportsPath, previousReports);
+    console.log(`Stored previous report data for college ${collegeId} in volume`);
   } catch (error) {
     console.error('Store previous report error:', error);
   }
@@ -2364,20 +2364,17 @@ function calculateChanges(currentData, previousReportPath) {
 
 async function getCollegeReports(collegeId) {
   try {
-    console.log(`📊 Loading reports for college ${collegeId}...`);
+    console.log(`📊 Loading reports for college ${collegeId} from volume...`);
     
-    // Ensure reports directory exists
-    await fs.ensureDir('data/reports');
-    
-    const reportsPath = `data/reports/${collegeId}.json`;
+    const reportsPath = `reports/${collegeId}.json`;
     console.log(`📁 Checking reports file: ${reportsPath}`);
     
-    if (await fs.pathExists(reportsPath)) {
-      const reports = await fs.readJson(reportsPath);
-      console.log(`✅ Found ${reports.length} reports for college ${collegeId}`);
+    if (await volumeService.fileExists(reportsPath)) {
+      const reports = await volumeService.readFile(reportsPath);
+      console.log(`✅ Found ${reports.length} reports for college ${collegeId} in volume`);
       return reports;
     } else {
-      console.log(`📝 No reports file found for college ${collegeId}`);
+      console.log(`📝 No reports file found for college ${collegeId} in volume`);
       return [];
     }
   } catch (error) {
@@ -2388,12 +2385,9 @@ async function getCollegeReports(collegeId) {
 
 async function saveCollegeReport(collegeId, reportData, reportName, summary) {
   try {
-    console.log(`💾 Saving report for college ${collegeId}...`);
+    console.log(`💾 Saving report for college ${collegeId} to volume...`);
     console.log(`📄 Report name: ${reportName}`);
     console.log(`📊 Report data rows: ${reportData?.length || 0}`);
-    
-    // Ensure reports directory exists
-    await fs.ensureDir('data/reports');
     
     // Validate report data before saving
     console.log('🔍 Validating report data...');
@@ -2415,15 +2409,15 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     
     console.log('✅ Report validation passed');
     
-    const reportsPath = `data/reports/${collegeId}.json`;
-    console.log(`📁 Reports file path: ${reportsPath}`);
+    const reportsPath = `reports/${collegeId}.json`;
+    console.log(`📁 Reports file path in volume: ${reportsPath}`);
     
     let reports = [];
     try {
-      reports = await fs.readJson(reportsPath);
-      console.log(`📖 Read ${reports.length} existing reports`);
+      reports = await volumeService.readFile(reportsPath);
+      console.log(`📖 Read ${reports.length} existing reports from volume`);
     } catch (e) {
-      console.log('📝 No existing reports file, starting fresh');
+      console.log('📝 No existing reports file in volume, starting fresh');
       reports = [];
     }
     
@@ -2441,9 +2435,9 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     console.log(`📋 Adding new report with ID: ${report.id}`);
     reports.push(report);
     
-    console.log(`💾 Writing ${reports.length} reports to file...`);
-    await fs.writeJson(reportsPath, reports, { spaces: 2 });
-    console.log('✅ Reports file written successfully');
+    console.log(`💾 Writing ${reports.length} reports to volume...`);
+    await volumeService.writeFile(reportsPath, reports);
+    console.log('✅ Reports file written to volume successfully');
     
     // Create backup after successful save
     try {
@@ -2499,11 +2493,11 @@ async function getCollegeReport(collegeId, reportId) {
 
 async function deleteCollegeReport(collegeId, reportId) {
   try {
-    const reportsPath = `data/reports/${collegeId}.json`;
-    const reports = await fs.readJson(reportsPath).catch(() => []);
+    const reportsPath = `reports/${collegeId}.json`;
+    const reports = await volumeService.readFile(reportsPath).catch(() => []);
     
     const filteredReports = reports.filter(report => report.id !== reportId);
-    await fs.writeJson(reportsPath, filteredReports, { spaces: 2 });
+    await volumeService.writeFile(reportsPath, filteredReports);
     
     return { success: true };
   } catch (error) {
