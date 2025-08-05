@@ -4,20 +4,19 @@
   "description": "AM Reports Hub - College Management and Report Generation System",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node --max-old-space-size=4096 app.js",
     "dev": "nodemon app.js",
     "test": "jest",
     "build": "echo 'No build step required for Node.js app'",
     "postinstall": "echo 'AM Reports Hub installed successfully'"
   },
   "engines": {
-    "node": ">=14.0.0",
-    "npm": ">=6.0.0"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.859.0",
     "@aws-sdk/s3-request-presigner": "^3.859.0",
-    "@playwright/test": "^1.54.1",
     "adm-zip": "^0.5.16",
     "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
@@ -55,5 +54,5 @@
     "type": "git",
     "url": "https://github.com/your-username/am-reports-hub.git"
   },
-      "homepage": "https://am-reports-hub-production.up.railway.app"
+  "homepage": "https://am-reports-hub-production.up.railway.app"
 }
