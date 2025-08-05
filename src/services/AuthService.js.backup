@@ -4,7 +4,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const SecurityService = require('./SecurityService');
 const EmailService = require('./EmailService');
-const SessionService = require('./SessionService');
+
 class AuthService {
   constructor() {
     this.usersFile = 'data/users.json';
@@ -13,7 +13,6 @@ class AuthService {
     this.initializeDefaultUsers();
     this.securityService = new SecurityService();
     this.emailService = new EmailService();
-    this.sessionService = new SessionService();
   }
 
   ensureDataDirectory() {
