@@ -536,21 +536,21 @@ class EnhancedDataValidationService {
   async validateTemplateHeaders(data) {
     const result = { isValid: true, errors: [] };
 
-    if (!Array.isArray(data.headers)) {
+    if (!data || !Array.isArray(data.headers)) {
       return result;
     }
 
     const headers = data.headers;
 
     // Check for empty headers
-    const emptyHeaders = headers.filter(h => !h || h.trim() === '');
+    const emptyHeaders = headers.filter(h => !h || (typeof h === 'string' && h.trim() === ''));
     if (emptyHeaders.length > 0) {
       result.errors.push('Template contains empty headers');
       result.isValid = false;
     }
 
     // Check for duplicate headers
-    const uniqueHeaders = new Set(headers.map(h => h.toLowerCase()));
+    const uniqueHeaders = new Set(headers.map(h => (typeof h === 'string' ? h.toLowerCase() : String(h))));
     if (uniqueHeaders.size !== headers.length) {
       result.errors.push('Template contains duplicate headers');
       result.isValid = false;

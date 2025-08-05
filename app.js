@@ -2068,6 +2068,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('🔄 Transformed template data:', templateData);
     
     try {
+      console.log('🔍 Sending to validation service:', JSON.stringify(templateData, null, 2));
       const validationResult = await dataValidationService.validateTemplateData(templateData);
       
       if (!validationResult.isValid) {
