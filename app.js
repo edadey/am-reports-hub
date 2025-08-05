@@ -531,6 +531,7 @@ app.get('/api/auth/status', async (req, res) => {
 
 app.get('/api/auth/me', authService.requireAuth(), async (req, res) => {
   try {
+    console.log('🔍 Auth status check - User:', req.user);
     const user = await authService.getUserById(req.user.userId);
     if (user) {
       res.json({
@@ -550,6 +551,37 @@ app.get('/api/auth/me', authService.requireAuth(), async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error);
     res.status(500).json({ error: 'Failed to get user' });
+  }
+});
+
+// Debug endpoint to check authentication status
+app.get('/api/auth/debug', async (req, res) => {
+  try {
+    const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
+    console.log('🔍 Debug auth - Token present:', !!token);
+    console.log('🔍 Debug auth - Cookies:', req.cookies);
+    console.log('🔍 Debug auth - Headers:', req.headers.authorization ? 'Present' : 'Missing');
+    
+    if (!token) {
+      return res.json({ 
+        authenticated: false, 
+        message: 'No token found',
+        cookies: req.cookies,
+        hasAuthHeader: !!req.headers.authorization
+      });
+    }
+
+    const sessionValidation = await authService.validateSession(token);
+    res.json({
+      authenticated: sessionValidation.success,
+      message: sessionValidation.message,
+      user: sessionValidation.user,
+      tokenLength: token.length,
+      tokenPreview: token.substring(0, 10) + '...'
+    });
+  } catch (error) {
+    console.error('Auth debug error:', error);
+    res.json({ authenticated: false, message: 'Debug error: ' + error.message });
   }
 });
 
@@ -1726,9 +1758,16 @@ app.get('/api/dashboard/college/:collegeId', authService.requireAuth(), async (r
 // File Upload Routes
 app.post('/api/upload', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
+    console.log('📁 File upload request received');
+    console.log('👤 User:', req.user);
+    console.log('🍪 Cookies:', req.cookies);
+    console.log('📋 Headers:', req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
+    
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
     }
+    
+    console.log(`📄 Processing ${req.files.length} files:`, req.files.map(f => f.originalname));
     
     // Map files to the expected format
     const mappedFiles = req.files.map(file => ({
@@ -1741,6 +1780,7 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
     const result = await dataImporter.processFiles(mappedFiles);
     
     if (result) {
+      console.log('✅ Files processed successfully');
       res.json({
         success: true,
         message: `${req.files.length} files processed successfully`,
@@ -1748,6 +1788,7 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
         filename: req.files.map(f => f.originalname).join(', ')
       });
     } else {
+      console.log('❌ Failed to process files');
       res.status(400).json({ error: 'Failed to process files' });
     }
   } catch (error) {
