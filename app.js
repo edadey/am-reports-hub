@@ -1885,6 +1885,12 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
 
 app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
   try {
+    console.log('📋 Template save request received');
+    console.log('👤 User:', req.user);
+    console.log('🍪 Cookies:', req.cookies);
+    console.log('📋 Headers:', req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
+    console.log('📄 Template data:', { name: req.body.name, columns: req.body.columns?.length || 0, rows: req.body.data?.length || 0 });
+    
     // Validate template data before saving
     console.log('🔍 Validating template data...');
     const validationResult = await dataValidationService.validateTemplateData(req.body);

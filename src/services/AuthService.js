@@ -373,15 +373,23 @@ class AuthService {
                      req.cookies?.token || 
                      req.query.token;
 
+        console.log('🔐 Auth middleware - Token present:', !!token);
+        console.log('🔐 Auth middleware - Token source:', req.headers.authorization ? 'header' : req.cookies?.token ? 'cookie' : req.query.token ? 'query' : 'none');
+
         if (!token) {
+          console.log('❌ Auth middleware - No token found');
           return res.status(401).json({ error: 'Authentication required' });
         }
 
         const sessionValidation = await this.validateSession(token);
+        console.log('🔐 Auth middleware - Session validation result:', sessionValidation.success);
+        
         if (!sessionValidation.success) {
+          console.log('❌ Auth middleware - Session validation failed:', sessionValidation.message);
           return res.status(401).json({ error: sessionValidation.message });
         }
 
+        console.log('✅ Auth middleware - Authentication successful for user:', sessionValidation.user?.username);
         req.user = sessionValidation.user;
         next();
       } catch (error) {
