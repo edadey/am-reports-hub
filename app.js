@@ -100,8 +100,10 @@ const UserManager = require('./src/services/UserManager');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
 const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
+const VolumeService = require('./src/services/VolumeService');
 
 // Initialize services
+const volumeService = new VolumeService();
 const backupService = new BackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
@@ -3224,6 +3226,22 @@ app.get('/api/debug/session-state', async (req, res) => {
   }
 });
 
+// Debug endpoint to check volume status
+app.get('/api/debug/volume-status', async (req, res) => {
+  try {
+    const volumeStatus = volumeService.getStatus();
+    const dataFiles = await volumeService.listFiles('');
+    
+    res.json({
+      volumeStatus,
+      dataFiles,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
@@ -3258,9 +3276,12 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-// Initialize backup service
+// Initialize services
 async function initializeServices() {
   try {
+    console.log('🔄 Initializing volume service...');
+    await volumeService.initialize();
+    
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
     
