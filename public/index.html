@@ -1,0 +1,3720 @@
+<!-- DEBUG: Changes loaded at $(date) -->
+<!-- Cache bust: $(date +%s) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Navigate Reports Hub</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-7xl mx-auto py-8 px-4">
+
+    <!-- Header with User Info and Logout -->
+    <div class="flex justify-between items-center mb-8">
+              <h1 class="text-4xl font-bold text-blue-800">Navigate Reports Hub</h1>
+      <div class="flex items-center space-x-4">
+        <div class="text-right">
+          <div id="userInfo" class="hidden">
+            <p class="text-sm text-gray-600">Welcome, <span id="userName" class="font-medium text-gray-900"></span></p>
+            <p class="text-xs text-gray-500"><span id="userRole" class="capitalize"></span></p>
+          </div>
+        </div>
+        <button id="logoutBtn" onclick="logout()" class="hidden bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors duration-200 font-medium shadow-sm">
+          Logout
+        </button>
+      </div>
+    </div>
+    
+    <!-- Navigation Tabs -->
+    <div class="mb-8">
+      <nav class="flex space-x-8 border-b border-gray-200">
+        <button onclick="showTab('dashboard', event)" class="tab-btn active py-2 px-1 border-b-2 border-blue-500 text-blue-600 font-medium">
+          Dashboard
+        </button>
+        <button onclick="showTab('colleges', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+          Colleges
+        </button>
+        <button onclick="showTab('reports', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+          Reports
+        </button>
+        <button onclick="showTab('templates', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+          Templates
+        </button>
+        <button onclick="showTab('account-managers', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+          Account Managers
+        </button>
+      </nav>
+    </div>
+
+    <!-- Dashboard Tab -->
+    <div id="dashboard" class="tab-content">
+      <!-- Summary Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Colleges</h3>
+          <p class="text-3xl font-bold text-blue-600" id="totalColleges">0</p>
+          <p class="text-sm text-gray-600 mt-1">Active institutions</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Students</h3>
+          <p class="text-3xl font-bold text-green-600" id="totalStudents">0</p>
+          <p class="text-sm text-gray-600 mt-1">Across all colleges</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Placements</h3>
+          <p class="text-3xl font-bold text-purple-600" id="totalPlacements">0</p>
+          <p class="text-sm text-gray-600 mt-1">Successful placements</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Activities</h3>
+          <p class="text-3xl font-bold text-orange-600" id="totalActivities">0</p>
+          <p class="text-sm text-gray-600 mt-1">Student activities</p>
+        </div>
+      </div>
+
+      <!-- Additional Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Assessments</h3>
+          <p class="text-3xl font-bold text-red-600" id="totalAssessments">0</p>
+          <p class="text-sm text-gray-600 mt-1">Completed assessments</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Reports</h3>
+          <p class="text-3xl font-bold text-indigo-600" id="totalReports">0</p>
+          <p class="text-sm text-gray-600 mt-1">Generated reports</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Careers Assessments</h3>
+          <p class="text-3xl font-bold text-purple-600" id="totalCareersAssessments">0</p>
+          <p class="text-sm text-gray-600 mt-1">Career assessments completed</p>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <button onclick="showTab('reports', event)" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
+            Generate New Report
+          </button>
+          <button onclick="showTab('colleges', event)" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
+            Add College
+          </button>
+          <button onclick="showTab('templates', event)" class="bg-purple-500 text-white px-4 py-2 rounded hover:bg-purple-600 hover:text-white focus:bg-purple-600 focus:text-white active:bg-purple-700 active:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
+            Manage Templates
+          </button>
+          <button onclick="showTab('account-managers', event)" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 hover:text-white focus:bg-gray-700 focus:text-white active:bg-gray-800 active:text-white focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
+            Account Managers
+          </button>
+        </div>
+      </div>
+
+      <!-- College Overview -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">College Overview</h3>
+          <button onclick="refreshDashboardData()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition-colors duration-200 flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Refresh Data
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placements</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activities</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assessments</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Reports</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Report</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="collegeOverviewTableBody" class="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colspan="8" class="px-6 py-4 text-center text-gray-500">Loading colleges...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colleges Tab -->
+    <div id="colleges" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-semibold text-gray-900">College Management</h2>
+          <div class="flex space-x-3">
+            <button onclick="showAddCollegeModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
+              Add College
+            </button>
+          </div>
+        </div>
+        
+        <!-- Smart Search Section -->
+        <div class="mb-6 bg-gray-50 rounded-lg p-4">
+          <div class="flex flex-col sm:flex-row gap-4 items-center">
+            <div class="flex-1 relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+              </div>
+              <input 
+                type="text" 
+                id="collegeSearchInput" 
+                placeholder="Search colleges by name, account manager, or frequency... (Ctrl+F to focus)" 
+                class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                oninput="filterColleges()"
+                onkeydown="handleSearchKeydown(event)"
+              >
+            </div>
+            <div class="flex space-x-2">
+              <select id="collegeFilterType" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500" onchange="filterColleges()">
+                <option value="all">All Fields</option>
+                <option value="name">College Name</option>
+                <option value="manager">Account Manager</option>
+                <option value="frequency">Report Frequency</option>
+              </select>
+              <button onclick="clearCollegeSearch()" class="bg-gray-500 text-white px-3 py-2 rounded text-sm hover:bg-gray-600 transition-colors duration-200">
+                Clear
+              </button>
+            </div>
+          </div>
+          <div class="mt-2 text-sm text-gray-600">
+            <span id="searchResultsCount">Showing all colleges</span>
+            <span id="collegeFilterStatus" class="ml-2 text-blue-600 hidden">Filtered by Account Manager</span>
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Account Manager</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Frequency</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Report</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Report</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="collegesTableBody" class="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading colleges...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports Tab -->
+    <div id="reports" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Report Generation</h2>
+        
+        <!-- File Upload Section -->
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-700 mb-2">Upload PowerBI Excel/CSV Files</label>
+          <input id="fileInput" type="file" multiple class="mb-4" accept=".xlsx,.xls,.csv">
+          <div id="fileReorderContainer" class="mb-4"></div>
+          <button id="processBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
+            Process Files
+          </button>
+        </div>
+        
+        <!-- Template Selection Section -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
+          <h3 class="text-lg font-medium text-gray-900 mb-3">Template Options</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Apply Template (Optional)</label>
+              <select id="templateSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full">
+                <option value="">No template - Use new data structure</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Template Mode</label>
+              <select id="templateMode" class="border border-gray-300 rounded-md px-3 py-2 w-full">
+                <option value="strict">Strict - Only extract template columns</option>
+                <option value="flexible">Flexible - Add new columns if available</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Account Manager</label>
+            <select id="accountManagerFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full">
+              <option value="">All Account Managers</option>
+              </select>
+            </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Select College</label>
+            <select id="collegeSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full">
+              <option value="">Select a college...</option>
+            </select>
+            </div>
+          </div>
+
+        <!-- Quick Actions -->
+        <div class="flex space-x-4 mb-6">
+          <button onclick="showAssignAccountManagerModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
+            Assign AM
+          </button>
+          <button onclick="showBulkAssignModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
+            Bulk Assign
+          </button>
+        </div>
+
+        <!-- Data Table Section -->
+        <div class="bg-white rounded-lg shadow">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <div class="flex justify-between items-center">
+              <h3 class="text-lg font-semibold text-gray-900">Data Table</h3>
+              <div class="flex space-x-2">
+                <button id="addRowBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200">
+                  + Row
+                </button>
+                <button id="addColumnBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200">
+                  + Column
+                </button>
+                <button id="deleteBtn" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors duration-200">
+                  Delete
+                </button>
+                <button id="cancelSelectionBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-colors duration-200 hidden">
+                  Cancel
+                </button>
+                <button id="saveAsTemplateBtn" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 transition-colors duration-200">
+                  Save as Template
+                </button>
+                <button id="rowReorderToggleBtn" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors duration-200">Reorder Rows</button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead id="tableHeader" class="bg-gray-50">
+                <!-- Headers will be populated here -->
+              </thead>
+              <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                <!-- Data will be populated here -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="px-6 py-4 border-t border-gray-200">
+            <div class="flex space-x-4">
+              <button id="exportBtn" class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm">
+                Generate Report
+              </button>
+              <button id="saveTemplateBtn" class="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 transition-colors duration-200 font-medium shadow-sm">
+                Save as Template
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Analysis Section -->
+        <div id="aiAnalysisSection" class="bg-white rounded-lg shadow p-6 hidden">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Analysis</h3>
+          <div id="aiAnalysisContent" class="space-y-4">
+            <!-- Analysis content will be populated here -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates Tab -->
+    <div id="templates" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="mb-6">
+          <h2 class="text-2xl font-semibold text-gray-900">Template Management</h2>
+          <p class="text-gray-600 mt-2">Templates are created from uploaded and edited data. Go to "Generate Report" to upload data, make edits, and save as a template.</p>
+        </div>
+        
+        <div id="templatesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Templates will be populated here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Managers Tab -->
+    <div id="account-managers" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-semibold text-gray-900">Account Manager Management</h2>
+          <button onclick="showAddAccountManagerModal()" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm" onblur="this.blur()">
+            Add Account Manager
+          </button>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-48">Total Colleges</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Reports</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="accountManagersTableBody" class="bg-white divide-y divide-gray-200">
+              <tr>
+                <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading account managers...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Area -->
+    <div id="statusArea" class="fixed top-4 right-4 z-50 max-w-md"></div>
+  </div>
+
+  <!-- Add College Modal -->
+  <div id="addCollegeModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-start justify-center hidden z-50 overflow-y-auto p-4" onclick="hideAddCollegeModal()">
+    <div class="bg-white rounded-lg shadow-xl p-4 w-full max-w-2xl mx-auto my-4 max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+      <div class="flex justify-between items-center mb-3 sticky top-0 bg-white pb-2 border-b">
+        <h3 class="text-lg font-bold">Add New College</h3>
+        <button onclick="hideAddCollegeModal()" class="text-gray-500 hover:text-gray-700">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      
+      <form id="addCollegeForm" class="space-y-3">
+        <!-- General Information Section -->
+        <div class="bg-gray-50 p-3 rounded-lg">
+          <h4 class="text-md font-semibold text-gray-900 mb-2">General Information</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">College Name *</label>
+              <input type="text" id="collegeName" required class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Number of Providers</label>
+              <input type="number" id="numberOfProviders" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Account Manager *</label>
+              <select id="collegeAccountManager" required class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="">Select Account Manager</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Key Stakeholder</label>
+              <input type="text" id="keyStakeholder" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Super Users</label>
+              <textarea id="superUsers" rows="2" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm" placeholder="Enter super user names, separated by commas"></textarea>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">MIS Contact</label>
+              <input type="email" id="misContact" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Data Transfer Method</label>
+              <select id="dataTransfer" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="">Select Data Transfer Method</option>
+                <option value="live-link">Live Link</option>
+                <option value="manual-upload">Manual Upload</option>
+              </select>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Performance Indicators Section -->
+        <div class="bg-gray-50 p-3 rounded-lg">
+          <h4 class="text-md font-semibold text-gray-900 mb-2">Performance Indicators</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select id="status" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="A">A - Excellent</option>
+                <option value="B">B - Good</option>
+                <option value="C">C - Needs Improvement</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">OFSTED Rating</label>
+              <select id="ofstedRating" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="O">Outstanding</option>
+                <option value="G">Good</option>
+                <option value="R">Requires Improvement</option>
+                <option value="I">Inadequate</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Meeting Frequency</label>
+              <select id="meetingFrequency" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="Weekly">Weekly</option>
+                <option value="Bi-Weekly">Bi-Weekly</option>
+                <option value="Monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Engagement Level</label>
+              <select id="engagementLevel" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="Excellent">Excellent</option>
+                <option value="Good">Good</option>
+                <option value="Fair">Fair</option>
+                <option value="Poor">Poor</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Health Check (0-5)</label>
+              <input type="number" id="healthCheck" min="0" max="5" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Growth Check (0-5)</label>
+              <input type="number" id="growthCheck" min="0" max="5" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+            </div>
+          </div>
+        </div>
+
+        <!-- Report Configuration Section -->
+        <div class="bg-gray-50 p-3 rounded-lg">
+          <h4 class="text-md font-semibold text-gray-900 mb-2">Report Configuration</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Report Frequency *</label>
+              <select id="reportFrequency" required class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="weekly">Weekly</option>
+                <option value="bi-weekly">Bi-weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Report Template</label>
+              <select id="collegeTemplate" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <option value="standard">Standard</option>
+                <option value="minimal">Minimal</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Notes Section -->
+        <div class="bg-gray-50 p-3 rounded-lg">
+          <h4 class="text-md font-semibold text-gray-900 mb-2">Additional Notes</h4>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Initial Concerns or Notes</label>
+            <textarea id="initialConcerns" rows="2" class="border border-gray-300 rounded-md px-2 py-1.5 w-full focus:ring-blue-500 focus:border-blue-500 text-sm" placeholder="Any initial concerns, special requirements, or notes about this college"></textarea>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-1">Modules & Costs</label>
+          <div id="add-modules-container" class="space-y-2"></div>
+          <button type="button" onclick="addModuleToForm()" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 transition-colors duration-200 mt-2">+ Add Module</button>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-3 border-t">
+          <button type="button" onclick="hideAddCollegeModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400 transition-colors text-sm">
+            Cancel
+          </button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm">
+            Add College
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Save Template Modal -->
+  <div id="saveTemplateModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
+      <h3 class="text-lg font-bold mb-4">Save Template</h3>
+      <div id="templateSaveInfo" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+        <p class="text-sm text-blue-800">
+          <strong>Current table:</strong> <span id="templateTableInfo">No data loaded</span>
+        </p>
+      </div>
+      <form id="saveTemplateForm" class="space-y-4" onsubmit="event.preventDefault(); saveTemplate();">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
+          <input type="text" id="templateName" required class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Enter a unique template name">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea id="templateDescription" rows="3" class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Optional description of this template"></textarea>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button type="button" onclick="hideSaveTemplateModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+            Cancel
+          </button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Save Template
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Account Manager Modal -->
+  <div id="addAccountManagerModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
+      <h3 class="text-lg font-bold mb-4">Add New Account Manager</h3>
+      <form id="addAccountManagerForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input type="text" id="accountManagerName" required class="border border-gray-300 rounded-md px-3 py-2 w-full">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input type="email" id="accountManagerEmail" required class="border border-gray-300 rounded-md px-3 py-2 w-full">
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button type="button" onclick="hideAddAccountManagerModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+            Cancel
+          </button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Add Account Manager
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Assign Account Manager Modal -->
+  <div id="assignAccountManagerModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+    <form id="assignAccountManagerForm" class="space-y-4 bg-white rounded-lg shadow-lg p-8 w-full max-w-md">
+      <h3 class="text-lg font-semibold mb-4">Assign Account Manager</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Select Account Manager</label>
+          <select id="assignAccountManagerSelect" required class="border border-gray-300 rounded-md px-3 py-2 w-full">
+            <option value="">Select an account manager...</option>
+          </select>
+        </div>
+      <div class="flex justify-end space-x-2 mt-6">
+        <button type="button" onclick="hideAssignAccountManagerModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-semibold shadow-sm">Assign</button>
+        </div>
+      </form>
+  </div>
+
+  <!-- Bulk Assign Account Manager Modal -->
+  <div id="bulkAssignModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
+      <h3 class="text-lg font-bold mb-4">Bulk Assign Account Manager</h3>
+      <form id="bulkAssignForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Select Account Manager</label>
+          <select id="bulkAssignAccountManagerSelect" required class="border border-gray-300 rounded-md px-3 py-2 w-full">
+            <option value="">Select an account manager...</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Select Colleges</label>
+          <div id="bulkAssignCollegesList" class="max-h-40 overflow-y-auto border border-gray-300 rounded-md p-2">
+            <!-- Colleges will be populated here -->
+          </div>
+        </div>
+        <div class="flex justify-end space-x-3">
+          <button type="button" onclick="hideBulkAssignModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+            Cancel
+          </button>
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            Bulk Assign
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div id="confirmationModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
+      <div class="flex items-center mb-4">
+        <div id="confirmationIcon" class="text-2xl mr-3"></div>
+        <h3 id="confirmationTitle" class="text-lg font-bold"></h3>
+      </div>
+      <p id="confirmationMessage" class="text-gray-600 mb-6"></p>
+      <div class="flex justify-end space-x-3">
+        <button onclick="hideConfirmationModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
+          Cancel
+        </button>
+        <button id="confirmationConfirmBtn" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+          Confirm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    // Force cache refresh
+          console.log('Navigate Reports Hub loaded at:', new Date().toISOString());
+  </script>
+  <script>
+    // Configure axios base URL and credentials
+    axios.defaults.baseURL = window.location.origin;
+    axios.defaults.withCredentials = true; // Enable sending cookies with requests
+    
+    // Global state
+    let currentTab = 'dashboard';
+    let tableData = [];
+    let tableHeaders = [];
+    let editingCell = null;
+    let colleges = [];
+    let templates = [];
+    let accountManagers = [];
+    let selectedAccountManagerId = null;
+    
+    let allColleges = []; // Initialize allColleges here to prevent undefined errors
+    // Debug function to check global state
+    function debugGlobalState() {
+      console.log('=== Global State Debug ===');
+      console.log('colleges:', colleges);
+      console.log('colleges type:', typeof colleges);
+      console.log('colleges is array:', Array.isArray(colleges));
+      console.log('colleges length:', colleges ? colleges.length : 'undefined');
+      console.log('allColleges:', allColleges);
+      console.log('allColleges type:', typeof allColleges);
+      console.log('allColleges is array:', Array.isArray(allColleges));
+      console.log('allColleges length:', allColleges ? allColleges.length : 'undefined');
+      console.log('accountManagers:', accountManagers);
+      console.log('templates:', templates);
+    }
+    let selectionMode = false;
+    let selectedRows = new Set();
+    let selectedColumns = new Set();
+    let previousReportData = null;
+    let currentCollegeId = null;
+    let currentUser = null;
+
+    // Authentication functions
+    async function checkAuthStatus() {
+      try {
+        const response = await axios.get('/api/auth/me');
+        if (response.data.success) {
+          currentUser = response.data.user;
+          showUserInfo();
+          initializeApp();
+        } else {
+          redirectToLogin();
+        }
+      } catch (error) {
+        console.log('User not authenticated, redirecting to login');
+        redirectToLogin();
+      }
+    }
+
+    function showUserInfo() {
+      const userInfo = document.getElementById('userInfo');
+      const userName = document.getElementById('userName');
+      const userRole = document.getElementById('userRole');
+      const logoutBtn = document.getElementById('logoutBtn');
+
+      if (currentUser) {
+        userName.textContent = currentUser.name || currentUser.username;
+        userRole.textContent = currentUser.role.replace('_', ' ');
+        userInfo.classList.remove('hidden');
+        logoutBtn.classList.remove('hidden');
+      }
+    }
+
+    async function logout() {
+      try {
+        await axios.post('/api/auth/logout');
+        localStorage.removeItem('rememberMe');
+        localStorage.removeItem('username');
+        redirectToLogin();
+      } catch (error) {
+        console.error('Logout error:', error);
+        // Still redirect to login even if logout fails
+        redirectToLogin();
+      }
+    }
+
+    function redirectToLogin() {
+      window.location.href = '/login.html';
+    }
+
+    // Initialize app only after authentication
+    async function initializeApp() {
+      try {
+        console.log('Starting app initialization...');
+        
+        // Check for URL parameters to pre-select college and tab FIRST
+        const urlParams = new URLSearchParams(window.location.search);
+        const collegeId = urlParams.get('college');
+        const tabParam = urlParams.get('tab');
+        
+        // Pre-select college if specified in URL
+        if (collegeId) {
+          currentCollegeId = parseInt(collegeId);
+          console.log('Pre-selecting college from URL:', collegeId);
+        }
+        
+        // Show specified tab or dashboard by default BEFORE loading data
+        if (tabParam && ['dashboard', 'colleges', 'reports', 'templates', 'account-managers'].includes(tabParam)) {
+          showTab(tabParam);
+        } else {
+          showTab('dashboard');
+        }
+        
+        // Load data sequentially to avoid conflicts
+        await loadAccountManagers(); // Load account managers first
+        await loadColleges(); // Then load colleges (depends on account managers)
+        await loadTemplates(); // Load templates
+        
+        // Don't call loadDashboardData() here since it makes another API call
+        // Instead, use the colleges data we already loaded
+        await loadDashboardDataFromExisting();
+        
+        setupEventListeners();
+        populateTemplateSelect();
+        
+        console.log('App initialization complete');
+      } catch (error) {
+        console.error('Error initializing app:', error);
+        showStatus('Error loading application data', 'error');
+      }
+    }
+
+    // Initialize the application with authentication
+    document.addEventListener('DOMContentLoaded', function() {
+      checkAuthStatus();
+    });
+
+    // Tab management
+    function showTab(tabName, event = null) {
+      // Hide all tab contents
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.add('hidden');
+      });
+      
+      // Remove active class from all tab buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-blue-500', 'text-blue-600');
+        btn.classList.add('border-transparent', 'text-gray-500');
+      });
+      
+      // Show selected tab
+      const selectedTab = document.getElementById(tabName);
+      if (selectedTab) {
+        selectedTab.classList.remove('hidden');
+      }
+      
+      // Add active class to selected tab button
+      // First, try to find the tab button by onclick attribute
+      const tabButton = document.querySelector(`[onclick*="showTab('${tabName}"]`);
+      if (tabButton) {
+        // Remove active class from all tab buttons
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.classList.remove('border-blue-500', 'text-blue-600');
+          btn.classList.add('border-transparent', 'text-gray-500');
+        });
+        // Add active class to the correct tab button
+        tabButton.classList.remove('border-transparent', 'text-gray-500');
+        tabButton.classList.add('border-blue-500', 'text-blue-600');
+      }
+      
+      currentTab = tabName;
+      
+      // Update URL to preserve current tab on refresh
+      const url = new URL(window.location);
+      url.searchParams.set('tab', tabName);
+      window.history.replaceState({}, '', url);
+      
+      // Reload data for specific tabs when they are shown
+      if (tabName === 'colleges') {
+        // Show loading state immediately when colleges tab is shown
+        showCollegesLoading();
+        // Reload colleges data when colleges tab is shown
+        loadColleges();
+      } else if (tabName === 'dashboard') {
+        // Reload dashboard data when dashboard tab is shown
+        loadDashboardDataFromExisting();
+      } else if (tabName === 'account-managers') {
+        // Reload account managers data when account managers tab is shown
+        loadAccountManagers();
+      }
+    }
+
+    // College Dashboard function
+    function showCollegeDashboard() {
+      if (colleges.length === 0) {
+        showStatus('No colleges available. Please add a college first.', 'error');
+        return;
+      }
+      
+      // If there's only one college, open it directly
+      if (colleges.length === 1) {
+        window.open(`/college-dashboard?id=${colleges[0].id}`, '_blank');
+        return;
+      }
+      
+      // If there are multiple colleges, show a selection dialog
+      const collegeOptions = colleges.map(college => 
+        `<option value="${college.id}">${college.name}</option>`
+      ).join('');
+      
+      const dialog = document.createElement('div');
+      dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      dialog.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Select College</h3>
+          <select id="collegeSelectDialog" class="w-full border border-gray-300 rounded-md px-3 py-2 mb-4">
+            <option value="">Choose a college...</option>
+            ${collegeOptions}
+          </select>
+          <div class="flex justify-end space-x-3">
+            <button onclick="this.closest('.fixed').remove()" class="px-4 py-2 text-gray-600 hover:text-gray-800">
+              Cancel
+            </button>
+            <button onclick="openSelectedCollegeDashboard()" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+              Open Dashboard
+            </button>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(dialog);
+    }
+
+    function openSelectedCollegeDashboard() {
+      const select = document.getElementById('collegeSelectDialog');
+      const collegeId = select.value;
+      
+      if (!collegeId) {
+        showStatus('Please select a college', 'error');
+        return;
+      }
+      
+              window.open(`/college-dashboard?id=${collegeId}`, '_blank');
+      document.querySelector('.fixed').remove();
+    }
+
+    // Dashboard functions
+    async function loadDashboard() {
+      try {
+        const [dueReportsRes, collegesRes] = await Promise.all([
+          axios.get('/api/due-reports'),
+          axios.get('/api/colleges')
+        ]);
+        
+        displayDueReports(dueReportsRes.data.dueReports);
+        displayCollegeStats(collegesRes.data.colleges);
+      } catch (error) {
+        showStatus('Error loading dashboard: ' + error.message, 'error');
+      }
+    }
+
+    // Account Manager functions
+    async function loadAccountManagers() {
+      try {
+        const response = await axios.get('/api/account-managers');
+        accountManagers = response.data;
+        
+        // Also load colleges data if not already loaded, to calculate totals and due reports
+        if (colleges.length === 0) {
+          await loadColleges();
+        }
+        
+        displayAccountManagers();
+        updateAccountManagerSelects();
+      } catch (error) {
+        showStatus('Error loading account managers: ' + error.message, 'error');
+      }
+    }
+
+    function displayAccountManagers() {
+      const tbody = document.getElementById('accountManagersTableBody');
+      if (!tbody) return;
+      
+      console.log('Displaying account managers. Total account managers:', accountManagers.length);
+      console.log('Total colleges loaded:', colleges.length);
+      console.log('Colleges data:', colleges.map(c => ({ id: c.id, name: c.name, accountManagerId: c.accountManagerId })));
+      
+      if (accountManagers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No account managers added yet</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = accountManagers.map(am => {
+        const totalColleges = colleges.filter(c => String(c.accountManagerId) === String(am.id)).length;
+        const dueReports = getDueReportsForAccountManager(am.id);
+        
+        console.log(`Account Manager ${am.name} (ID: ${am.id}): ${totalColleges} colleges, ${dueReports} due reports`);
+        
+        return `
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${am.name}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${am.email}</td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            <div class="flex items-center">
+              <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">${totalColleges}</span>
+              ${totalColleges > 0 ? `<span class="text-xs text-gray-500 ml-1">colleges</span>` : ''}
+            </div>
+            ${totalColleges > 0 ? `<div class="text-xs text-gray-400 mt-1 max-w-xs">${getCollegeNamesForAccountManager(am.id)}</div>` : ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <span class="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-medium">${dueReports}</span>
+            ${dueReports > 0 ? `<span class="text-xs text-gray-500 ml-1">due</span>` : ''}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button onclick="editAccountManager(${am.id})" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+            <button onclick="deleteAccountManager(${am.id})" class="text-red-600 hover:text-red-900">Delete</button>
+          </td>
+        </tr>
+      `;
+      }).join('');
+    }
+
+    function getDueReportsForAccountManager(accountManagerId) {
+      const accountManagerColleges = colleges.filter(c => String(c.accountManagerId) === String(accountManagerId));
+      const today = new Date();
+      
+      return accountManagerColleges.filter(college => {
+        // If no last report date, it's due
+        if (!college.lastReportDate) return true;
+        
+        const lastReport = new Date(college.lastReportDate);
+        const daysSinceLastReport = Math.floor((today - lastReport) / (1000 * 60 * 60 * 24));
+        
+        // Check if report is due based on frequency
+        switch (college.reportFrequency) {
+          case 'weekly': 
+            return daysSinceLastReport >= 7;
+          case 'bi-weekly': 
+            return daysSinceLastReport >= 14;
+          case 'monthly': 
+            return daysSinceLastReport >= 30;
+          case 'quarterly': 
+            return daysSinceLastReport >= 90;
+          default: 
+            // Default to monthly if no frequency specified
+            return daysSinceLastReport >= 30;
+        }
+      }).length;
+    }
+
+    function getCollegeNamesForAccountManager(accountManagerId) {
+      const accountManagerColleges = colleges.filter(c => String(c.accountManagerId) === String(accountManagerId));
+      if (accountManagerColleges.length === 0) return '';
+      
+      const collegeNames = accountManagerColleges.map(c => c.name);
+      
+      if (collegeNames.length <= 4) {
+        // Show all colleges if 4 or fewer
+        return collegeNames.join(', ');
+      } else if (collegeNames.length <= 8) {
+        // Show first 4 + count for 5-8 colleges
+        return `${collegeNames.slice(0, 4).join(', ')} +${collegeNames.length - 4} more`;
+      } else {
+        // Show first 3 + count for 9+ colleges
+        return `${collegeNames.slice(0, 3).join(', ')} +${collegeNames.length - 3} more`;
+      }
+    }
+    
+
+
+    function updateAccountManagerSelects() {
+      // Update filter dropdown
+      const filterSelect = document.getElementById('accountManagerFilter');
+      if (filterSelect) {
+        filterSelect.innerHTML = '<option value="">All Account Managers</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+      
+      // Update college form dropdown
+      const collegeSelect = document.getElementById('collegeAccountManager');
+      if (collegeSelect) {
+        collegeSelect.innerHTML = '<option value="">Select Account Manager</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+
+      // Update assign account manager dropdowns
+      const assignCollegeSelect = document.getElementById('assignCollegeSelect');
+      if (assignCollegeSelect) {
+        assignCollegeSelect.innerHTML = '<option value="">Select a college...</option>' +
+          colleges.map(college => `<option value="${college.id}">${college.name}</option>`).join('');
+      }
+
+      const assignAccountManagerSelect = document.getElementById('assignAccountManagerSelect');
+      if (assignAccountManagerSelect) {
+        assignAccountManagerSelect.innerHTML = '<option value="">Select an account manager...</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+
+      const bulkAssignAccountManagerSelect = document.getElementById('bulkAssignAccountManagerSelect');
+      if (bulkAssignAccountManagerSelect) {
+        bulkAssignAccountManagerSelect.innerHTML = '<option value="">Select an account manager...</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+    }
+
+    function displayDueReports(dueReports) {
+      const container = document.getElementById('dueReportsList');
+      if (!container) return;
+      if (dueReports.length === 0) {
+        container.innerHTML = '<p class="text-green-600">No reports due</p>';
+        return;
+      }
+      container.innerHTML = dueReports.map(college => `
+        <div class="flex justify-between items-center p-2 bg-red-50 rounded">
+          <span class="text-sm font-medium">${college.name}</span>
+          <span class="text-xs text-red-600">Due</span>
+        </div>
+      `).join('');
+    }
+
+    function displayCollegeStats(colleges) {
+      // Update AI insights with college statistics
+      const container = document.getElementById('aiInsights');
+      container.innerHTML = `
+        <div class="space-y-2">
+          <p class="text-sm"><strong>Total Colleges:</strong> ${colleges.length}</p>
+          <p class="text-sm"><strong>Active Reports:</strong> ${colleges.filter(c => c.lastReportDate).length}</p>
+        </div>
+      `;
+    }
+
+    // College management
+    async function loadColleges() {
+      try {
+        console.log('Loading colleges...');
+        showCollegesLoading(); // Show loading state immediately
+        
+        console.log('Initial colleges variable state:', colleges);
+        console.log('Initial colleges type:', typeof colleges);
+        console.log('Initial colleges is array:', Array.isArray(colleges));
+        
+        const response = await axios.get('/api/colleges', {
+          params: { _t: Date.now() } // Add timestamp to prevent caching
+        });
+        console.log('Colleges API response:', response.data);
+        console.log('Response data type:', typeof response.data);
+        console.log('Response data is array:', Array.isArray(response.data));
+        console.log('Response data length:', response.data ? response.data.length : 'undefined');
+        
+        if (response.data && response.data.colleges) {
+          colleges = response.data.colleges;
+        } else if (Array.isArray(response.data)) {
+          // API might be returning array directly
+          colleges = response.data;
+          console.log('Colleges returned as array directly');
+        } else {
+          console.warn('No colleges data in response, using empty array');
+          colleges = [];
+        }
+        
+        // Set allColleges to the same data for search functionality
+        allColleges = [...colleges];
+        
+        console.log('Global colleges variable set to:', colleges.length, 'colleges');
+        console.log('Global allColleges variable set to:', allColleges.length, 'colleges');
+        console.log('Colleges data type:', typeof colleges);
+        console.log('Colleges is array:', Array.isArray(colleges));
+        console.log('Colleges content:', colleges);
+        
+        // Verify the global variable is properly set
+        if (!Array.isArray(colleges)) {
+          console.error('ERROR: colleges is not an array after API call!');
+          colleges = [];
+          allColleges = [];
+        }
+        
+        displayColleges();
+        updateCollegeSelect();
+        displayAccountManagers(); // Refresh account manager display with updated college counts
+      } catch (error) {
+        console.error('Error loading colleges:', error.response?.status, error.response?.data, error.message);
+        colleges = []; // Set empty array on error
+        allColleges = []; // Set empty array on error
+        
+        if (error.response?.status === 401) {
+          showCollegesError('Authentication required. Please log in to view colleges.');
+          showStatus('Authentication required. Please log in again.', 'error');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 3000);
+        } else if (error.response?.status === 500) {
+          showCollegesError('Server error. Please try again later.');
+          showStatus('Server error loading colleges: ' + error.message, 'error');
+        } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+          showCollegesError('Cannot connect to server. Please check your connection.');
+          showStatus('Network error: Cannot connect to server', 'error');
+        } else {
+          showCollegesError('Error loading colleges: ' + error.message);
+          showStatus('Error loading colleges: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function displayColleges() {
+      const tbody = document.getElementById('collegesTableBody');
+      if (!tbody) {
+        console.error('collegesTableBody element not found');
+        return;
+      }
+      
+      if (!colleges || !Array.isArray(colleges)) {
+        console.error('Colleges is not an array:', colleges);
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Error loading colleges</td></tr>';
+        return;
+      }
+      
+      if (colleges.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No colleges added yet</td></tr>';
+        return;
+      }
+      
+      console.log('Calling displayCollegeTable with', colleges.length, 'colleges');
+      displayCollegeTable(colleges);
+    }
+    
+    // Function to show loading state in colleges table
+    function showCollegesLoading() {
+      const tbody = document.getElementById('collegesTableBody');
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">Loading colleges...</td></tr>';
+      }
+    }
+    
+    // Function to show error state in colleges table
+    function showCollegesError(message) {
+      const tbody = document.getElementById('collegesTableBody');
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">${message}</td></tr>`;
+      }
+    }
+
+    function getNextReportDate(college) {
+      if (!college.lastReportDate) return 'ASAP';
+      
+      const lastReport = new Date(college.lastReportDate);
+      const today = new Date();
+      let nextDate;
+      
+      switch (college.reportFrequency) {
+        case 'weekly':
+          nextDate = new Date(lastReport.getTime() + 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'bi-weekly':
+          nextDate = new Date(lastReport.getTime() + 14 * 24 * 60 * 60 * 1000);
+          break;
+        case 'monthly':
+          nextDate = new Date(lastReport.getTime() + 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'quarterly':
+          nextDate = new Date(lastReport.getTime() + 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          return 'Unknown';
+      }
+      
+      // Check if the next report is overdue
+      if (nextDate <= today) {
+        const daysOverdue = Math.floor((today - nextDate) / (1000 * 60 * 60 * 24));
+        if (daysOverdue === 0) {
+          return 'Due Today';
+        } else if (daysOverdue === 1) {
+          return 'Overdue by 1 day';
+        } else {
+          return `Overdue by ${daysOverdue} days`;
+        }
+      }
+      
+      // Check if due within the next 7 days
+      const daysUntilDue = Math.floor((nextDate - today) / (1000 * 60 * 60 * 24));
+      if (daysUntilDue <= 7) {
+        return `${nextDate.toLocaleDateString()} (in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'})`;
+      }
+      
+      return nextDate.toLocaleDateString();
+    }
+
+    // Enhanced function to check if a report is due
+    function isReportDue(college) {
+      if (!college.lastReportDate) return true;
+      
+      const lastReport = new Date(college.lastReportDate);
+      const today = new Date();
+      const daysSinceLastReport = Math.floor((today - lastReport) / (1000 * 60 * 60 * 24));
+      
+      switch (college.reportFrequency) {
+        case 'weekly': return daysSinceLastReport >= 7;
+        case 'bi-weekly': return daysSinceLastReport >= 14;
+        case 'monthly': return daysSinceLastReport >= 30;
+        case 'quarterly': return daysSinceLastReport >= 90;
+        default: return false;
+      }
+    }
+
+    function displayCollegeTable(colleges) {
+      console.log('displayCollegeTable called with', colleges.length, 'colleges');
+      const tbody = document.getElementById('collegesTableBody');
+      if (!tbody) {
+        console.error('collegesTableBody element not found in displayCollegeTable');
+        return;
+      }
+      console.log('Found tbody element, rendering', colleges.length, 'colleges');
+
+      tbody.innerHTML = colleges.map(college => {
+        const accountManager = accountManagers && Array.isArray(accountManagers) ? 
+          accountManagers.find(am => String(am.id) === String(college.accountManagerId)) : null;
+        
+        // Get the next report date and determine if it's overdue
+        const nextReportText = getNextReportDate(college);
+        const isDue = isReportDue(college);
+        const isOverdue = nextReportText.includes('Overdue') || nextReportText.includes('Due Today');
+        const isSoon = nextReportText.includes('in') && !isOverdue;
+        
+        let nextReportClass = 'text-gray-500';
+        if (isOverdue) {
+          nextReportClass = 'text-red-600 font-semibold';
+        } else if (isSoon) {
+          nextReportClass = 'text-orange-600 font-medium';
+        } else if (isDue) {
+          nextReportClass = 'text-red-600 font-semibold';
+        }
+        
+        return `
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${college.name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              ${accountManager ? accountManager.name : 'Unassigned'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${college.reportFrequency || 'Not set'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${college.lastReportDate ? new Date(college.lastReportDate).toLocaleDateString() : 'Never'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${nextReportClass}">${nextReportText}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <button onclick="window.location.href='/college-dashboard?id=${college.id}'" class="text-green-600 hover:text-green-900 mr-3">Dashboard</button>
+<button onclick="window.location.href='/college-dashboard?id=${college.id}&tab=details'" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+              <button onclick="deleteCollege(${college.id})" class="text-red-600 hover:text-red-900">Delete</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // College edit and delete functions
+    let deletedColleges = []; // Store deleted colleges for undo functionality
+
+    async function editCollege(collegeId) {
+      const college = colleges.find(c => c.id === collegeId);
+      if (!college) {
+        showStatus('College not found', 'error');
+        return;
+      }
+
+      // Navigate to college dashboard with details tab selected
+      window.open(`college-dashboard.html?id=${collegeId}&tab=details`, '_blank');
+    }
+
+    async function deleteCollege(collegeId) {
+      const college = colleges.find(c => c.id === collegeId);
+      if (!college) {
+        showStatus('College not found', 'error');
+        return;
+      }
+
+      showConfirmationModal(
+        'Delete College',
+        `Are you sure you want to delete "${college.name}"? This action can be undone.`,
+        '🗑️',
+        'Delete',
+        async () => {
+          try {
+            // Call backend API to delete the college
+            await axios.delete(`/api/colleges/${collegeId}`);
+            // Reload colleges from backend to ensure sync
+            await loadColleges();
+            showStatus(`"${college.name}" has been deleted.`, 'success');
+          } catch (error) {
+            showStatus('Error deleting college: ' + (error.response?.data?.error || error.message), 'error');
+          }
+        }
+      );
+    }
+
+    function showUndoButton() {
+      const statusArea = document.getElementById('statusArea');
+      const undoButton = document.createElement('div');
+      undoButton.className = 'bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-2';
+      undoButton.innerHTML = `
+        <div class="flex items-center justify-between">
+          <span>College deleted. Click to undo.</span>
+          <button onclick="undoLastDelete()" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600">
+            Undo
+          </button>
+        </div>
+      `;
+      statusArea.appendChild(undoButton);
+      
+      // Auto-remove after 10 seconds
+      setTimeout(() => {
+        if (undoButton.parentNode) {
+          undoButton.parentNode.removeChild(undoButton);
+        }
+      }, 10000);
+    }
+
+    async function undoLastDelete() {
+      if (deletedColleges.length === 0) {
+        showStatus('No deleted colleges to restore', 'error');
+        return;
+      }
+
+      const lastDeleted = deletedColleges.pop();
+      
+      // Add back to colleges array
+      colleges.push(lastDeleted);
+      
+      // Update display
+      displayColleges();
+      updateCollegeSelect();
+      displayAccountManagers();
+
+      showStatus(`"${lastDeleted.name}" has been restored.`, 'success');
+    }
+
+    function updateCollegeSelect() {
+      const select = document.getElementById('collegeSelect');
+      if (!select) {
+        console.error('College select element not found');
+        return;
+      }
+      
+      if (!colleges || !Array.isArray(colleges)) {
+        console.error('Colleges is not an array:', colleges);
+        select.innerHTML = '<option value="">Error loading colleges...</option>';
+        return;
+      }
+      
+      if (colleges.length === 0) {
+        console.log('No colleges loaded yet');
+        select.innerHTML = '<option value="">No colleges available...</option>';
+        return;
+      }
+      
+      let filteredColleges = colleges;
+      
+      // Filter by selected account manager
+      if (selectedAccountManagerId) {
+        console.log('Filtering colleges for account manager ID:', selectedAccountManagerId);
+        filteredColleges = colleges.filter(college => {
+          // Handle both string and integer types for accountManagerId
+          const collegeManagerId = college.accountManagerId;
+          const selectedId = selectedAccountManagerId;
+          
+          // Convert both to strings for comparison to handle type mismatches
+          const matches = String(collegeManagerId) === String(selectedId);
+          console.log(`College ${college.name}: accountManagerId=${collegeManagerId} (${typeof collegeManagerId}), selectedId=${selectedId} (${typeof selectedId}), matches=${matches}`);
+          return matches;
+        });
+        console.log(`Found ${filteredColleges.length} colleges for account manager ${selectedAccountManagerId}`);
+      } else {
+        console.log('No account manager selected, showing all colleges');
+      }
+      
+      select.innerHTML = '<option value="">Select a college...</option>' +
+        filteredColleges.map(college => `<option value="${college.id}">${college.name}</option>`).join('');
+      
+      // Set selected value if college is pre-selected from URL
+      if (currentCollegeId) {
+        select.value = currentCollegeId;
+        console.log('Set college select to:', currentCollegeId);
+      }
+      
+      // Update filter status indicator
+      const filterStatus = document.getElementById('collegeFilterStatus');
+      if (filterStatus) {
+        if (selectedAccountManagerId) {
+          const accountManager = accountManagers.find(am => am.id === selectedAccountManagerId);
+          const managerName = accountManager ? accountManager.name : 'Unknown';
+          filterStatus.textContent = `Filtered by: ${managerName} (${filteredColleges.length} colleges)`;
+          filterStatus.classList.remove('hidden');
+        } else {
+          filterStatus.classList.add('hidden');
+        }
+      }
+      
+      console.log(`Updated college select with ${filteredColleges.length} options`);
+    }
+
+    // Modal functions
+    function showAddCollegeModal() {
+      console.log('Opening Add College Modal...');
+      const modal = document.getElementById('addCollegeModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        console.log('Modal should now be visible');
+      } else {
+        console.error('Add College Modal not found!');
+      }
+    }
+
+    function hideAddCollegeModal() {
+      console.log('Closing Add College Modal...');
+      const modal = document.getElementById('addCollegeModal');
+      if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('addCollegeForm').reset();
+        
+        // Reset form for next use
+        document.getElementById('addCollegeForm').dataset.editingId = '';
+        document.querySelector('#addCollegeModal h3').textContent = 'Add New College';
+        const submitBtn = document.querySelector('#addCollegeForm button[type="submit"]');
+        submitBtn.textContent = 'Add College';
+        
+        console.log('Modal should now be hidden');
+      } else {
+        console.error('Add College Modal not found!');
+      }
+    }
+
+    function showAddAccountManagerModal() {
+      document.getElementById('addAccountManagerModal').classList.remove('hidden');
+    }
+
+    function hideAddAccountManagerModal() {
+      document.getElementById('addAccountManagerModal').classList.add('hidden');
+      document.getElementById('addAccountManagerForm').reset();
+      
+      // Reset modal title and button
+      document.querySelector('#addAccountManagerModal h3').textContent = 'Add New Account Manager';
+      const submitBtn = document.querySelector('#addAccountManagerForm button[type="submit"]');
+      submitBtn.textContent = 'Add Account Manager';
+      
+      // Clear editing state
+      delete document.getElementById('addAccountManagerForm').dataset.editingId;
+    }
+
+    function showAssignAccountManagerModal(collegeId) {
+      reassigningCollegeId = collegeId;
+      document.getElementById('assignAccountManagerModal').classList.remove('hidden');
+      // Populate the account manager dropdown
+      const select = document.getElementById('assignAccountManagerSelect');
+      select.innerHTML = '<option value="">Select an account manager...</option>' +
+        accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+    }
+
+    function hideAssignAccountManagerModal() {
+      document.getElementById('assignAccountManagerModal').classList.add('hidden');
+      reassigningCollegeId = null;
+    }
+
+    function showBulkAssignModal() {
+      document.getElementById('bulkAssignModal').classList.remove('hidden');
+      populateBulkAssignCollegesList();
+    }
+
+    function hideBulkAssignModal() {
+      document.getElementById('bulkAssignModal').classList.add('hidden');
+      document.getElementById('bulkAssignForm').reset();
+    }
+
+    // Confirmation modal functions
+    function showConfirmationModal(title, message, icon, confirmText, onConfirm) {
+      const modal = document.getElementById('confirmationModal');
+      const titleEl = document.getElementById('confirmationTitle');
+      const messageEl = document.getElementById('confirmationMessage');
+      const iconEl = document.getElementById('confirmationIcon');
+      const confirmBtn = document.getElementById('confirmationConfirmBtn');
+      
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      iconEl.textContent = icon;
+      confirmBtn.textContent = confirmText;
+      
+      // Remove existing event listeners
+      const newConfirmBtn = confirmBtn.cloneNode(true);
+      confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+      
+      // Add new event listener
+      newConfirmBtn.addEventListener('click', () => {
+        hideConfirmationModal();
+        onConfirm();
+      });
+      
+      modal.classList.remove('hidden');
+    }
+
+    function hideConfirmationModal() {
+      document.getElementById('confirmationModal').classList.add('hidden');
+    }
+
+    function populateBulkAssignCollegesList() {
+      const container = document.getElementById('bulkAssignCollegesList');
+      if (!container) return;
+
+      container.innerHTML = colleges.map(college => `
+        <label class="flex items-center space-x-2 py-1">
+          <input type="checkbox" value="${college.id}" class="rounded">
+          <span class="text-sm">${college.name}</span>
+        </label>
+      `).join('');
+    }
+
+    function showSaveTemplateModal() {
+      // Update the template info display
+      const templateTableInfo = document.getElementById('templateTableInfo');
+      if (templateTableInfo) {
+        if (tableHeaders && tableHeaders.length > 0 && tableData && tableData.length > 0) {
+          templateTableInfo.textContent = `${tableHeaders.length} columns, ${tableData.length} rows`;
+        } else {
+          templateTableInfo.textContent = 'No data loaded - please upload and process files first';
+        }
+      }
+      
+      document.getElementById('saveTemplateModal').classList.remove('hidden');
+    }
+
+    function hideSaveTemplateModal() {
+      console.log('Hiding save template modal');
+      document.getElementById('saveTemplateModal').classList.add('hidden');
+      document.getElementById('saveTemplateForm').reset();
+    }
+
+    // Template management
+    async function loadTemplates() {
+      try {
+        console.log('Loading templates...');
+        const response = await axios.get('/api/templates');
+        console.log('Templates response:', response.data);
+        
+        if (response.data && response.data.templates) {
+          templates = response.data.templates;
+        } else if (Array.isArray(response.data)) {
+          templates = response.data;
+        } else {
+          templates = [];
+        }
+        
+        console.log('Templates loaded:', templates.length);
+        console.log('Template data structure:', templates);
+        displayTemplates();
+        populateTemplateSelect();
+      } catch (error) {
+        console.error('Error loading templates:', error.response?.status, error.response?.data, error.message);
+        templates = [];
+        // Don't show error status for templates as they're optional
+      }
+    }
+
+    function populateTemplateSelect() {
+      const select = document.getElementById('templateSelect');
+      if (!select) return;
+      
+      select.innerHTML = '<option value="">No template - Use new data structure</option>';
+      
+      if (templates && Array.isArray(templates)) {
+        templates.forEach(template => {
+          const hasData = template.tableData ? 'with data' : 'structure only';
+          select.innerHTML += `<option value="${template.id}">${template.name} (${template.headers.length} columns, ${hasData})</option>`;
+        });
+      } else {
+        console.log('Templates not loaded yet or not an array:', templates);
+      }
+    }
+
+    function getSelectedTemplate() {
+      const select = document.getElementById('templateSelect');
+      const templateId = select ? select.value : '';
+      console.log('Selected template ID:', templateId);
+      console.log('Available templates:', templates);
+      const template = templateId ? templates.find(t => String(t.id) === String(templateId)) : null;
+      console.log('Found template:', template);
+      return template;
+    }
+
+    function getTemplateMode() {
+      const select = document.getElementById('templateMode');
+      return select ? select.value : 'strict';
+    }
+
+    function displayTemplates() {
+      console.log('displayTemplates called with', templates.length, 'templates');
+      const container = document.getElementById('templatesList');
+      if (!container) {
+        console.log('Templates container not found');
+        return;
+      }
+      
+      if (!templates || templates.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 col-span-full text-center">No templates created yet</p>';
+        return;
+      }
+      
+      container.innerHTML = templates.map(template => {
+        // More comprehensive escaping for HTML safety
+        const escapedName = template.name
+          .replace(/\\/g, '\\\\')
+          .replace(/'/g, "\\'")
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+        const escapedDescription = (template.description || 'No description')
+          .replace(/\\/g, '\\\\')
+          .replace(/'/g, "\\'")
+          .replace(/"/g, '\\"')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/\t/g, '\\t');
+        
+        console.log('Template:', template.name, 'ID:', template.id, 'Type:', typeof template.id);
+        
+        return `
+        <div class="border border-gray-200 rounded-lg p-4">
+          <h4 class="font-semibold text-gray-900">${template.name}</h4>
+          <p class="text-sm text-gray-600 mt-1">${template.description || 'No description'}</p>
+          <p class="text-xs text-gray-500 mt-2">
+            Created: ${new Date(template.createdAt).toLocaleDateString()}<br>
+            Columns: ${template.headers.length} | Rows: ${template.rowCount || 0}<br>
+            <span class="text-green-600 font-medium">${template.tableData ? '✓ Includes row data' : 'Structure only'}</span>
+          </p>
+          <div class="mt-3 space-x-2">
+            <button onclick="useTemplateById('${template.id}')" class="text-blue-600 hover:text-blue-800 text-sm">Use</button>
+            <button onclick="deleteTemplate('${template.id}')" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
+          </div>
+        </div>
+      `;
+      }).join('');
+    }
+
+    // Function to determine column section and color
+    function getColumnSection(header, headerFileMap = null) {
+      // Define consistent colors for each section type
+      const SECTION_COLORS = {
+        'placements': 'bg-blue-100',      // Blue for placements
+        'assessments': 'bg-green-200',    // Green-200 for assessments
+        'careers': 'bg-yellow-100',       // Yellow for careers
+        'activities': 'bg-yellow-100',    // Yellow for activities
+        'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
+        'employment': 'bg-purple-100',    // Purple for employment
+        'targets': 'bg-pink-100',         // Pink for targets
+        'login': 'bg-indigo-100',         // Indigo for login
+        'default': 'bg-gray-100'          // Gray for unknown sections
+      };
+      
+      // Function to determine section type from header
+      function getSectionType(header) {
+        const headerLower = header.toLowerCase();
+        
+        // First check for content type suffixes from backend processing
+        if (headerLower.includes('(enrichment)')) {
+          return 'enrichment';
+        }
+        if (headerLower.includes('(employer)')) {
+          return 'employment';
+        }
+        if (headerLower.includes('(careers)')) {
+          return 'careers';
+        }
+        
+        // Check for placements - broader matching to catch all placement-related headers
+        if (headerLower.includes('placement') || 
+            headerLower.includes('student confirmed') || headerLower.includes('employer confirmed') ||
+            headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) {
+          return 'placements';
+        }
+        
+        // Check for careers FIRST - more specific matching to catch all career/job profile related headers
+        if (headerLower.includes('career') || headerLower.includes('job profile') || 
+            headerLower.includes('quiz') || headerLower.includes('mapped job profile') ||
+            headerLower.includes('total mapped job profiles') || headerLower.includes('mapped')) {
+          return 'careers';
+        }
+        
+        // Check for assessments - more specific matching to avoid catching careers headers
+        if (headerLower.includes('assessment') || headerLower.includes('score') || 
+            headerLower.includes('students without assessment') || 
+            headerLower.includes('students with 1 assessment') ||
+            headerLower.includes('students with 2 assessment') ||
+            headerLower.includes('students with 3 assessment') ||
+            headerLower.includes('average score')) {
+          return 'assessments';
+        }
+        
+        // Check for activities - broader matching
+        if (headerLower.includes('activity') || headerLower.includes('hours') && !headerLower.includes('scheduled')) {
+          return 'activities';
+        }
+        
+        // Check for employment
+        if (headerLower.includes('employment') || headerLower.includes('employ')) {
+          return 'employment';
+        }
+        
+        // Check for enrichment
+        if (headerLower.includes('enrich') || headerLower.includes('activity') && !headerLower.includes('employer')) {
+          return 'enrichment';
+        }
+        
+        return 'default';
+      }
+      
+      // Handle Department column specially
+      if (header === 'Department') {
+        return { section: 'Department', color: 'bg-amber-100' }; // Very light brown
+      }
+      
+      // Use section-based coloring
+      const sectionType = getSectionType(header);
+      const color = SECTION_COLORS[sectionType] || SECTION_COLORS.default;
+      
+      console.log(`getColumnSection for "${header}": sectionType="${sectionType}", color="${color}"`);
+      
+      return { section: sectionType, color: color };
+    }
+
+    // Table management
+    function renderTable() {
+      const header = document.getElementById('tableHeader');
+      const body = document.getElementById('tableBody');
+      
+      // Build complete header structure with change columns
+      let completeHeaders = [];
+      let changeColumnIndices = [];
+      
+      tableHeaders.forEach((h, colIdx) => {
+        completeHeaders.push(h);
+        // Add change indicator column if this is a numeric column (not Department)
+        if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || !isNaN(parseFloat('0')))) {
+          completeHeaders.push(`${h} +/-`);
+          changeColumnIndices.push(completeHeaders.length - 1);
+        }
+      });
+      
+      // Render headers with checkboxes and section colors
+      const headerCheckboxes = selectionMode ? 
+        `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <input type="checkbox" id="selectAllColumns" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+        </th>` : '';
+      
+      const headerCells = completeHeaders.map((h, colIdx) => {
+        const checkbox = selectionMode ? 
+          `<input type="checkbox" class="column-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2" data-col="${colIdx}">` : '';
+        
+        // Determine if this is a change column and get section color
+        const isChangeColumn = h.endsWith(' +/-');
+        const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
+        let colorClass = getColumnSection(originalHeader).color;
+        let reorderBtns = '';
+        if (!isChangeColumn && !selectionMode) {
+          reorderBtns = `
+            <button type="button" onclick="moveColumn(${colIdx}, -1)" title="Move Left" style="margin-right:2px;">⬅️</button>
+            <button type="button" onclick="moveColumn(${colIdx}, 1)" title="Move Right">➡️</button>
+          `;
+        }
+        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${colorClass}" data-col-idx="${colIdx}">${checkbox}${h}${reorderBtns}</th>`;
+      }).join('');
+      
+      header.innerHTML = `<tr>${headerCheckboxes}${headerCells}</tr>`;
+      
+      // Render body with proper column alignment
+      body.innerHTML = tableData.map((row, rowIdx) => {
+        const rowCheckbox = selectionMode ? 
+          `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            <input type="checkbox" class="row-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" data-row="${rowIdx}">
+          </td>` : '';
+        // Add up/down arrows for rows (not in selection mode)
+        let reorderBtns = '';
+        if (!selectionMode) {
+          reorderBtns = `
+            <button type="button" onclick="moveRow(${rowIdx}, -1)" title="Move Up" style="margin-right:2px;">⬆️</button>
+            <button type="button" onclick="moveRow(${rowIdx}, 1)" title="Move Down">⬇️</button>
+          `;
+        }
+        // Add a cell for the reorder buttons at the start of the row
+        return `<tr data-row-idx="${rowIdx}">${rowCheckbox}<td>${reorderBtns}</td>` + row.map((cell, colIdx) => `
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${cell}</td>`).join('') + '</tr>';
+      }).join('');
+      
+      // Add event listeners to editable cells
+      document.querySelectorAll('.editable-cell').forEach(cell => {
+        cell.addEventListener('focus', () => {
+          editingCell = { row: parseInt(cell.dataset.row), col: parseInt(cell.dataset.col) };
+          cell.style.backgroundColor = '#f3f4f6';
+          cell.style.outline = '2px solid #3b82f6';
+          
+          // Highlight the entire row and column for better visibility
+          const row = parseInt(cell.dataset.row);
+          const col = parseInt(cell.dataset.col);
+          
+          // Remove previous highlights
+          document.querySelectorAll('.editable-cell').forEach(c => {
+            c.style.borderLeft = '';
+            c.style.borderTop = '';
+          });
+          
+          // Highlight current row and column
+          document.querySelectorAll(`[data-row="${row}"]`).forEach(c => {
+            c.style.borderTop = '2px solid #3b82f6';
+          });
+          document.querySelectorAll(`[data-col="${col}"]`).forEach(c => {
+            c.style.borderLeft = '2px solid #3b82f6';
+          });
+        });
+        cell.addEventListener('blur', (e) => {
+          const row = parseInt(e.target.dataset.row);
+          const col = parseInt(e.target.dataset.col);
+          tableData[row][col] = e.target.textContent;
+          editingCell = null;
+          e.target.style.backgroundColor = '';
+          e.target.style.outline = '';
+          
+          // Clear all highlights
+          document.querySelectorAll('.editable-cell').forEach(c => {
+            c.style.borderLeft = '';
+            c.style.borderTop = '';
+          });
+        });
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur();
+          }
+        });
+      });
+    }
+
+    // Load previous report data for change tracking
+    async function loadPreviousReportData(collegeId) {
+      try {
+        const response = await axios.get(`/api/previous-report/${collegeId}`);
+        if (response.data.success && response.data.previousData) {
+          previousReportData = response.data.previousData.data;
+          console.log('Loaded previous report data:', previousReportData);
+        } else {
+          previousReportData = null;
+          console.log('No previous report data found for college:', collegeId);
+        }
+      } catch (error) {
+        console.error('Error loading previous report data:', error);
+        previousReportData = null;
+      }
+    }
+
+    // Event listeners
+    function setupEventListeners() {
+      // File processing
+      document.getElementById('processBtn').addEventListener('click', processFiles);
+      
+      // Table editing
+      document.getElementById('addRowBtn').addEventListener('click', addRow);
+      document.getElementById('addColumnBtn').addEventListener('click', addColumn);
+      document.getElementById('deleteBtn').addEventListener('click', smartDelete);
+      document.getElementById('cancelSelectionBtn').addEventListener('click', toggleSelectionMode);
+      document.getElementById('saveAsTemplateBtn').addEventListener('click', showSaveTemplateModal);
+      
+      // Report generation
+      document.getElementById('exportBtn').addEventListener('click', generateReport);
+      document.getElementById('saveTemplateBtn').addEventListener('click', showSaveTemplateModal);
+      
+      // Account manager filtering
+      const accountManagerFilter = document.getElementById('accountManagerFilter');
+      if (accountManagerFilter) {
+        accountManagerFilter.addEventListener('change', function() {
+          const newValue = this.value ? this.value : null; // Keep as string to match database
+          console.log('Account manager filter changed from', selectedAccountManagerId, 'to', newValue);
+          selectedAccountManagerId = newValue;
+          updateCollegeSelect();
+        });
+      }
+      
+      // College selection for change tracking
+      const collegeSelect = document.getElementById('collegeSelect');
+      if (collegeSelect) {
+        collegeSelect.addEventListener('change', async function() {
+          const collegeId = this.value;
+          currentCollegeId = collegeId ? parseInt(collegeId) : null;
+          
+          if (collegeId) {
+            await loadPreviousReportData(parseInt(collegeId));
+          } else {
+            previousReportData = null;
+          }
+          
+          // Re-render table if we have data
+          if (tableData.length > 0) {
+            renderTable();
+          }
+        });
+        
+        // Initialize college select on page load
+        console.log('Initializing college select...');
+        updateCollegeSelect();
+      }
+      
+      // Forms
+      document.getElementById('addCollegeForm').addEventListener('submit', addCollege);
+      document.getElementById('addAccountManagerForm').addEventListener('submit', addAccountManager);
+      document.getElementById('assignAccountManagerForm').addEventListener('submit', assignAccountManager);
+      document.getElementById('bulkAssignForm').addEventListener('submit', bulkAssignAccountManager);
+      
+      // Template form - using inline handlers, no additional setup needed
+    }
+
+    // File processing
+    async function processFiles() {
+      if (!selectedFiles.length) {
+        showStatus('Please select files to process', 'error');
+        return;
+      }
+      const formData = new FormData();
+      for (const file of selectedFiles) {
+        formData.append('files', file);
+      }
+      showStatus('Processing files...', 'info');
+      try {
+        const response = await axios.post('/api/upload', formData);
+        if (response.data.success) {
+          console.log('Raw response data:', response.data.data);
+          await adaptTableToData(response.data.data);
+          showStatus('Files processed successfully', 'success');
+        }
+      } catch (error) {
+        showStatus('Error processing files: ' + error.message, 'error');
+      }
+    }
+
+    async function adaptTableToData(data) {
+      if (data.departments && data.metrics) {
+        const selectedTemplate = getSelectedTemplate();
+        const templateMode = getTemplateMode();
+        console.log('Selected template:', selectedTemplate);
+        if (selectedTemplate && selectedTemplate.headers) {
+          console.log('Applying template:', selectedTemplate.name);
+          
+          // Start with template headers and structure
+          tableHeaders = [...selectedTemplate.headers];
+          console.log('Template headers:', tableHeaders);
+          
+          // Build lookup for new data
+          const newDataLookup = {};
+          data.departments.forEach(dept => {
+            const metrics = data.metrics[dept] || {};
+            newDataLookup[dept] = { ...metrics, __rowKey: dept };
+          });
+          
+          // If template mode is flexible, add any new columns found in data
+          if (templateMode === 'flexible') {
+            const allNewColumns = new Set();
+            data.departments.forEach(dept => {
+              const metrics = data.metrics[dept] || {};
+              Object.keys(metrics).forEach(key => {
+                if (!tableHeaders.includes(key) && key !== 'Department') {
+                  allNewColumns.add(key);
+                }
+              });
+            });
+            
+            if (allNewColumns.size > 0) {
+              console.log('Adding new columns from data:', Array.from(allNewColumns));
+              tableHeaders.push(...Array.from(allNewColumns));
+            }
+          }
+          
+          // Start with template rows in template order
+          tableData = [];
+          const templateRowKeys = selectedTemplate.tableData ? 
+            selectedTemplate.tableData.map(row => row[0]) : [];
+          
+          // Add template rows first (in template order)
+          templateRowKeys.forEach(rowKey => {
+            const metrics = newDataLookup[rowKey] || {};
+            const row = tableHeaders.map((header, i) => {
+              if (i === 0) return rowKey;
+              return metrics[header] ?? '';
+            });
+            tableData.push(row);
+            delete newDataLookup[rowKey]; // Remove from lookup to avoid duplicates
+          });
+          
+          // Add any new departments found in data (if flexible mode)
+          if (templateMode === 'flexible') {
+            Object.keys(newDataLookup).forEach(dept => {
+              console.log('Adding new department:', dept);
+              const metrics = newDataLookup[dept] || {};
+              const row = tableHeaders.map((header, i) => {
+                if (i === 0) return dept;
+                return metrics[header] ?? '';
+              });
+              tableData.push(row);
+            });
+          }
+          
+          console.log('Template applied successfully');
+          console.log('Final headers:', tableHeaders);
+          console.log('Final data rows:', tableData.length);
+        } else {
+          // ... existing logic for no template ...
+          const allHeaders = new Set();
+          data.departments.forEach(dept => {
+            const metrics = data.metrics[dept] || {};
+            Object.keys(metrics).forEach(key => {
+              if (key !== 'Department') {
+                allHeaders.add(key);
+              }
+            });
+          });
+          tableHeaders = ['Department', ...Array.from(allHeaders)];
+          tableData = data.departments.map(dept => {
+            const row = [dept];
+            const metrics = data.metrics[dept] || {};
+            tableHeaders.slice(1).forEach(h => row.push(metrics[h] ?? ''));
+            return row;
+          });
+        }
+        console.log('Table Headers:', tableHeaders);
+        console.log('Table Data:', tableData);
+        renderTable();
+      }
+    }
+
+    // Table editing functions
+    function addRow() {
+      if (!tableHeaders || tableHeaders.length === 0) {
+        showStatus('No table data available. Please upload files first.', 'error');
+        return;
+      }
+      
+      const newRow = Array(tableHeaders.length).fill('');
+      tableData.push(newRow);
+      renderTable();
+      showStatus('Row added successfully', 'success');
+    }
+
+    function addColumn() {
+      const colName = prompt('Enter new column name:');
+      if (!colName) return;
+      
+      if (!tableHeaders) {
+        tableHeaders = [];
+      }
+      
+      tableHeaders.push(colName);
+      tableData.forEach(row => row.push(''));
+      renderTable();
+      showStatus(`Column "${colName}" added successfully`, 'success');
+    }
+
+    function smartDelete() {
+      if (!tableData || tableData.length === 0) {
+        showStatus('No data to delete', 'error');
+        return;
+      }
+      
+      // If not in selection mode, enter selection mode with both row and column checkboxes
+      if (!selectionMode) {
+        selectionMode = true;
+        selectedRows.clear();
+        selectedColumns.clear();
+        
+        const deleteBtn = document.getElementById('deleteBtn');
+        const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
+        
+        deleteBtn.textContent = 'Delete Selected Items';
+        deleteBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        deleteBtn.classList.add('bg-red-800', 'hover:bg-red-900');
+        cancelSelectionBtn.classList.remove('hidden');
+        
+        showStatus('Selection mode enabled. Check rows and/or columns to delete.', 'info');
+        renderTable();
+        setupCheckboxListeners();
+        return;
+      }
+      
+      // If in selection mode, delete selected items
+      const rowsToDelete = Array.from(selectedRows).sort((a, b) => b - a); // Sort descending
+      const columnsToDelete = Array.from(selectedColumns).sort((a, b) => b - a); // Sort descending
+      
+      if (rowsToDelete.length === 0 && columnsToDelete.length === 0) {
+        showStatus('No items selected for deletion', 'error');
+        return;
+      }
+      
+      let deletedCount = 0;
+      let deletedItems = [];
+      
+      // Delete selected rows
+      rowsToDelete.forEach(rowIndex => {
+        if (tableData[rowIndex]) {
+          deletedItems.push(`Row: ${tableData[rowIndex][0] || 'Unnamed'}`);
+          tableData.splice(rowIndex, 1);
+          deletedCount++;
+        }
+      });
+      
+      // Delete selected columns
+      columnsToDelete.forEach(colIndex => {
+        if (tableHeaders[colIndex] && tableHeaders[colIndex] !== 'Department') {
+          deletedItems.push(`Column: ${tableHeaders[colIndex]}`);
+          tableHeaders.splice(colIndex, 1);
+          tableData.forEach(row => row.splice(colIndex, 1));
+          deletedCount++;
+        } else if (tableHeaders[colIndex] === 'Department') {
+          showStatus('Cannot delete Department column', 'error');
+        }
+      });
+      
+      // Exit selection mode
+      exitSelectionMode();
+      renderTable();
+      showStatus(`Deleted ${deletedCount} items: ${deletedItems.join(', ')}`, 'success');
+    }
+
+    // Selection mode functions
+    function toggleSelectionMode() {
+      selectionMode = !selectionMode;
+      selectedRows.clear();
+      selectedColumns.clear();
+      
+      const deleteBtn = document.getElementById('deleteBtn');
+      const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
+      
+      if (selectionMode) {
+        deleteBtn.textContent = 'Delete Selected';
+        deleteBtn.classList.remove('bg-red-500', 'hover:bg-red-600');
+        deleteBtn.classList.add('bg-red-800', 'hover:bg-red-900');
+        cancelSelectionBtn.classList.remove('hidden');
+        showStatus('Selection mode enabled. Check rows/columns to delete.', 'info');
+      } else {
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.classList.remove('bg-red-800', 'hover:bg-red-900');
+        deleteBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+        cancelSelectionBtn.classList.add('hidden');
+        showStatus('Selection mode disabled.', 'info');
+      }
+      
+      renderTable();
+      setupCheckboxListeners();
+    }
+
+    function exitSelectionMode() {
+      selectionMode = false;
+      selectedRows.clear();
+      selectedColumns.clear();
+      
+      const deleteBtn = document.getElementById('deleteBtn');
+      const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
+      
+      // Reset button to normal state
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.classList.remove('bg-red-800', 'hover:bg-red-900');
+      deleteBtn.classList.add('bg-red-500', 'hover:bg-red-600');
+      
+      cancelSelectionBtn.classList.add('hidden');
+    }
+
+    function setupCheckboxListeners() {
+      if (!selectionMode) return;
+      
+      // Select all columns checkbox
+      const selectAllColumns = document.getElementById('selectAllColumns');
+      if (selectAllColumns) {
+        selectAllColumns.addEventListener('change', (e) => {
+          const checkboxes = document.querySelectorAll('.column-checkbox');
+          checkboxes.forEach((checkbox, index) => {
+            checkbox.checked = e.target.checked;
+            if (e.target.checked) {
+              selectedColumns.add(index);
+            } else {
+              selectedColumns.delete(index);
+            }
+          });
+        });
+      }
+      
+      // Individual column checkboxes
+      document.querySelectorAll('.column-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+          const colIndex = parseInt(e.target.dataset.col);
+          if (e.target.checked) {
+            selectedColumns.add(colIndex);
+          } else {
+            selectedColumns.delete(colIndex);
+          }
+          
+          // Update select all checkbox
+          const selectAllColumns = document.getElementById('selectAllColumns');
+          if (selectAllColumns) {
+            const allColumnCheckboxes = document.querySelectorAll('.column-checkbox');
+            const checkedCount = document.querySelectorAll('.column-checkbox:checked').length;
+            selectAllColumns.checked = checkedCount === allColumnCheckboxes.length;
+            selectAllColumns.indeterminate = checkedCount > 0 && checkedCount < allColumnCheckboxes.length;
+          }
+        });
+      });
+      
+      // Individual row checkboxes
+      document.querySelectorAll('.row-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', (e) => {
+          const rowIndex = parseInt(e.target.dataset.row);
+          if (e.target.checked) {
+            selectedRows.add(rowIndex);
+          } else {
+            selectedRows.delete(rowIndex);
+          }
+        });
+      });
+    }
+
+
+
+    // Report generation
+    async function generateReport() {
+      const collegeId = document.getElementById('collegeSelect').value;
+      if (!collegeId) {
+        showStatus('Please select a college', 'error');
+        return;
+      }
+      
+      const reportName = prompt('Enter a name for this report:') || `Report ${new Date().toLocaleDateString()}`;
+      const reportSummary = prompt('Enter a brief summary of this report (optional):') || '';
+      
+      showStatus('Generating report...', 'info');
+      
+      try {
+        // Save report to college dashboard
+        const saveResponse = await axios.post(`/api/colleges/${collegeId}/reports`, {
+          reportData: { headers: tableHeaders, rows: tableData },
+          reportName: reportName,
+          summary: reportSummary
+        });
+        
+        if (saveResponse.data.success) {
+          showStatus(`Report "${reportName}" saved to college dashboard successfully`, 'success');
+          
+          // Also generate analysis if available
+          try {
+            const analysisResponse = await axios.post('/api/generate-report', {
+              reportName: reportName,
+              data: { headers: tableHeaders, rows: tableData },
+              collegeId: parseInt(collegeId)
+            });
+            
+            if (analysisResponse.data.success && analysisResponse.data.analysis) {
+              displayAIAnalysis(analysisResponse.data.analysis);
+            }
+          } catch (analysisError) {
+            console.log('Analysis generation failed, but report was saved:', analysisError.message);
+          }
+        }
+      } catch (error) {
+        showStatus('Error generating report: ' + error.message, 'error');
+      }
+    }
+
+    function displayAIAnalysis(analysis) {
+      const section = document.getElementById('aiAnalysisSection');
+      const content = document.getElementById('aiAnalysisContent');
+      
+      content.innerHTML = `
+        <div class="bg-blue-50 p-4 rounded-lg">
+          <h4 class="font-semibold text-blue-900 mb-2">Summary</h4>
+          <p class="text-blue-800">${analysis.summary}</p>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-green-50 p-4 rounded-lg">
+            <h4 class="font-semibold text-green-900 mb-2">Improving Trends</h4>
+            <ul class="text-green-800 text-sm space-y-1">
+              ${analysis.trends.improving.map(t => `<li>• ${t.metric}: +${t.change}%</li>`).join('')}
+            </ul>
+          </div>
+          
+          <div class="bg-red-50 p-4 rounded-lg">
+            <h4 class="font-semibold text-red-900 mb-2">Declining Trends</h4>
+            <ul class="text-red-800 text-sm space-y-1">
+              ${analysis.trends.declining.map(t => `<li>• ${t.metric}: ${t.change}%</li>`).join('')}
+            </ul>
+          </div>
+        </div>
+        
+        ${analysis.anomalies.length > 0 ? `
+          <div class="bg-yellow-50 p-4 rounded-lg">
+            <h4 class="font-semibold text-yellow-900 mb-2">Anomalies Detected</h4>
+            <ul class="text-yellow-800 text-sm space-y-1">
+              ${analysis.anomalies.map(a => `<li>• ${a.description}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      `;
+      
+      section.classList.remove('hidden');
+    }
+
+    // College management functions
+    async function addCollege(event) {
+      event.preventDefault();
+      
+      console.log('=== ADD COLLEGE DEBUG START ===');
+      
+      try {
+      const editingId = document.getElementById('addCollegeForm').dataset.editingId;
+      const isEditing = !!editingId;
+      
+        console.log('Form mode:', isEditing ? 'EDITING' : 'ADDING');
+        console.log('Editing ID:', editingId);
+        
+        // Gather form data with error checking
+        const amValue = document.getElementById('collegeAccountManager').value;
+      const formData = {
+        name: document.getElementById('collegeName').value,
+        numberOfProviders: document.getElementById('numberOfProviders').value,
+          accountManagerId: amValue === "" ? null : amValue,
+        keyStakeholder: document.getElementById('keyStakeholder').value,
+        superUsers: document.getElementById('superUsers').value,
+        misContact: document.getElementById('misContact').value,
+        dataTransferMethod: document.getElementById('dataTransfer').value,
+        status: document.getElementById('status').value,
+        ofstedRating: document.getElementById('ofstedRating').value,
+        reportFrequency: document.getElementById('reportFrequency').value,
+        template: document.getElementById('collegeTemplate').value,
+        initialConcerns: document.getElementById('initialConcerns').value
+      };
+      
+        console.log('Form data collected:', formData);
+        
+        // Handle modules
+        const moduleEntries = document.querySelectorAll('#add-modules-container .flex');
+        const modules = Array.from(moduleEntries).map(entry => ({
+          name: entry.querySelector('.module-name-input').value,
+          cost: Number(entry.querySelector('.module-cost-input').value) || 0
+        })).filter(m => m.name);
+        formData.modules = modules;
+        
+        console.log('Modules collected:', modules);
+        console.log('Final form data:', formData);
+        
+        // Make API request
+        let response;
+        if (isEditing) {
+          console.log('Making PUT request to:', `/api/colleges/${editingId}`);
+          response = await axios.put(`/api/colleges/${editingId}`, formData);
+          console.log('PUT response:', response.data);
+          showStatus('College updated successfully', 'success');
+        } else {
+          console.log('Making POST request to: /api/colleges');
+          response = await axios.post('/api/colleges', formData);
+          console.log('POST response:', response.data);
+          showStatus('College added successfully', 'success');
+        }
+        
+        // Success cleanup
+        hideAddCollegeModal();
+        loadColleges();
+        
+        // Reset form for next use
+        document.getElementById('addCollegeForm').dataset.editingId = '';
+        document.querySelector('#addCollegeModal h3').textContent = 'Add New College';
+        const submitBtn = document.querySelector('#addCollegeForm button[type="submit"]');
+        submitBtn.textContent = 'Add College';
+        
+        console.log('=== ADD COLLEGE SUCCESS ===');
+        
+      } catch (error) {
+        console.error('=== ADD COLLEGE ERROR ===');
+        console.error('Error object:', error);
+        console.error('Error message:', error.message);
+        console.error('Error response:', error.response);
+        console.error('Error response data:', error.response?.data);
+        console.error('Error response status:', error.response?.status);
+        console.error('Error response headers:', error.response?.headers);
+        console.error('Full error stack:', error.stack);
+        
+        const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Unknown error occurred';
+        showStatus(`Error ${editingId ? 'updating' : 'adding'} college: ${errorMessage}`, 'error');
+        
+        console.log('=== ADD COLLEGE DEBUG END ===');
+      }
+    }
+
+
+
+    // Account Manager management functions
+    async function addAccountManager(event) {
+      event.preventDefault();
+      
+      const formData = {
+        name: document.getElementById('accountManagerName').value,
+        email: document.getElementById('accountManagerEmail').value
+      };
+      
+      // Check if we're editing an existing account manager
+      const editingId = document.getElementById('addAccountManagerForm').dataset.editingId;
+      
+      try {
+        if (editingId) {
+          // Update existing account manager
+          await axios.put(`/api/account-managers/${editingId}`, formData);
+          showStatus('Account manager updated successfully', 'success');
+        } else {
+          // Add new account manager
+          await axios.post('/api/account-managers', formData);
+          showStatus('Account manager added successfully', 'success');
+        }
+        
+        hideAddAccountManagerModal();
+        loadAccountManagers();
+      } catch (error) {
+        showStatus('Error saving account manager: ' + error.message, 'error');
+      }
+    }
+
+    async function deleteAccountManager(accountManagerId) {
+      const accountManager = accountManagers.find(am => am.id === accountManagerId);
+      const accountManagerName = accountManager ? accountManager.name : 'this account manager';
+      
+      showConfirmationModal(
+        'Delete Account Manager',
+        `Are you sure you want to delete "${accountManagerName}"? You can undo this action.`,
+        '👤',
+        'Delete Account Manager',
+        async () => {
+          try {
+            await axios.delete(`/api/account-managers/${accountManagerId}`);
+            
+            // Store the deleted account manager for undo
+            deletedAccountManagers.push({
+              accountManager: accountManager,
+              deletedAt: new Date(),
+              canUndo: true
+            });
+            
+            loadAccountManagers();
+            showStatus(`Account manager "${accountManagerName}" deleted successfully. <button onclick="undoDeleteAccountManager()" class="underline">Undo</button>`, 'success');
+            
+            // Auto-remove undo option after 30 seconds
+            setTimeout(() => {
+              const index = deletedAccountManagers.findIndex(da => da.accountManager.id === accountManagerId);
+              if (index !== -1) {
+                deletedAccountManagers[index].canUndo = false;
+              }
+            }, 30000);
+            
+          } catch (error) {
+            showStatus('Error deleting account manager: ' + error.message, 'error');
+          }
+        }
+      );
+    }
+
+    function editAccountManager(accountManagerId) {
+      const accountManager = accountManagers.find(am => am.id === accountManagerId);
+      if (!accountManager) {
+        showStatus('Account manager not found', 'error');
+        return;
+      }
+
+      // Populate the edit modal with account manager data
+      document.getElementById('accountManagerName').value = accountManager.name || '';
+      document.getElementById('accountManagerEmail').value = accountManager.email || '';
+
+      // Change modal title and button
+      document.querySelector('#addAccountManagerModal h3').textContent = 'Edit Account Manager';
+      const submitBtn = document.querySelector('#addAccountManagerForm button[type="submit"]');
+      submitBtn.textContent = 'Update Account Manager';
+      
+      // Store the account manager ID being edited
+      document.getElementById('addAccountManagerForm').dataset.editingId = accountManagerId;
+      
+      showAddAccountManagerModal();
+    }
+
+    // Account Manager Assignment functions
+    async function assignAccountManager(event) {
+      event.preventDefault();
+      
+      const collegeId = document.getElementById('assignCollegeSelect').value;
+      const accountManagerId = document.getElementById('assignAccountManagerSelect').value;
+      
+      if (!collegeId || !accountManagerId) {
+        showStatus('Please select both college and account manager', 'error');
+        return;
+      }
+      
+      try {
+        await axios.post(`/api/colleges/${collegeId}/assign-account-manager`, {
+          accountManagerId: parseInt(accountManagerId)
+        });
+        hideAssignAccountManagerModal();
+        loadColleges();
+        showStatus('Account manager assigned successfully', 'success');
+      } catch (error) {
+        showStatus('Error assigning account manager: ' + error.message, 'error');
+      }
+    }
+
+    async function bulkAssignAccountManager(event) {
+      event.preventDefault();
+      
+      const accountManagerId = document.getElementById('bulkAssignAccountManagerSelect').value;
+      const selectedColleges = Array.from(document.querySelectorAll('#bulkAssignCollegesList input[type="checkbox"]:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+      
+      if (!accountManagerId || selectedColleges.length === 0) {
+        showStatus('Please select account manager and at least one college', 'error');
+        return;
+      }
+      
+      try {
+        // Assign each selected college to the account manager
+        for (const collegeId of selectedColleges) {
+          await axios.post(`/api/colleges/${collegeId}/assign-account-manager`, {
+            accountManagerId: parseInt(accountManagerId)
+          });
+        }
+        
+        hideBulkAssignModal();
+        loadColleges();
+        showStatus(`Successfully assigned ${selectedColleges.length} colleges to account manager`, 'success');
+      } catch (error) {
+        showStatus('Error bulk assigning account managers: ' + error.message, 'error');
+      }
+    }
+
+    function reassignAccountManager(collegeId) {
+      // Pre-populate the assign modal with the current college
+      document.getElementById('assignCollegeSelect').value = collegeId;
+      showAssignAccountManagerModal();
+    }
+
+    // Template functions
+    async function saveTemplate(event) {
+      if (event) {
+        event.preventDefault();
+      }
+      
+      console.log('saveTemplate function called');
+      
+      // Check if we have table data to save
+      if (!tableHeaders || tableHeaders.length === 0 || !tableData || tableData.length === 0) {
+        showStatus('No table data available to save as template. Please upload and process files first.', 'error');
+        return;
+      }
+      
+      const templateName = document.getElementById('templateName').value.trim();
+      const templateDescription = document.getElementById('templateDescription').value.trim();
+      
+      if (!templateName) {
+        showStatus('Please enter a template name', 'error');
+        return;
+      }
+      
+      const formData = {
+        name: templateName,
+        description: templateDescription,
+        headers: tableHeaders,
+        tableData: tableData, // Include the actual table data
+        columnCount: tableHeaders.length,
+        rowCount: tableData.length
+      };
+      
+      console.log('Saving template:', {
+        name: formData.name,
+        description: formData.description,
+        headers: formData.headers.length,
+        rows: formData.rowCount
+      });
+      
+      try {
+        const response = await axios.post('/api/save-template', formData);
+        console.log('Template save response:', response.data);
+        hideSaveTemplateModal();
+        loadTemplates();
+        showStatus('Template saved successfully', 'success');
+      } catch (error) {
+        console.error('Template save error:', error);
+        showStatus('Error saving template: ' + (error.response?.data?.error || error.message), 'error');
+      }
+    }
+
+
+
+    // Store deleted templates for undo functionality
+    let deletedTemplates = [];
+let deletedAccountManagers = [];
+    
+    async function deleteTemplate(templateId) {
+      const template = templates.find(t => t.id === templateId);
+      if (!template) {
+        showStatus('Template not found', 'error');
+        return;
+      }
+      
+      showConfirmationModal(
+        'Delete Template',
+        `Are you sure you want to delete the template "${template.name}"? You can undo this action.`,
+        '🗑️',
+        'Delete Template',
+        async () => {
+          try {
+            await axios.delete(`/api/templates/${templateId}`);
+            
+            // Store the deleted template for undo
+            deletedTemplates.push({
+              template: template,
+              deletedAt: new Date(),
+              canUndo: true
+            });
+            
+            loadTemplates();
+            showStatus(`Template "${template.name}" deleted successfully. <button onclick="undoDeleteTemplate()" class="underline">Undo</button>`, 'success');
+            
+            // Auto-remove undo option after 30 seconds
+            setTimeout(() => {
+              const index = deletedTemplates.findIndex(dt => dt.template.id === templateId);
+              if (index !== -1) {
+                deletedTemplates[index].canUndo = false;
+              }
+            }, 30000);
+            
+          } catch (error) {
+            showStatus('Error deleting template: ' + error.message, 'error');
+          }
+        }
+      );
+    }
+    
+    async function undoDeleteTemplate() {
+      if (deletedTemplates.length === 0) {
+        showStatus('No templates to restore', 'info');
+        return;
+      }
+      
+      // Get the most recently deleted template that can be undone
+      const lastDeleted = deletedTemplates.filter(dt => dt.canUndo).pop();
+      if (!lastDeleted) {
+        showStatus('Undo option has expired', 'info');
+        return;
+      }
+      
+      try {
+        // Restore the template by saving it again
+        await axios.post('/api/save-template', lastDeleted.template);
+        
+        // Remove from deleted templates
+        const index = deletedTemplates.findIndex(dt => dt.template.id === lastDeleted.template.id);
+        if (index !== -1) {
+          deletedTemplates.splice(index, 1);
+        }
+        
+        loadTemplates();
+        showStatus(`Template "${lastDeleted.template.name}" restored successfully`, 'success');
+      } catch (error) {
+        showStatus('Error restoring template: ' + error.message, 'error');
+      }
+    }
+
+    async function undoDeleteAccountManager() {
+      if (deletedAccountManagers.length === 0) {
+        showStatus('No account managers to restore', 'info');
+        return;
+      }
+      
+      // Get the most recently deleted account manager that can be undone
+      const lastDeleted = deletedAccountManagers.filter(da => da.canUndo).pop();
+      if (!lastDeleted) {
+        showStatus('Undo option has expired', 'info');
+        return;
+      }
+      
+      try {
+        // Restore the account manager by saving it again
+        await axios.post('/api/account-managers', lastDeleted.accountManager);
+        
+        // Remove from deleted account managers
+        const index = deletedAccountManagers.findIndex(da => da.accountManager.id === lastDeleted.accountManager.id);
+        if (index !== -1) {
+          deletedAccountManagers.splice(index, 1);
+        }
+        
+        loadAccountManagers();
+        showStatus(`Account manager "${lastDeleted.accountManager.name}" restored successfully`, 'success');
+      } catch (error) {
+        showStatus('Error restoring account manager: ' + error.message, 'error');
+      }
+    }
+
+    function useTemplate(templateName) {
+      const template = templates.find(t => t.name === templateName);
+      if (!template) {
+        showStatus('Template not found', 'error');
+        return;
+      }
+      
+      // Set the template in the dropdown
+      const select = document.getElementById('templateSelect');
+      if (select) {
+        select.value = template.id;
+      }
+      
+      // Switch to reports tab
+      showTab('reports');
+      showStatus(`Template "${templateName}" selected. Upload files to apply it.`, 'success');
+    }
+    
+    function useTemplateById(templateId) {
+      const template = templates.find(t => String(t.id) === String(templateId));
+      if (!template) {
+        showStatus('Template not found', 'error');
+        return;
+      }
+      
+      // Set the template in the dropdown
+      const select = document.getElementById('templateSelect');
+      if (select) {
+        select.value = template.id;
+      }
+      
+      // Switch to reports tab
+      showTab('reports');
+      showStatus(`Template "${template.name}" selected. Upload files to apply it.`, 'success');
+    }
+
+
+
+
+
+    // Dashboard functions
+    async function loadDashboardDataFromExisting() {
+      try {
+        console.log('Loading dashboard data from existing colleges...');
+        
+        // First check if user is authenticated
+        try {
+          const authResponse = await axios.get('/api/auth/me');
+          console.log('Authentication check successful:', authResponse.data);
+        } catch (authError) {
+          console.error('Authentication check failed:', authError.response?.status, authError.response?.data);
+          if (authError.response?.status === 401) {
+            showStatus('Authentication required. Redirecting to login...', 'error');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+            return;
+          }
+        }
+        
+        // Use the colleges data we already loaded
+        console.log('Using existing colleges data:', colleges.length, 'colleges');
+        
+        // Update total colleges
+        const totalCollegesElement = document.getElementById('totalColleges');
+        if (totalCollegesElement) {
+          totalCollegesElement.textContent = colleges.length;
+        } else {
+          console.error('totalColleges element not found');
+        }
+        
+        // Load all reports to calculate totals with improved data freshness
+        let totalStudents = 0;
+        let totalPlacements = 0;
+        let totalActivities = 0;
+        let totalAssessments = 0;
+        let totalReports = 0;
+        let totalCareersAssessments = 0;
+        
+        // Get data from each college's reports with improved error handling
+        for (const college of colleges) {
+          try {
+            const reportsResponse = await axios.get(`/api/colleges/${college.id}/reports`, {
+              timeout: 10000, // 10 second timeout
+              headers: {
+                'Cache-Control': 'no-cache' // Ensure fresh data
+              }
+            });
+            const reports = reportsResponse.data.reports || [];
+            totalReports += reports.length;
+            
+            // Get data from latest report with proper sorting
+            if (reports.length > 0) {
+              // Sort reports by creation date to ensure we get the latest
+              const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              const latestReport = sortedReports[0];
+              
+              if (latestReport.data && latestReport.data.rows) {
+                const totals = calculateTotalsFromReport(latestReport.data);
+                totalStudents += totals.totalStudents || 0;
+                totalPlacements += totals.totalPlacements || 0;
+                totalActivities += totals.totalActivities || 0;
+                totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                totalCareersAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+              }
+            }
+          } catch (error) {
+            // Handle 404 errors gracefully (no reports exist yet)
+            if (error.response && error.response.status === 404) {
+              console.log(`No reports found for college ${college.id} (this is normal for new colleges)`);
+            } else {
+              console.error(`Error loading reports for college ${college.id}:`, error);
+            }
+          }
+        }
+        
+        // Update dashboard metrics with null checks
+        const updateElement = (id, value) => {
+          const element = document.getElementById(id);
+          if (element) {
+            element.textContent = value;
+          } else {
+            console.error(`Element with id '${id}' not found`);
+          }
+        };
+        
+        updateElement('totalStudents', totalStudents.toLocaleString());
+        updateElement('totalPlacements', totalPlacements.toLocaleString());
+        updateElement('totalActivities', totalActivities.toLocaleString());
+        updateElement('totalAssessments', totalAssessments.toLocaleString());
+        updateElement('totalReports', totalReports.toLocaleString());
+        updateElement('totalCareersAssessments', totalCareersAssessments.toLocaleString());
+        
+        // Update college overview table
+        updateCollegeOverviewTable(colleges);
+        
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        
+        // More specific error messages
+        if (error.response && error.response.status === 401) {
+          showStatus('Authentication required. Redirecting to login...', 'error');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else if (error.response && error.response.status === 404) {
+          showStatus('API endpoint not found. Please check server configuration.', 'error');
+        } else if (error.code === 'ECONNREFUSED') {
+          showStatus('Cannot connect to server. Please ensure the server is running.', 'error');
+        } else {
+          showStatus('Error loading dashboard data: ' + error.message, 'error');
+        }
+      }
+    }
+
+    async function loadDashboardData() {
+      try {
+        console.log('Starting to load dashboard data...');
+        
+        // First check if user is authenticated
+        try {
+          const authResponse = await axios.get('/api/auth/me');
+          console.log('Authentication check successful:', authResponse.data);
+        } catch (authError) {
+          console.error('Authentication check failed:', authError.response?.status, authError.response?.data);
+          if (authError.response?.status === 401) {
+            showStatus('Authentication required. Redirecting to login...', 'error');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 2000);
+            return;
+          }
+        }
+        
+        // Load colleges
+        console.log('Loading colleges...');
+        const collegesResponse = await axios.get('/api/colleges');
+        console.log('Colleges response:', collegesResponse.data);
+        
+        if (collegesResponse.data && collegesResponse.data.colleges) {
+          colleges = collegesResponse.data.colleges;
+        } else if (Array.isArray(collegesResponse.data)) {
+          colleges = collegesResponse.data;
+        } else {
+          colleges = [];
+        }
+        
+        console.log('Colleges loaded:', colleges.length);
+        
+        // Update total colleges
+        const totalCollegesElement = document.getElementById('totalColleges');
+        if (totalCollegesElement) {
+          totalCollegesElement.textContent = colleges.length;
+        } else {
+          console.error('totalColleges element not found');
+        }
+        
+        // Load all reports to calculate totals with improved data freshness
+        let totalStudents = 0;
+        let totalPlacements = 0;
+        let totalActivities = 0;
+        let totalAssessments = 0;
+        let totalReports = 0;
+        let totalCareersAssessments = 0;
+        
+        // Get data from each college's reports with improved error handling
+        for (const college of colleges) {
+          try {
+            const reportsResponse = await axios.get(`/api/colleges/${college.id}/reports`, {
+              timeout: 10000, // 10 second timeout
+              headers: {
+                'Cache-Control': 'no-cache' // Ensure fresh data
+              }
+            });
+            const reports = reportsResponse.data.reports || [];
+            totalReports += reports.length;
+            
+            // Get data from latest report with proper sorting
+            if (reports.length > 0) {
+              // Sort reports by creation date to ensure we get the latest
+              const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+              const latestReport = sortedReports[0];
+              
+              if (latestReport.data && latestReport.data.rows) {
+                const totals = calculateTotalsFromReport(latestReport.data);
+                totalStudents += totals.totalStudents || 0;
+                totalPlacements += totals.totalPlacements || 0;
+                totalActivities += totals.totalActivities || 0;
+                totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                totalCareersAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+              }
+            }
+          } catch (error) {
+            // Handle 404 errors gracefully (no reports exist yet)
+            if (error.response && error.response.status === 404) {
+              console.log(`No reports found for college ${college.id} (this is normal for new colleges)`);
+            } else {
+              console.error(`Error loading reports for college ${college.id}:`, error);
+            }
+          }
+        }
+        
+        // Calculate total due reports
+        const totalDueReports = calculateTotalDueReports(colleges);
+        
+        // Update dashboard metrics with null checks
+        const updateElement = (id, value) => {
+          const element = document.getElementById(id);
+          if (element) {
+            element.textContent = value;
+          } else {
+            console.error(`Element with id '${id}' not found`);
+          }
+        };
+        
+        updateElement('totalStudents', totalStudents.toLocaleString());
+        updateElement('totalPlacements', totalPlacements.toLocaleString());
+        updateElement('totalActivities', totalActivities.toLocaleString());
+        updateElement('totalAssessments', totalAssessments.toLocaleString());
+        updateElement('totalReports', totalReports.toLocaleString());
+        updateElement('totalCareersAssessments', totalCareersAssessments.toLocaleString());
+        
+        // Update college overview table
+        updateCollegeOverviewTable(colleges);
+        
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+        
+        // More specific error messages
+        if (error.response && error.response.status === 401) {
+          showStatus('Authentication required. Redirecting to login...', 'error');
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 2000);
+        } else if (error.response && error.response.status === 404) {
+          showStatus('API endpoint not found. Please check server configuration.', 'error');
+        } else if (error.code === 'ECONNREFUSED') {
+          showStatus('Cannot connect to server. Please ensure the server is running.', 'error');
+        } else {
+          showStatus('Error loading dashboard data: ' + error.message, 'error');
+        }
+      }
+    }
+
+    function calculateTotalsFromReport(reportData) {
+      const totals = {
+        totalStudents: 0,
+        totalPlacements: 0,
+        totalActivities: 0,
+        studentsWithoutAssessments: 0
+      };
+
+      if (!reportData.rows || !reportData.headers) return totals;
+
+      reportData.rows.forEach(row => {
+        if (!row[0] || row[0].toLowerCase().includes('total')) return;
+
+        const headers = reportData.headers;
+        
+        // Enhanced column finding with multiple patterns for better accuracy
+        const totalStudentsIndex = headers.findIndex(h => 
+          h.toLowerCase().includes('total') && h.toLowerCase().includes('student') ||
+          h.toLowerCase().includes('student') && h.toLowerCase().includes('total')
+        );
+        
+        const placementsIndex = headers.findIndex(h => 
+          (h.toLowerCase().includes('placement') && !h.toLowerCase().includes('percent')) ||
+          h.toLowerCase().includes('placements')
+        );
+        
+        const totalActivitiesIndex = headers.findIndex(h => 
+          h.toLowerCase().includes('total') && h.toLowerCase().includes('activity') ||
+          h.toLowerCase().includes('activity') && h.toLowerCase().includes('total')
+        );
+        
+        const studentsWithoutAssessmentsIndex = headers.findIndex(h => 
+          (h.toLowerCase().includes('student') && h.toLowerCase().includes('assessment')) ||
+          h.toLowerCase().includes('without') && h.toLowerCase().includes('assessment')
+        );
+
+        // Sum up the values with improved parsing
+        if (totalStudentsIndex >= 0 && row[totalStudentsIndex]) {
+          const value = parseFloat(row[totalStudentsIndex]);
+          if (!isNaN(value)) {
+            totals.totalStudents += value;
+          }
+        }
+        if (placementsIndex >= 0 && row[placementsIndex]) {
+          const value = parseFloat(row[placementsIndex]);
+          if (!isNaN(value)) {
+            totals.totalPlacements += value;
+          }
+        }
+        if (totalActivitiesIndex >= 0 && row[totalActivitiesIndex]) {
+          const value = parseFloat(row[totalActivitiesIndex]);
+          if (!isNaN(value)) {
+            totals.totalActivities += value;
+          }
+        }
+        if (studentsWithoutAssessmentsIndex >= 0 && row[studentsWithoutAssessmentsIndex]) {
+          const value = parseFloat(row[studentsWithoutAssessmentsIndex]);
+          if (!isNaN(value)) {
+            totals.studentsWithoutAssessments += value;
+          }
+        }
+      });
+
+      return totals;
+    }
+
+    async function updateCollegeOverviewTable(colleges) {
+      const tableBody = document.getElementById('collegeOverviewTableBody');
+      if (!tableBody) return;
+
+      if (colleges.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="8" class="px-6 py-4 text-center text-gray-500">No colleges found</td>
+          </tr>
+        `;
+        return;
+      }
+
+      let tableHTML = '';
+      
+      for (const college of colleges) {
+        try {
+          // Get college data with improved error handling and caching
+          const reportsResponse = await axios.get(`/api/colleges/${college.id}/reports`, {
+            timeout: 10000, // 10 second timeout
+            headers: {
+              'Cache-Control': 'no-cache' // Ensure fresh data
+            }
+          });
+          const reports = reportsResponse.data.reports || [];
+          
+          let students = 0;
+          let placements = 0;
+          let activities = 0;
+          let assessments = 0;
+          let totalReports = reports.length;
+          let lastReportDate = 'No reports';
+          
+          if (reports.length > 0) {
+            // Sort reports by creation date to ensure we get the latest
+            const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            const latestReport = sortedReports[0];
+            lastReportDate = new Date(latestReport.createdAt).toLocaleString();
+            
+            if (latestReport.data && latestReport.data.rows) {
+              const totals = calculateTotalsFromReport(latestReport.data);
+              students = totals.totalStudents || 0;
+              placements = totals.totalPlacements || 0;
+              activities = totals.totalActivities || 0;
+              assessments = (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+            }
+          }
+          
+          tableHTML += `
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.name}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${students.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${placements.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${activities.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${assessments.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${totalReports.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${lastReportDate}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <button onclick="window.open('college-dashboard.html?id=${college.id}', '_blank')" class="text-blue-600 hover:underline">
+                  View Dashboard
+                </button>
+              </td>
+            </tr>
+          `;
+        } catch (error) {
+          // Handle 404 errors gracefully (no reports exist yet)
+          if (error.response && error.response.status === 404) {
+            console.log(`No reports found for college ${college.id} (this is normal for new colleges)`);
+            tableHTML += `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">No reports</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <button onclick="window.open('college-dashboard.html?id=${college.id}', '_blank')" class="text-blue-600 hover:underline">
+                    View Dashboard
+                  </button>
+                </td>
+              </tr>
+            `;
+          } else {
+            console.error(`Error loading data for college ${college.id}:`, error);
+            tableHTML += `
+              <tr>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" colspan="6">Error loading data</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <button onclick="window.open('college-dashboard.html?id=${college.id}', '_blank')" class="text-blue-600 hover:underline">
+                    View Dashboard
+                  </button>
+                </td>
+              </tr>
+            `;
+          }
+        }
+      }
+      
+      tableBody.innerHTML = tableHTML;
+    }
+
+    // College Search Functions
+    let searchTimeout; // For debouncing search input
+    
+    function filterColleges() {
+      const searchTerm = document.getElementById('collegeSearchInput').value.toLowerCase();
+      const filterType = document.getElementById('collegeFilterType').value;
+      const tableBody = document.getElementById('collegesTableBody');
+      const resultsCount = document.getElementById('searchResultsCount');
+      
+      if (!tableBody || allColleges.length === 0) return;
+      
+      // Clear previous timeout
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+      
+      // Debounce the search to improve performance
+      searchTimeout = setTimeout(() => {
+        performSearch(searchTerm, filterType, tableBody, resultsCount);
+      }, 300);
+    }
+    
+    function performSearch(searchTerm, filterType, tableBody, resultsCount) {
+      
+      let filteredColleges = allColleges;
+      
+      if (searchTerm.trim() !== '') {
+        filteredColleges = allColleges.filter(college => {
+          const name = college.name.toLowerCase();
+          const manager = (college.accountManager || 'Unassigned').toLowerCase();
+          const frequency = (college.reportFrequency || '').toLowerCase();
+          
+          switch (filterType) {
+            case 'name':
+              return name.includes(searchTerm);
+            case 'manager':
+              return manager.includes(searchTerm);
+            case 'frequency':
+              return frequency.includes(searchTerm);
+            case 'all':
+            default:
+              return name.includes(searchTerm) || 
+                     manager.includes(searchTerm) || 
+                     frequency.includes(searchTerm);
+          }
+        });
+      }
+      
+      // Update the table with filtered results
+      displayFilteredColleges(filteredColleges);
+      
+      // Update results count
+      const totalColleges = allColleges.length;
+      const shownColleges = filteredColleges.length;
+      
+      if (searchTerm.trim() === '') {
+        resultsCount.textContent = `Showing all ${totalColleges} colleges`;
+      } else {
+        resultsCount.textContent = `Showing ${shownColleges} of ${totalColleges} colleges`;
+      }
+    }
+    
+    function displayFilteredColleges(colleges) {
+      const tableBody = document.getElementById('collegesTableBody');
+      if (!tableBody) return;
+      
+      if (colleges.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+              <div class="flex flex-col items-center">
+                <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <span>No colleges found matching your search</span>
+              </div>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+      
+      let tableHTML = '';
+      
+      colleges.forEach(college => {
+        const lastReport = college.lastReport ? new Date(college.lastReport).toLocaleDateString() : 'No reports';
+        const nextReport = getNextReportDate(college);
+        
+        tableHTML += `
+          <tr class="hover:bg-gray-50 transition-colors duration-150">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${college.name}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.accountManager || 'Unassigned'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.reportFrequency || 'Not set'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${lastReport}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${nextReport}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <div class="flex space-x-2">
+                <button onclick="showCollegeDashboard('${college.id}')" class="text-blue-600 hover:text-blue-900 hover:underline">Dashboard</button>
+                <button onclick="editCollege('${college.id}')" class="text-green-600 hover:text-green-900 hover:underline">Edit</button>
+                <button onclick="deleteCollege('${college.id}')" class="text-red-600 hover:text-red-900 hover:underline">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+      
+      tableBody.innerHTML = tableHTML;
+    }
+    
+    function clearCollegeSearch() {
+      document.getElementById('collegeSearchInput').value = '';
+      document.getElementById('collegeFilterType').value = 'all';
+      document.getElementById('searchResultsCount').textContent = 'Showing all colleges';
+      
+      // Reset to show all colleges
+      if (allColleges.length > 0) {
+        displayFilteredColleges(allColleges);
+      }
+    }
+    
+    function handleSearchKeydown(event) {
+      // Ctrl+F to focus search (prevent default browser search)
+      if (event.ctrlKey && event.key === 'f') {
+        event.preventDefault();
+        document.getElementById('collegeSearchInput').focus();
+        return;
+      }
+      
+      // Escape to clear search
+      if (event.key === 'Escape') {
+        clearCollegeSearch();
+        document.getElementById('collegeSearchInput').blur();
+        return;
+      }
+      
+      // Enter to focus first result (if any)
+      if (event.key === 'Enter') {
+        const firstResult = document.querySelector('#collegesTableBody tr:not([style*="display: none"])');
+        if (firstResult) {
+          const firstButton = firstResult.querySelector('button');
+          if (firstButton) {
+            firstButton.focus();
+          }
+        }
+      }
+    }
+    
+    // Add global keyboard shortcuts
+    document.addEventListener('keydown', function(event) {
+      // Only handle shortcuts when not typing in input fields
+      if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+        return;
+      }
+      
+      // Ctrl+F to focus search when on colleges tab
+      if (event.ctrlKey && event.key === 'f') {
+        event.preventDefault();
+        const collegesTab = document.getElementById('colleges');
+        if (collegesTab && !collegesTab.classList.contains('hidden')) {
+          document.getElementById('collegeSearchInput').focus();
+        }
+      }
+    });
+    
+    // Override the existing displayColleges function to store colleges for search
+    const originalDisplayColleges = displayColleges;
+    displayColleges = function(collegesData) {
+      if (collegesData !== undefined) {
+        allColleges = collegesData; // Store colleges for search functionality
+      } else {
+        allColleges = colleges; // Use global colleges if no parameter provided
+      }
+      originalDisplayColleges();
+    };
+    
+    // Debug function to manually refresh college select
+    function debugCollegeSelect() {
+      console.log('=== College Select Debug ===');
+      console.log('Colleges loaded:', colleges ? colleges.length : 0);
+      console.log('Selected Account Manager ID:', selectedAccountManagerId);
+      console.log('Account Managers loaded:', accountManagers ? accountManagers.length : 0);
+      
+      if (colleges && colleges.length > 0) {
+        console.log('Sample college data:', colleges[0]);
+      }
+      
+      // Check Emmanuel Dadey specifically
+      const emmanuelDadey = accountManagers.find(am => am.name === 'Emmanuel Dadey');
+      if (emmanuelDadey) {
+        console.log('Emmanuel Dadey found:', emmanuelDadey);
+        const emmanuelColleges = colleges.filter(c => String(c.accountManagerId) === String(emmanuelDadey.id));
+        console.log('Colleges assigned to Emmanuel Dadey:', emmanuelColleges);
+      }
+      
+      updateCollegeSelect();
+    }
+    
+    // Debug function to check authentication status
+    async function debugAuth() {
+      console.log('=== Authentication Debug ===');
+      
+      // Check cookies
+      console.log('Cookies:', document.cookie);
+      
+      // Check localStorage
+      console.log('localStorage:', Object.keys(localStorage));
+      
+      // Test auth endpoint
+      try {
+        const response = await axios.get('/api/auth/me');
+        console.log('Auth check successful:', response.data);
+      } catch (error) {
+        console.error('Auth check failed:', error.response?.status, error.response?.data);
+      }
+      
+      // Test colleges endpoint
+      try {
+        const response = await axios.get('/api/colleges');
+        console.log('Colleges check successful:', response.data);
+      } catch (error) {
+        console.error('Colleges check failed:', error.response?.status, error.response?.data);
+      }
+    }
+    
+    // Quick login test function
+    async function testLogin(username = 'admin', password = 'admin123') {
+      console.log('=== Testing Login ===');
+      try {
+        const response = await axios.post('/api/auth/login', {
+          username: username,
+          password: password
+        });
+        console.log('Login successful:', response.data);
+        
+        // Reload dashboard data
+        setTimeout(() => {
+          loadDashboardData();
+        }, 1000);
+      } catch (error) {
+        console.error('Login failed:', error.response?.status, error.response?.data);
+      }
+    }
+
+    // Utility functions
+    function showStatus(message, type) {
+      const statusArea = document.getElementById('statusArea');
+      
+      // Clear any existing notifications
+      statusArea.innerHTML = '';
+      
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = `notification p-4 rounded-lg shadow-lg border-l-4 mb-3 transform transition-all duration-300 ease-in-out translate-x-full`;
+      
+      // Set colors based on type
+      let bgColor, borderColor, icon;
+      switch (type) {
+        case 'success':
+          bgColor = 'bg-green-50 text-green-800 border-green-400';
+          borderColor = 'border-green-400';
+          icon = '✓';
+          break;
+        case 'error':
+          bgColor = 'bg-red-50 text-red-800 border-red-400';
+          borderColor = 'border-red-400';
+          icon = '✗';
+          break;
+        case 'warning':
+          bgColor = 'bg-yellow-50 text-yellow-800 border-yellow-400';
+          borderColor = 'border-yellow-400';
+          icon = '⚠';
+          break;
+        default:
+          bgColor = 'bg-blue-50 text-blue-800 border-blue-400';
+          borderColor = 'border-blue-400';
+          icon = 'ℹ';
+      }
+      
+      notification.className += ` ${bgColor} ${borderColor}`;
+      
+      // Create notification content
+      notification.innerHTML = `
+        <div class="flex items-start justify-between">
+          <div class="flex items-start">
+            <span class="text-lg mr-2">${icon}</span>
+            <div>
+              <p class="font-medium">${type.charAt(0).toUpperCase() + type.slice(1)}</p>
+              <p class="text-sm mt-1">${message}</p>
+            </div>
+          </div>
+          <button onclick="this.parentElement.parentElement.remove()" class="text-gray-400 hover:text-gray-600 ml-4">
+            <span class="text-lg">×</span>
+          </button>
+        </div>
+      `;
+      
+      // Add to status area
+      statusArea.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+      }, 100);
+      
+          // Auto remove after 6 seconds (unless manually closed)
+    setTimeout(() => {
+      if (notification.parentElement) {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+          if (notification.parentElement) {
+            notification.remove();
+          }
+        }, 300);
+      }
+    }, 6000);
+  }
+
+    document.getElementById('assignAccountManagerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const managerId = document.getElementById('assignAccountManagerSelect').value;
+      if (!reassigningCollegeId || !managerId) {
+        alert('Please select an account manager.');
+        return;
+      }
+      // Update the college's accountManagerId
+      await updateCollegeAccountManager(reassigningCollegeId, managerId);
+      hideAssignAccountManagerModal();
+      // Optionally reload colleges list
+      await loadColleges();
+    });
+
+    async function updateCollegeAccountManager(collegeId, managerId) {
+      try {
+        await fetch(`/api/colleges/${collegeId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ accountManagerId: managerId })
+        });
+      } catch (err) {
+        alert('Failed to update account manager.');
+      }
+    }
+
+    // Add this function to move columns ...
+    function moveColumn(colIdx, direction) {
+      if (colIdx < 0 || colIdx >= tableHeaders.length) return;
+      const newIdx = colIdx + direction;
+      if (newIdx < 0 || newIdx >= tableHeaders.length) return;
+      // Swap headers
+      const temp = tableHeaders[colIdx];
+      tableHeaders[colIdx] = tableHeaders[newIdx];
+      tableHeaders[newIdx] = temp;
+      // Swap data in each row
+      tableData.forEach(row => {
+        const t = row[colIdx];
+        row[colIdx] = row[newIdx];
+        row[newIdx] = t;
+      });
+      renderTable();
+    }
+
+    // Add this function to move rows ...
+    function moveRow(rowIdx, direction) {
+      const newIdx = rowIdx + direction;
+      if (newIdx < 0 || newIdx >= tableData.length) return;
+      const temp = tableData[rowIdx];
+      tableData[rowIdx] = tableData[newIdx];
+      tableData[newIdx] = temp;
+      renderTable();
+    }
+
+    // Add global variable:
+    let rowReorderMode = false;
+
+    // Add event listener for the toggle button:
+    document.getElementById('rowReorderToggleBtn').addEventListener('click', function() {
+      rowReorderMode = !rowReorderMode;
+      this.classList.toggle('bg-yellow-700', rowReorderMode);
+      this.textContent = rowReorderMode ? 'Done Reordering' : 'Reorder Rows';
+      renderTable();
+    });
+
+    // Add this script to handle file reordering ...
+    let selectedFiles = [];
+
+    const fileInput = document.getElementById('fileInput');
+    const fileReorderContainer = document.getElementById('fileReorderContainer');
+
+    fileInput.addEventListener('change', function() {
+      selectedFiles = Array.from(fileInput.files);
+      renderFileReorderList();
+    });
+
+    function renderFileReorderList() {
+      if (!selectedFiles.length) {
+        fileReorderContainer.innerHTML = '';
+        return;
+      }
+      fileReorderContainer.innerHTML = '<label class="block text-sm font-medium text-gray-700 mb-2">Reorder Files</label>' +
+        selectedFiles.map((file, idx) => `
+          <div class="flex items-center mb-1">
+            <span class="flex-1 text-sm">${file.name}</span>
+            <button type="button" onclick="moveFile(${idx}, -1)" class="text-gray-500 hover:text-blue-600 px-1">⬆️</button>
+            <button type="button" onclick="moveFile(${idx}, 1)" class="text-gray-500 hover:text-blue-600 px-1">⬇️</button>
+          </div>
+        `).join('');
+    }
+
+    function moveFile(idx, direction) {
+      const newIdx = idx + direction;
+      if (newIdx < 0 || newIdx >= selectedFiles.length) return;
+      const temp = selectedFiles[idx];
+      selectedFiles[idx] = selectedFiles[newIdx];
+      selectedFiles[newIdx] = temp;
+      renderFileReorderList();
+    }
+  </script>
+  <script>
+    function addModuleToForm() {
+      const container = document.getElementById('add-modules-container');
+      const entry = document.createElement('div');
+      entry.className = 'flex gap-2 items-center';
+      entry.innerHTML = `
+        <input type="text" placeholder="Module Name" class="module-name-input border border-gray-300 rounded-md px-2 py-1 text-sm" style="width: 180px;">
+        <input type="number" placeholder="Cost (£)" class="module-cost-input border border-gray-300 rounded-md px-2 py-1 text-sm" style="width: 100px;">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-600 hover:text-red-800 text-xs">Remove</button>
+      `;
+      container.appendChild(entry);
+    }
+
+    window.addEventListener('collegeDataUpdated', async () => {
+      // Reload dashboard data when college details are updated
+      console.log('collegeDataUpdated event received, refreshing all data...');
+      await loadAccountManagers(); // Reload account managers first
+      await loadColleges(); // Reload colleges and refresh the table display
+      loadDashboardDataFromExisting(); // Update dashboard metrics
+    });
+
+    // Manual refresh function for dashboard data
+    async function refreshDashboardData() {
+      const button = event.target.closest('button');
+      const originalText = button.innerHTML;
+      
+      // Show loading state
+      button.innerHTML = `
+        <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+        </svg>
+        Refreshing...
+      `;
+      button.disabled = true;
+      
+      try {
+        console.log('Manual dashboard refresh initiated...');
+        await loadDashboardDataFromExisting();
+        showStatus('Dashboard data refreshed successfully', 'success');
+        console.log('Manual dashboard refresh completed successfully');
+      } catch (error) {
+        console.error('Error during manual dashboard refresh:', error);
+        showStatus('Error refreshing dashboard data: ' + error.message, 'error');
+      } finally {
+        // Restore button state
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    }
+
+    // Auto-refresh dashboard data every 5 minutes to ensure up-to-date metrics
+    let dashboardRefreshInterval;
+    
+    function startDashboardAutoRefresh() {
+      // Clear any existing interval
+      if (dashboardRefreshInterval) {
+        clearInterval(dashboardRefreshInterval);
+      }
+      
+      // Set up auto-refresh every 5 minutes (300000 ms)
+      dashboardRefreshInterval = setInterval(async () => {
+        console.log('Auto-refreshing dashboard data...');
+        try {
+          await loadDashboardDataFromExisting();
+          console.log('Dashboard data auto-refresh completed successfully');
+        } catch (error) {
+          console.error('Error during dashboard auto-refresh:', error);
+        }
+      }, 300000); // 5 minutes
+    }
+
+    // Start auto-refresh when the page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      startDashboardAutoRefresh();
+    });
+
+    // Stop auto-refresh when page becomes hidden (user switches tabs)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (dashboardRefreshInterval) {
+          clearInterval(dashboardRefreshInterval);
+          console.log('Dashboard auto-refresh paused (page hidden)');
+        }
+      } else {
+        // Resume auto-refresh when page becomes visible again
+        startDashboardAutoRefresh();
+        console.log('Dashboard auto-refresh resumed (page visible)');
+      }
+    });
+  </script>
+</body>
+</html> 

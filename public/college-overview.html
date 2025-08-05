@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>College Overview - AM Reports</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #f8fafc;
+    }
+    .metric-card {
+      background: white;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      border: 1px solid #e5e7eb;
+    }
+    .metric-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+    .metric-label {
+      font-size: 0.875rem;
+      opacity: 0.8;
+    }
+    .swot-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      border: 2px solid;
+      margin-bottom: 20px;
+    }
+    .strengths { 
+      border-color: #86efac; 
+    }
+    .weaknesses { 
+      border-color: #fca5a5; 
+    }
+    .opportunities { 
+      border-color: #93c5fd; 
+    }
+    .threats { 
+      border-color: #fcd34d; 
+    }
+    .swot-header {
+      padding: 16px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: white;
+      border-radius: 6px 6px 0 0;
+    }
+    .strengths .swot-header {
+      background: #86efac;
+    }
+    .weaknesses .swot-header {
+      background: #fca5a5;
+    }
+    .opportunities .swot-header {
+      background: #93c5fd;
+    }
+    .threats .swot-header {
+      background: #fcd34d;
+    }
+    .swot-content {
+      padding: 16px;
+      position: relative;
+      background: white;
+      padding-bottom: 60px;
+      border-radius: 0 0 6px 6px;
+    }
+    .swot-item {
+      background: white;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      border: 1px solid #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .swot-item input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .swot-item input:focus {
+      background: #f9fafb;
+      border: 1px solid #3b82f6;
+    }
+    .add-button {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: white;
+      border-radius: 4px;
+    }
+    .add-button:hover {
+      transform: scale(1.05);
+    }
+    .strengths .add-button {
+      color: #86efac;
+      border-color: #86efac;
+    }
+    .weaknesses .add-button {
+      color: #fca5a5;
+      border-color: #fca5a5;
+    }
+    .opportunities .add-button {
+      color: #93c5fd;
+      border-color: #93c5fd;
+    }
+    .threats .add-button {
+      color: #fcd34d;
+      border-color: #fcd34d;
+    }
+    .delete-button {
+      cursor: pointer;
+      color: #6b7280;
+      font-size: 16px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: all 0.2s;
+      background: white;
+    }
+    .delete-button:hover {
+      background: #fef2f2;
+      color: #ef4444;
+    }
+    .drag-handle {
+      cursor: move;
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .edit-button {
+      cursor: pointer;
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .edit-button:hover {
+      color: #374151;
+    }
+    .account-manager-view {
+      display: none;
+    }
+    .account-manager-view.active {
+      display: block;
+    }
+    .college-view.active {
+      display: block;
+    }
+    .college-view {
+      display: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <div class="max-w-7xl mx-auto py-8 px-4">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-8">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900" id="collegeName">College Overview</h1>
+        <p class="text-gray-600" id="collegeSubtitle">Comprehensive college performance dashboard</p>
+      </div>
+      <div class="flex space-x-4">
+        <button onclick="goBack()" class="flex items-center bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+          Back
+        </button>
+        <button onclick="toggleView()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
+          <span id="viewToggle">Account Manager View</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- College View (Simple) -->
+    <div id="collegeView" class="college-view">
+      <!-- Headline Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="metric-card rounded-lg p-6 text-center bg-white border border-blue-100">
+          <div class="metric-value text-blue-600" id="totalStudentsMetricSimple">0</div>
+          <div class="metric-label text-gray-600">Total Students</div>
+        </div>
+        <div class="metric-card rounded-lg p-6 text-center bg-white border border-blue-100">
+          <div class="metric-value text-blue-600" id="placementsMetricSimple">0</div>
+          <div class="metric-label text-gray-600">Placements</div>
+        </div>
+        <div class="metric-card rounded-lg p-6 text-center bg-white border border-blue-100">
+          <div class="metric-value text-blue-600" id="activitiesMetricSimple">0</div>
+          <div class="metric-label text-gray-600">Activities</div>
+        </div>
+        <div class="metric-card rounded-lg p-6 text-center bg-white border border-blue-100">
+          <div class="metric-value text-blue-600" id="engagementMetricSimple">0</div>
+          <div class="metric-label text-gray-600">Engagement Hours</div>
+        </div>
+      </div>
+      <!-- Full Metrics Grid/Form -->
+      <div class="metric-card rounded-lg p-6 mb-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Key Metrics</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Number of Students</label>
+            <input type="number" id="numberOfStudentsSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Students with Placements</label>
+            <input type="number" id="studentsWithPlacementsSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Total Placements</label>
+            <input type="number" id="totalPlacementsSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">% Students with Placements</label>
+            <input type="number" id="percentStudentsWithPlacementsSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Hours Scheduled to Date</label>
+            <input type="number" id="hoursScheduledToDateSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Student Confirmed Hours to Date</label>
+            <input type="number" id="studentConfirmedHoursToDateSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">% Student Confirmed Against Scheduled</label>
+            <input type="number" id="percentStudentConfirmedAgainstScheduledSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Employer Confirmed Hours to Date</label>
+            <input type="number" id="employerConfirmedHoursToDateSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">% Employer Confirmed Against Scheduled</label>
+            <input type="number" id="percentEmployerConfirmedAgainstScheduledSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Total Students with Activities</label>
+            <input type="number" id="totalStudentsWithActivitiesSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">% Students with Activities</label>
+            <input type="number" id="percentStudentsWithActivitiesSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Total Activities</label>
+            <input type="number" id="totalActivitiesSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Students with at least 1 Assessment</label>
+            <input type="number" id="studentsWithAtLeastOneAssessmentSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">% of Students with a Skills Assessment</label>
+            <input type="number" id="percentStudentsWithSkillsAssessmentSimple" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+          </div>
+        </div>
+      </div>
+      <!-- Insights & Recommendations (Full Report) -->
+      <div class="metric-card rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Insights & Recommendations</h3>
+        <div id="collegeInsightsContent" class="space-y-4">
+          <!-- Insights will be dynamically loaded here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Account Manager View (Comprehensive) -->
+    <div id="accountManagerView" class="account-manager-view active">
+      <!-- View Toggle -->
+      <div class="mb-6">
+        <div class="metric-card rounded-lg p-4">
+          <div class="flex space-x-4">
+            <button onclick="showSection('overview')" class="view-section-btn active px-4 py-2 rounded bg-blue-600 text-white">
+              Overview
+            </button>
+            <button onclick="showSection('metrics')" class="view-section-btn px-4 py-2 rounded hover:bg-gray-100 text-gray-700">
+              Metrics
+            </button>
+            <button onclick="showSection('insights')" class="view-section-btn px-4 py-2 rounded hover:bg-gray-100 text-gray-700">
+              Insights
+            </button>
+            <button onclick="showSection('notes')" class="view-section-btn px-4 py-2 rounded hover:bg-gray-100 text-gray-700">
+              Notes
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- Overview Section -->
+      <div id="overview" class="view-section">
+        <!-- Key Metrics Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div class="metric-card rounded-lg p-6 text-center bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+            <div class="metric-value text-blue-600" id="totalStudentsMetric">0</div>
+            <div class="metric-label text-gray-600">Total Students</div>
+          </div>
+          <div class="metric-card rounded-lg p-6 text-center bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+            <div class="metric-value text-blue-600" id="placementsMetric">0</div>
+            <div class="metric-label text-gray-600">Placements</div>
+          </div>
+          <div class="metric-card rounded-lg p-6 text-center bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+            <div class="metric-value text-blue-600" id="activitiesMetric">0</div>
+            <div class="metric-label text-gray-600">Activities</div>
+          </div>
+          <div class="metric-card rounded-lg p-6 text-center bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
+            <div class="metric-value text-blue-600" id="engagementMetric">0</div>
+            <div class="metric-label text-gray-600">Engagement Hours</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- General Information -->
+          <div class="metric-card rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">General Information</h3>
+            <div class="space-y-3">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">College Name</label>
+                  <input type="text" id="collegeNameInput" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Number of Providers</label>
+                  <input type="number" id="numberOfProviders" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Account Manager</label>
+                  <input type="text" id="accountManager" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Key Stakeholder</label>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="keyStakeholderName" placeholder="Staff Name" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="keyStakeholderPosition" placeholder="Position" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700">Super Users</label>
+                <div class="space-y-2">
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="superUser1Name" placeholder="Staff Name" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="superUser1Position" placeholder="Position" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="superUser2Name" placeholder="Staff Name" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="superUser2Position" placeholder="Position" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input type="text" id="superUser3Name" placeholder="Staff Name" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="superUser3Position" placeholder="Position" class="block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                  </div>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">MIS Contact</label>
+                  <input type="text" id="misContact" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Data Transfer</label>
+                  <input type="text" id="dataTransfer" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Performance Indicators -->
+          <div class="metric-card rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Performance Indicators</h3>
+            <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Status</label>
+                  <select id="status" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">OFSTED Rating</label>
+                  <select id="ofstedRating" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="G">Good</option>
+                    <option value="O">Outstanding</option>
+                    <option value="R">Requires Improvement</option>
+                    <option value="I">Inadequate</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Meeting Frequency</label>
+                  <select id="meetingFrequency" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="Weekly">Weekly</option>
+                    <option value="Bi-Weekly">Bi-Weekly</option>
+                    <option value="Monthly">Monthly</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Engagement Level</label>
+                  <select id="engagementLevel" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="Excellent">Excellent</option>
+                    <option value="Good">Good</option>
+                    <option value="Fair">Fair</option>
+                    <option value="Poor">Poor</option>
+                  </select>
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Health Check (0-5)</label>
+                  <input type="number" id="healthCheck" min="0" max="5" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700">Growth Check (0-5)</label>
+                  <input type="number" id="growthCheck" min="0" max="5" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SWOT Analysis Section -->
+        <div class="mt-8">
+          <h3 class="text-xl font-semibold text-gray-900 mb-6">SWOT Analysis</h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="swot-card strengths">
+              <div class="swot-header">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Strengths</span>
+              </div>
+              <div class="swot-content">
+                <div id="strengthsList" class="space-y-2">
+                  <div class="swot-item">
+                    <input type="text" value="Strong student engagement with the platform" class="strength-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                  <div class="swot-item">
+                    <input type="text" value="Effective integration with existing systems" class="strength-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                </div>
+                <div class="add-button" onclick="addSwotItem('strengths')">
+                  <span>+</span>
+                </div>
+              </div>
+            </div>
+            <div class="swot-card weaknesses">
+              <div class="swot-header">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Weaknesses</span>
+              </div>
+              <div class="swot-content">
+                <div id="weaknessesList" class="space-y-2">
+                  <div class="swot-item">
+                    <input type="text" value="Limited adoption by some departments" class="weakness-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                  <div class="swot-item">
+                    <input type="text" value="Need for additional training resources" class="weakness-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                </div>
+                <div class="add-button" onclick="addSwotItem('weaknesses')">
+                  <span>+</span>
+                </div>
+              </div>
+            </div>
+            <div class="swot-card opportunities">
+              <div class="swot-header">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"></path>
+                </svg>
+                <span>Opportunities</span>
+              </div>
+              <div class="swot-content">
+                <div id="opportunitiesList" class="space-y-2">
+                  <div class="swot-item">
+                    <input type="text" value="Expand to additional departments" class="opportunity-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                  <div class="swot-item">
+                    <input type="text" value="Implement advanced analytics features" class="opportunity-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                </div>
+                <div class="add-button" onclick="addSwotItem('opportunities')">
+                  <span>+</span>
+                </div>
+              </div>
+            </div>
+            <div class="swot-card threats">
+              <div class="swot-header">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                <span>Threats</span>
+              </div>
+              <div class="swot-content">
+                <div id="threatsList" class="space-y-2">
+                  <div class="swot-item">
+                    <input type="text" value="Competition from other platforms" class="threat-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                  <div class="swot-item">
+                    <input type="text" value="Budget constraints affecting expansion" class="threat-input">
+                    <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+                  </div>
+                </div>
+                <div class="add-button" onclick="addSwotItem('threats')">
+                  <span>+</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Health Check & Growth Check Details -->
+        <div class="mt-8">
+          <h3 class="text-xl font-semibold text-gray-900 mb-6">Health Check & Growth Check Details</h3>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Health Check Section -->
+            <div class="metric-card rounded-lg p-6">
+              <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+                Health Check (Data Driven) - Score 0-5 (5=Exceptional)
+              </h4>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Progression across metrics</span>
+                  <input type="number" id="healthProgression" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">More students</span>
+                  <input type="number" id="healthMoreStudents" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">More activities</span>
+                  <input type="number" id="healthMoreActivities" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">More placements</span>
+                  <input type="number" id="healthMorePlacements" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Increased % of students with a placement</span>
+                  <input type="number" id="healthIncreasedPlacements" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">General tone of meeting</span>
+                  <input type="number" id="healthMeetingTone" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-semibold text-blue-700">Health Check Total Score:</span>
+                    <span id="healthCheckTotal" class="text-lg font-bold text-blue-600">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Growth Check Section -->
+            <div class="metric-card rounded-lg p-6">
+              <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <svg class="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Growth Check (Qualitative Commentary) - Score 0-5 (5=Exceptional)
+              </h4>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Interest in other modules</span>
+                  <input type="number" id="growthInterestModules" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Likelihood of Renewal</span>
+                  <input type="number" id="growthRenewal" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Tech Issues</span>
+                  <input type="number" id="growthTechIssues" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span class="text-sm font-medium text-gray-700">Training Issues</span>
+                  <input type="number" id="growthTrainingIssues" min="0" max="5" class="w-16 border border-gray-300 rounded px-2 py-1 text-center focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mt-4 p-3 bg-green-50 rounded-lg">
+                  <div class="flex justify-between items-center">
+                    <span class="text-sm font-semibold text-green-700">Growth Check Total Score:</span>
+                    <span id="growthCheckTotal" class="text-lg font-bold text-green-600">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metrics Section -->
+      <div id="metrics" class="view-section hidden">
+        <div class="metric-card rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Key Metrics</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Number of Students</label>
+              <input type="number" id="numberOfStudents" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Students with Placements</label>
+              <input type="number" id="studentsWithPlacements" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Total Placements</label>
+              <input type="number" id="totalPlacements" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">% Students with Placements</label>
+              <input type="number" id="percentStudentsWithPlacements" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Hours Scheduled to Date</label>
+              <input type="number" id="hoursScheduledToDate" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Student Confirmed Hours to Date</label>
+              <input type="number" id="studentConfirmedHoursToDate" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">% Student Confirmed Against Scheduled</label>
+              <input type="number" id="percentStudentConfirmedAgainstScheduled" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Employer Confirmed Hours to Date</label>
+              <input type="number" id="employerConfirmedHoursToDate" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">% Employer Confirmed Against Scheduled</label>
+              <input type="number" id="percentEmployerConfirmedAgainstScheduled" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Total Students with Activities</label>
+              <input type="number" id="totalStudentsWithActivities" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">% Students with Activities</label>
+              <input type="number" id="percentStudentsWithActivities" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Total Activities</label>
+              <input type="number" id="totalActivities" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Students with at least 1 Assessment</label>
+              <input type="number" id="studentsWithAtLeastOneAssessment" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">% of Students with a Skills Assessment</label>
+              <input type="number" id="percentStudentsWithSkillsAssessment" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Insights Section -->
+      <div id="insights" class="view-section hidden">
+        <div class="metric-card rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Insights & Recommendations</h3>
+          <div id="insightsContent" class="space-y-4">
+            <!-- Insights will be dynamically loaded here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes Section -->
+      <div id="notes" class="view-section hidden">
+        <div class="metric-card rounded-lg p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Notes & Meeting Summaries</h3>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Concerns</label>
+            <textarea id="concerns" rows="2" class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+          </div>
+          <div class="mt-4">
+            <label class="block text-sm font-medium text-gray-700">Meeting Summaries</label>
+            <ul id="meetingSummaries" class="list-disc pl-5 mt-2 space-y-2 text-gray-700"></ul>
+            <form id="addMeetingSummaryForm" class="mt-4 flex space-x-2">
+              <input type="text" id="newMeetingSummary" class="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Add meeting summary...">
+              <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">Add</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // View management
+    function showSection(sectionName) {
+      // Hide all sections
+      document.querySelectorAll('.view-section').forEach(section => {
+        section.classList.add('hidden');
+      });
+      
+      // Remove active class from all buttons
+      document.querySelectorAll('.view-section-btn').forEach(btn => {
+        btn.classList.remove('active', 'bg-blue-600', 'text-white');
+        btn.classList.add('text-gray-700');
+      });
+      
+      // Show selected section
+      document.getElementById(sectionName).classList.remove('hidden');
+      
+      // Add active class to clicked button
+      event.target.classList.add('active', 'bg-blue-600', 'text-white');
+      event.target.classList.remove('text-gray-700');
+    }
+
+    // Toggle between college and account manager view
+    function toggleView() {
+      const toggleBtn = document.getElementById('viewToggle');
+      const collegeView = document.getElementById('collegeView');
+      const accountManagerView = document.getElementById('accountManagerView');
+      const currentView = toggleBtn.textContent;
+      
+      if (currentView === 'Account Manager View') {
+        toggleBtn.textContent = 'College View';
+        accountManagerView.classList.remove('active');
+        collegeView.classList.add('active');
+      } else {
+        toggleBtn.textContent = 'Account Manager View';
+        collegeView.classList.remove('active');
+        accountManagerView.classList.add('active');
+      }
+    }
+
+    // Add SWOT item
+    function addSwotItem(type) {
+      const list = document.getElementById(type + 'List');
+      const newItem = document.createElement('div');
+      newItem.className = 'swot-item';
+      newItem.innerHTML = `
+        <input type="text" value="New ${type.slice(0, -1)}" class="${type.slice(0, -1)}-input">
+        <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+      `;
+      list.appendChild(newItem);
+    }
+
+    // Update metric cards with real data
+    function updateMetrics() {
+      const studentsInput = document.getElementById('numberOfStudents');
+      const placementsInput = document.getElementById('totalPlacements');
+      const activitiesInput = document.getElementById('totalActivities');
+      const engagementInput = document.getElementById('hoursScheduledToDate');
+      
+      if (studentsInput) {
+        document.getElementById('totalStudentsMetric').textContent = studentsInput.value || '0';
+      }
+      if (placementsInput) {
+        document.getElementById('placementsMetric').textContent = placementsInput.value || '0';
+      }
+      if (activitiesInput) {
+        document.getElementById('activitiesMetric').textContent = activitiesInput.value || '0';
+      }
+      if (engagementInput) {
+        document.getElementById('engagementMetric').textContent = engagementInput.value || '0';
+      }
+    }
+
+    // Remove showCollegeSection and tab logic for college view
+
+    // Add event listeners for real-time metric updates
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load sample data
+      loadSampleData();
+      
+      const metricInputs = ['numberOfStudents', 'totalPlacements', 'totalActivities', 'hoursScheduledToDate'];
+      metricInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+          input.addEventListener('input', updateMetrics);
+        }
+      });
+
+      // Add event listeners for Health Check inputs
+      const healthCheckInputs = ['healthProgression', 'healthMoreStudents', 'healthMoreActivities', 'healthMorePlacements', 'healthIncreasedPlacements', 'healthMeetingTone'];
+      healthCheckInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+          input.addEventListener('input', calculateHealthCheckTotal);
+        }
+      });
+
+      // Add event listeners for Growth Check inputs
+      const growthCheckInputs = ['growthInterestModules', 'growthRenewal', 'growthTechIssues', 'growthTrainingIssues'];
+      growthCheckInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+          input.addEventListener('input', calculateGrowthCheckTotal);
+        }
+      });
+
+      // Meeting summary form
+      const form = document.getElementById('addMeetingSummaryForm');
+      if (form) {
+        form.addEventListener('submit', function(e) {
+          e.preventDefault();
+          const input = document.getElementById('newMeetingSummary');
+          const summary = input.value.trim();
+          
+          if (summary) {
+            const list = document.getElementById('meetingSummaries');
+            const li = document.createElement('li');
+            li.textContent = summary;
+            list.appendChild(li);
+            input.value = '';
+          }
+        });
+      }
+
+      // Show metrics tab by default
+      // showCollegeSection('metrics'); // This line is no longer needed
+
+    });
+
+    // Load sample data function
+    function loadSampleData() {
+      // Sample college data
+      const sampleData = {
+        collegeName: "Manchester College of Technology",
+        numberOfProviders: 12,
+        accountManager: "Sarah Johnson",
+        keyStakeholder: {
+          name: "Dr. Michael Chen",
+          position: "Head of Technology"
+        },
+        superUsers: [
+          { name: "Jane Smith", position: "IT Coordinator" },
+          { name: "John Davis", position: "Data Manager" },
+          { name: "Lisa Wilson", position: "Student Services Lead" }
+        ],
+        misContact: "tech.support@mct.ac.uk",
+        dataTransfer: "SFTP - Weekly",
+        status: "A",
+        ofstedRating: "O",
+        meetingFrequency: "Bi-Weekly",
+        engagementLevel: "Excellent",
+        healthCheck: 4,
+        growthCheck: 5,
+        healthCheckDetails: {
+          progression: 4,
+          moreStudents: 4,
+          moreActivities: 5,
+          morePlacements: 4,
+          increasedPlacements: 4,
+          meetingTone: 4
+        },
+        growthCheckDetails: {
+          interestModules: 5,
+          renewal: 5,
+          techIssues: 3,
+          trainingIssues: 4
+        },
+        metrics: {
+          numberOfStudents: 1247,
+          studentsWithPlacements: 892,
+          totalPlacements: 1156,
+          percentStudentsWithPlacements: 71.5,
+          hoursScheduledToDate: 28450,
+          studentConfirmedHoursToDate: 26780,
+          percentStudentConfirmedAgainstScheduled: 94.1,
+          employerConfirmedHoursToDate: 25120,
+          percentEmployerConfirmedAgainstScheduled: 88.3,
+          totalStudentsWithActivities: 1189,
+          percentStudentsWithActivities: 95.3,
+          totalActivities: 3420,
+          studentsWithAtLeastOneAssessment: 1103,
+          percentStudentsWithSkillsAssessment: 88.5
+        },
+        strengths: [
+          "Strong industry partnerships with local tech companies",
+          "Excellent student engagement with placement opportunities",
+          "Robust MIS system integration",
+          "High employer satisfaction rates",
+          "Comprehensive skills assessment program"
+        ],
+        weaknesses: [
+          "Limited placement opportunities in rural areas",
+          "Some departments need additional training resources",
+          "Occasional delays in data processing",
+          "Need for more diverse employer partnerships"
+        ],
+        opportunities: [
+          "Expand to additional STEM departments",
+          "Implement advanced analytics dashboard",
+          "Develop apprenticeship programs",
+          "Partner with national tech companies",
+          "Create industry certification pathways"
+        ],
+        threats: [
+          "Competition from online learning platforms",
+          "Budget constraints affecting expansion",
+          "Changing industry requirements",
+          "Staff turnover in key departments"
+        ],
+        insights: [
+          "Student placement rate of 71.5% exceeds national average of 65%",
+          "94.1% student confirmation rate indicates strong engagement",
+          "88.3% employer confirmation rate shows high satisfaction",
+          "95.3% of students participating in activities demonstrates excellent engagement",
+          "Skills assessment completion rate of 88.5% is above target"
+        ],
+        concerns: "Need to address rural placement opportunities and ensure consistent data processing timelines.",
+        meetingSummaries: [
+          "Q1 Review: Excellent progress on placement targets, need to focus on rural expansion",
+          "Staff Training: Completed MIS system training for all departments",
+          "Employer Meeting: Secured 3 new partnership agreements",
+          "Data Review: Implemented new validation processes to reduce processing delays"
+        ]
+      };
+
+      // Populate form fields
+      document.getElementById('collegeNameInput').value = sampleData.collegeName;
+      document.getElementById('numberOfProviders').value = sampleData.numberOfProviders;
+      document.getElementById('accountManager').value = sampleData.accountManager;
+      document.getElementById('keyStakeholderName').value = sampleData.keyStakeholder.name;
+      document.getElementById('keyStakeholderPosition').value = sampleData.keyStakeholder.position;
+      
+      // Populate super users
+      document.getElementById('superUser1Name').value = sampleData.superUsers[0].name;
+      document.getElementById('superUser1Position').value = sampleData.superUsers[0].position;
+      document.getElementById('superUser2Name').value = sampleData.superUsers[1].name;
+      document.getElementById('superUser2Position').value = sampleData.superUsers[1].position;
+      document.getElementById('superUser3Name').value = sampleData.superUsers[2].name;
+      document.getElementById('superUser3Position').value = sampleData.superUsers[2].position;
+      
+      document.getElementById('misContact').value = sampleData.misContact;
+      document.getElementById('dataTransfer').value = sampleData.dataTransfer;
+      document.getElementById('status').value = sampleData.status;
+      document.getElementById('ofstedRating').value = sampleData.ofstedRating;
+      document.getElementById('meetingFrequency').value = sampleData.meetingFrequency;
+      document.getElementById('engagementLevel').value = sampleData.engagementLevel;
+      document.getElementById('healthCheck').value = sampleData.healthCheck;
+      document.getElementById('growthCheck').value = sampleData.growthCheck;
+      
+      // Populate health check details
+      document.getElementById('healthProgression').value = sampleData.healthCheckDetails.progression;
+      document.getElementById('healthMoreStudents').value = sampleData.healthCheckDetails.moreStudents;
+      document.getElementById('healthMoreActivities').value = sampleData.healthCheckDetails.moreActivities;
+      document.getElementById('healthMorePlacements').value = sampleData.healthCheckDetails.morePlacements;
+      document.getElementById('healthIncreasedPlacements').value = sampleData.healthCheckDetails.increasedPlacements;
+      document.getElementById('healthMeetingTone').value = sampleData.healthCheckDetails.meetingTone;
+      
+      // Populate growth check details
+      document.getElementById('growthInterestModules').value = sampleData.growthCheckDetails.interestModules;
+      document.getElementById('growthRenewal').value = sampleData.growthCheckDetails.renewal;
+      document.getElementById('growthTechIssues').value = sampleData.growthCheckDetails.techIssues;
+      document.getElementById('growthTrainingIssues').value = sampleData.growthCheckDetails.trainingIssues;
+
+      // Populate metrics
+      document.getElementById('numberOfStudents').value = sampleData.metrics.numberOfStudents;
+      document.getElementById('studentsWithPlacements').value = sampleData.metrics.studentsWithPlacements;
+      document.getElementById('totalPlacements').value = sampleData.metrics.totalPlacements;
+      document.getElementById('percentStudentsWithPlacements').value = sampleData.metrics.percentStudentsWithPlacements;
+      document.getElementById('hoursScheduledToDate').value = sampleData.metrics.hoursScheduledToDate;
+      document.getElementById('studentConfirmedHoursToDate').value = sampleData.metrics.studentConfirmedHoursToDate;
+      document.getElementById('percentStudentConfirmedAgainstScheduled').value = sampleData.metrics.percentStudentConfirmedAgainstScheduled;
+      document.getElementById('employerConfirmedHoursToDate').value = sampleData.metrics.employerConfirmedHoursToDate;
+      document.getElementById('percentEmployerConfirmedAgainstScheduled').value = sampleData.metrics.percentEmployerConfirmedAgainstScheduled;
+      document.getElementById('totalStudentsWithActivities').value = sampleData.metrics.totalStudentsWithActivities;
+      document.getElementById('percentStudentsWithActivities').value = sampleData.metrics.percentStudentsWithActivities;
+      document.getElementById('totalActivities').value = sampleData.metrics.totalActivities;
+      document.getElementById('studentsWithAtLeastOneAssessment').value = sampleData.metrics.studentsWithAtLeastOneAssessment;
+      document.getElementById('percentStudentsWithSkillsAssessment').value = sampleData.metrics.percentStudentsWithSkillsAssessment;
+
+      // Populate simple view metrics
+      document.getElementById('numberOfStudentsSimple').value = sampleData.metrics.numberOfStudents;
+      document.getElementById('studentsWithPlacementsSimple').value = sampleData.metrics.studentsWithPlacements;
+      document.getElementById('totalPlacementsSimple').value = sampleData.metrics.totalPlacements;
+      document.getElementById('percentStudentsWithPlacementsSimple').value = sampleData.metrics.percentStudentsWithPlacements;
+      document.getElementById('hoursScheduledToDateSimple').value = sampleData.metrics.hoursScheduledToDate;
+      document.getElementById('studentConfirmedHoursToDateSimple').value = sampleData.metrics.studentConfirmedHoursToDate;
+      document.getElementById('percentStudentConfirmedAgainstScheduledSimple').value = sampleData.metrics.percentStudentConfirmedAgainstScheduled;
+      document.getElementById('employerConfirmedHoursToDateSimple').value = sampleData.metrics.employerConfirmedHoursToDate;
+      document.getElementById('percentEmployerConfirmedAgainstScheduledSimple').value = sampleData.metrics.percentEmployerConfirmedAgainstScheduled;
+      document.getElementById('totalStudentsWithActivitiesSimple').value = sampleData.metrics.totalStudentsWithActivities;
+      document.getElementById('percentStudentsWithActivitiesSimple').value = sampleData.metrics.percentStudentsWithActivities;
+      document.getElementById('totalActivitiesSimple').value = sampleData.metrics.totalActivities;
+      document.getElementById('studentsWithAtLeastOneAssessmentSimple').value = sampleData.metrics.studentsWithAtLeastOneAssessment;
+      document.getElementById('percentStudentsWithSkillsAssessmentSimple').value = sampleData.metrics.percentStudentsWithSkillsAssessment;
+
+      // Update metric cards
+      updateMetrics();
+      updateSimpleMetrics();
+      
+      // Calculate initial totals
+      calculateHealthCheckTotal();
+      calculateGrowthCheckTotal();
+
+      // Populate SWOT analysis
+      populateSwotList('strengths', sampleData.strengths);
+      populateSwotList('weaknesses', sampleData.weaknesses);
+      populateSwotList('opportunities', sampleData.opportunities);
+      populateSwotList('threats', sampleData.threats);
+
+      // Populate insights
+      populateInsights(sampleData.insights);
+
+      // Populate concerns and meeting summaries
+      document.getElementById('concerns').value = sampleData.concerns;
+      const meetingList = document.getElementById('meetingSummaries');
+      sampleData.meetingSummaries.forEach(summary => {
+        const li = document.createElement('li');
+        li.textContent = summary;
+        meetingList.appendChild(li);
+      });
+
+      // Update college name in header
+      document.getElementById('collegeName').textContent = sampleData.collegeName;
+      document.getElementById('collegeSubtitle').textContent = `Account Manager: ${sampleData.accountManager} | Status: ${sampleData.status}`;
+    }
+
+    // Populate SWOT list
+    function populateSwotList(type, items) {
+      const list = document.getElementById(type + 'List');
+      list.innerHTML = '';
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'swot-item';
+        div.innerHTML = `
+          <input type="text" value="${item}" class="${type.slice(0, -1)}-input">
+          <span class="delete-button" onclick="this.parentElement.remove()">-</span>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    // Populate insights
+    function populateInsights(insights) {
+      const insightsContent = document.getElementById('insightsContent');
+      const collegeInsightsContent = document.getElementById('collegeInsightsContent');
+      
+      insights.forEach(insight => {
+        const div = document.createElement('div');
+        div.className = 'bg-blue-50 border-l-4 border-blue-400 p-4 mb-4';
+        div.innerHTML = `
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm text-blue-700">${insight}</p>
+            </div>
+          </div>
+        `;
+        if (insightsContent) insightsContent.appendChild(div.cloneNode(true));
+        if (collegeInsightsContent) collegeInsightsContent.appendChild(div);
+      });
+    }
+
+    // Update simple metrics
+    function updateSimpleMetrics() {
+      const studentsInput = document.getElementById('numberOfStudentsSimple');
+      const placementsInput = document.getElementById('totalPlacementsSimple');
+      const activitiesInput = document.getElementById('totalActivitiesSimple');
+      const engagementInput = document.getElementById('hoursScheduledToDateSimple');
+      
+      if (studentsInput) {
+        document.getElementById('totalStudentsMetricSimple').textContent = studentsInput.value || '0';
+      }
+      if (placementsInput) {
+        document.getElementById('placementsMetricSimple').textContent = placementsInput.value || '0';
+      }
+      if (activitiesInput) {
+        document.getElementById('activitiesMetricSimple').textContent = activitiesInput.value || '0';
+      }
+      if (engagementInput) {
+        document.getElementById('engagementMetricSimple').textContent = engagementInput.value || '0';
+      }
+    }
+
+    // Calculate Health Check total
+    function calculateHealthCheckTotal() {
+      const progression = parseInt(document.getElementById('healthProgression').value) || 0;
+      const moreStudents = parseInt(document.getElementById('healthMoreStudents').value) || 0;
+      const moreActivities = parseInt(document.getElementById('healthMoreActivities').value) || 0;
+      const morePlacements = parseInt(document.getElementById('healthMorePlacements').value) || 0;
+      const increasedPlacements = parseInt(document.getElementById('healthIncreasedPlacements').value) || 0;
+      const meetingTone = parseInt(document.getElementById('healthMeetingTone').value) || 0;
+      
+      const total = progression + moreStudents + moreActivities + morePlacements + increasedPlacements + meetingTone;
+      document.getElementById('healthCheckTotal').textContent = total;
+      
+      // Update the main health check field
+      const average = Math.round(total / 6);
+      document.getElementById('healthCheck').value = average;
+    }
+
+    // Navigation functions
+    function goBack() {
+      window.location.href = 'index.html';
+    }
+
+    // Calculate Growth Check total
+    function calculateGrowthCheckTotal() {
+      const interestModules = parseInt(document.getElementById('growthInterestModules').value) || 0;
+      const renewal = parseInt(document.getElementById('growthRenewal').value) || 0;
+      const techIssues = parseInt(document.getElementById('growthTechIssues').value) || 0;
+      const trainingIssues = parseInt(document.getElementById('growthTrainingIssues').value) || 0;
+      
+      const total = interestModules + renewal + techIssues + trainingIssues;
+      document.getElementById('growthCheckTotal').textContent = total;
+      
+      // Update the main growth check field
+      const average = Math.round(total / 4);
+      document.getElementById('growthCheck').value = average;
+    }
+  </script>
+</body>
+</html> 

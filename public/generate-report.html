@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate Report - Navigate Reports Hub</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    /* Custom styles for table headers to ensure background colors are applied */
+    .bg-blue-100 { background-color: #dbeafe !important; }
+    .bg-blue-200 { background-color: #bfdbfe !important; }
+    .bg-purple-100 { background-color: #f3e8ff !important; }
+    .bg-yellow-100 { background-color: #fef3c7 !important; }
+    .bg-green-200 { background-color: #bbf7d0 !important; }
+    .bg-pink-100 { background-color: #fce7f3 !important; }
+    .bg-indigo-100 { background-color: #e0e7ff !important; }
+    .bg-gray-100 { background-color: #f3f4f6 !important; }
+    .bg-amber-100 { background-color: #fef3c7 !important; }
+    
+    /* Change indicator colors */
+    .bg-green-100 { background-color: #dcfce7 !important; }
+    .bg-red-100 { background-color: #fee2e2 !important; }
+    .bg-orange-100 { background-color: #ffedd5 !important; }
+    .text-green-600 { color: #16a34a !important; }
+    .text-red-600 { color: #dc2626 !important; }
+    .text-orange-600 { color: #ea580c !important; }
+    .text-gray-600 { color: #4b5563 !important; }
+    
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+      .mobile-card {
+        margin-bottom: 1rem;
+      }
+      .mobile-button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .mobile-button-group button {
+        width: 100%;
+      }
+      .mobile-modal {
+        padding: 1rem;
+        margin: 1rem;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .mobile-form-grid {
+        grid-template-columns: 1fr;
+      }
+      .mobile-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .mobile-table-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .mobile-table-actions button {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+      }
+    }
+    
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 2px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #a8a8a8;
+    }
+    
+    /* Touch-friendly buttons */
+    .touch-button {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="max-w-7xl mx-auto py-4 sm:py-8 px-2 sm:px-4">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-4 sm:mb-8">
+      <div class="flex items-center space-x-3">
+        <a href="/" class="text-blue-600 hover:text-blue-800">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+        </a>
+        <h1 class="text-2xl sm:text-4xl font-bold text-blue-800">Generate New Report</h1>
+      </div>
+      <div class="flex items-center space-x-2 sm:space-x-4">
+        <div class="text-right hidden sm:block">
+          <div id="userInfo" class="hidden">
+            <p class="text-sm text-gray-600">Welcome, <span id="userName" class="font-medium text-gray-900"></span></p>
+            <p class="text-xs text-gray-500"><span id="userRole" class="capitalize"></span></p>
+          </div>
+        </div>
+        <button id="logoutBtn" onclick="logout()" class="hidden bg-red-500 text-white px-3 sm:px-4 py-2 rounded hover:bg-red-600 transition-colors duration-200 font-medium shadow-sm touch-button text-sm sm:text-base">
+          Logout
+        </button>
+      </div>
+    </div>
+
+    <!-- Report Generation Content -->
+    <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+      <h2 class="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Report Generation</h2>
+      
+      <!-- File Upload Section -->
+      <div class="mb-4 sm:mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Upload PowerBI Excel/CSV Files</label>
+        <input id="fileInput" type="file" multiple class="mb-4 w-full" accept=".xlsx,.xls,.csv">
+        <button id="processBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+          Process Files
+        </button>
+        <button id="testActivityBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button ml-2">
+          Test Activity Processing
+        </button>
+      </div>
+
+      <!-- Template Selection Section -->
+      <div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-gray-50 rounded-lg">
+        <h3 class="text-base sm:text-lg font-medium text-gray-900 mb-3">Template Options</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Apply Template (Optional)</label>
+            <select id="templateSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
+              <option value="">No template - Use new data structure</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Template Mode</label>
+            <select id="templateMode" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
+              <option value="strict">Strict - Only extract template columns</option>
+              <option value="flexible">Flexible - Add new columns if available</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Account Manager</label>
+          <select id="accountManagerFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
+            <option value="">All Account Managers</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Select College</label>
+          <select id="collegeSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
+            <option value="">Select a college...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="mobile-actions flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mb-4 sm:mb-6">
+        <button onclick="showAssignAccountManagerModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+          Assign AM
+        </button>
+        <button onclick="showBulkAssignModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+          Bulk Assign
+        </button>
+      </div>
+
+      <!-- Data Table Section -->
+      <div class="bg-white rounded-lg shadow">
+        <div class="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
+            <h3 class="text-base sm:text-lg font-semibold text-gray-900">Data Table</h3>
+            <div class="mobile-table-actions flex flex-wrap gap-2">
+              <button id="addRowBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200 touch-button">
+                + Row
+              </button>
+              <button id="addColumnBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200 touch-button">
+                + Column
+              </button>
+              <button id="deleteBtn" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors duration-200 touch-button">
+                Delete
+              </button>
+              <button id="cancelSelectionBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-colors duration-200 hidden touch-button">
+                Cancel
+              </button>
+              <button id="saveAsTemplateBtn" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 transition-colors duration-200 touch-button">
+                Save as Template
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto custom-scrollbar">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead id="tableHeader">
+              <!-- Headers will be populated here -->
+            </thead>
+            <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+              <!-- Data will be populated here -->
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200">
+          <div class="mobile-actions flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
+            <!-- Editing Controls -->
+            <div class="flex flex-wrap gap-2 mb-4">
+              <button id="addColumnBtn" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button text-sm">
+                + Add Column
+              </button>
+              <button id="deleteColumnBtn" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition-colors duration-200 font-medium shadow-sm touch-button text-sm">
+                - Delete Column
+              </button>
+              <button id="addRowBtn" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button text-sm">
+                + Add Row
+              </button>
+              <button id="deleteRowBtn" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 transition-colors duration-200 font-medium shadow-sm touch-button text-sm">
+                - Delete Row
+              </button>
+            </div>
+            
+            <!-- Report Generation Controls -->
+            <button id="exportBtn" class="bg-blue-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+              Generate Report
+            </button>
+            <button id="saveTemplateBtn" class="bg-yellow-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-yellow-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+              Save as Template
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analysis Section -->
+      <div id="aiAnalysisSection" class="bg-white rounded-lg shadow p-4 sm:p-6 hidden">
+        <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Analysis</h3>
+        <div id="aiAnalysisContent" class="space-y-4">
+          <!-- Analysis content will be populated here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Area -->
+    <div id="statusArea" class="fixed top-4 right-4 z-50 max-w-md"></div>
+  </div>
+
+  <!-- Modals will be added here -->
+  
+  <script>
+    console.log('=== Script loading started ===');
+    console.log('=== NEW VERSION LOADED: 2025-01-27-15-30-00 ===');
+    document.body.style.backgroundColor = 'lightblue';
+    alert('JavaScript is working!');
+    
+    // Global variables
+    let colleges = [];
+    let accountManagers = [];
+    let tableData = [];
+    let tableHeaders = [];
+    let selectedAccountManagerId = null;
+    let currentCollegeId = null;
+    let previousReportData = null;
+    let isSelectionMode = false;
+    let selectedRows = new Set();
+    let selectedColumns = new Set();
+    let headerFileMap = {}; // Track which file each header came from
+
+    // Define consistent colors for each section type
+    const SECTION_COLORS = {
+      'placements': 'bg-blue-100',      // Blue for placements
+      'assessments': 'bg-teal-100',     // Teal for assessments  
+      'careers': 'bg-orange-100',       // Orange for careers
+      'activities': 'bg-orange-100',    // Orange for activities
+      'enrichment': 'bg-green-100',     // Green for enrichment
+      'employment': 'bg-purple-100',    // Purple for employment
+      'targets': 'bg-pink-100',         // Pink for targets
+      'login': 'bg-indigo-100',         // Indigo for login
+      'default': 'bg-gray-100'          // Gray for unknown sections
+    };
+
+    // Define consistent colors for Excel export
+    const SECTION_COLORS_EXCEL = {
+      'placements': 'FFDBEAFE',      // Light blue (matches bg-blue-100)
+      'assessments': 'FFCCFBF1',     // Light teal (matches bg-teal-100)
+      'careers': 'FFFED7AA',         // Light orange (matches bg-orange-100)
+      'activities': 'FFFED7AA',      // Light orange (matches bg-orange-100)
+      'enrichment': 'FFDCFCE7',      // Light green (matches bg-green-100)
+      'employment': 'FFF3E8FF',      // Light purple (matches bg-purple-100)
+      'targets': 'FFFCE7F3',         // Light pink (matches bg-pink-100)
+      'login': 'FFE0E7FF',           // Light indigo (matches bg-indigo-100)
+      'default': 'FFF3F4F6'          // Light gray (matches bg-gray-100)
+    };
+
+          // Function to determine section type from header
+      function getSectionType(header) {
+        const headerLower = header.toLowerCase();
+        
+        // First check for content type suffixes from backend processing
+        if (headerLower.includes('(enrichment)')) {
+          return 'enrichment';
+        }
+        if (headerLower.includes('(employer)')) {
+          return 'employment';
+        }
+        
+        // Check for placements - broader matching to catch all placement-related headers
+        if (headerLower.includes('placement') || 
+            headerLower.includes('student confirmed') || headerLower.includes('employer confirmed') ||
+            headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) {
+          return 'placements';
+        }
+        
+        // Check for assessments - broader matching
+        if (headerLower.includes('assessment') || headerLower.includes('score') || 
+            headerLower.includes('students without') || headerLower.includes('students with') ||
+            headerLower.includes('average score')) {
+          return 'assessments';
+        }
+        
+        // Check for careers - broader matching to catch all career/job profile related headers
+        if (headerLower.includes('career') || headerLower.includes('job profile') || 
+            headerLower.includes('quiz') || headerLower.includes('mapped job profile') ||
+            headerLower.includes('total mapped job profiles')) {
+          return 'careers';
+        }
+        
+        // Check for activities - broader matching
+        if (headerLower.includes('activity') || headerLower.includes('hours') && !headerLower.includes('scheduled')) {
+          return 'activities';
+        }
+        
+        // Check for employment
+        if (headerLower.includes('employment') || headerLower.includes('employ')) {
+          return 'employment';
+        }
+        
+        // Check for enrichment
+        if (headerLower.includes('enrich')) {
+          return 'enrichment';
+        }
+        
+        return 'default';
+      }
+
+
+
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('=== DOMContentLoaded event fired ===');
+      checkAuthStatus();
+      setupEventListeners();
+      loadInitialData();
+    });
+
+    // Authentication check
+    async function checkAuthStatus() {
+      try {
+        const response = await axios.get('/api/auth/me');
+        if (response.data.success) {
+          document.getElementById('userInfo').classList.remove('hidden');
+          document.getElementById('logoutBtn').classList.remove('hidden');
+          document.getElementById('userName').textContent = response.data.user.name;
+          document.getElementById('userRole').textContent = response.data.user.role;
+        } else {
+          window.location.href = '/login';
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        window.location.href = '/login';
+      }
+    }
+
+    // Load initial data
+    async function loadInitialData() {
+      try {
+        await Promise.all([
+          loadColleges(),
+          loadAccountManagers(),
+          loadTemplates()
+        ]);
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        showStatus('Error loading data: ' + error.message, 'error');
+      }
+    }
+
+    // Event listeners
+    function setupEventListeners() {
+      // File processing
+      const processBtn = document.getElementById('processBtn');
+      if (processBtn) {
+        console.log('=== Adding click listener to processBtn ===');
+        processBtn.addEventListener('click', function() {
+          console.log('=== Process button clicked ===');
+          processFiles();
+        });
+      } else {
+        console.error('=== processBtn not found ===');
+      }
+      
+      const testActivityBtn = document.getElementById('testActivityBtn');
+      if (testActivityBtn) {
+        testActivityBtn.addEventListener('click', testActivityProcessing);
+      }
+      
+      // Table editing
+      const addRowBtn = document.getElementById('addRowBtn');
+      if (addRowBtn) {
+        addRowBtn.addEventListener('click', addRow);
+      }
+      
+      const addColumnBtn = document.getElementById('addColumnBtn');
+      if (addColumnBtn) {
+        addColumnBtn.addEventListener('click', addColumn);
+      }
+      
+      const deleteBtn = document.getElementById('deleteBtn');
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', smartDelete);
+      }
+      
+      const cancelSelectionBtn = document.getElementById('cancelSelectionBtn');
+      if (cancelSelectionBtn) {
+        cancelSelectionBtn.addEventListener('click', toggleSelectionMode);
+      }
+      
+      const saveAsTemplateBtn = document.getElementById('saveAsTemplateBtn');
+      if (saveAsTemplateBtn) {
+        saveAsTemplateBtn.addEventListener('click', showSaveTemplateModal);
+      }
+      
+      // Report generation
+      const exportBtn = document.getElementById('exportBtn');
+      if (exportBtn) {
+        exportBtn.addEventListener('click', generateReport);
+      }
+      
+      const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+      if (saveTemplateBtn) {
+        saveTemplateBtn.addEventListener('click', showSaveTemplateModal);
+      }
+      
+      // Account manager filtering
+      const accountManagerFilter = document.getElementById('accountManagerFilter');
+      if (accountManagerFilter) {
+        accountManagerFilter.addEventListener('change', function() {
+          const newValue = this.value ? this.value : null;
+          selectedAccountManagerId = newValue;
+          updateCollegeSelect();
+        });
+      }
+      
+      // College selection
+      const collegeSelect = document.getElementById('collegeSelect');
+      if (collegeSelect) {
+        collegeSelect.addEventListener('change', async function() {
+          const collegeId = this.value;
+          currentCollegeId = collegeId ? parseInt(collegeId) : null;
+          
+          if (collegeId) {
+            await loadPreviousReportData(parseInt(collegeId));
+          } else {
+            previousReportData = null;
+          }
+          
+          if (tableData.length > 0) {
+            renderTable();
+          }
+        });
+        
+        updateCollegeSelect();
+      }
+    }
+
+    // Data loading functions
+    async function loadColleges() {
+      try {
+        const response = await axios.get('/api/colleges');
+        if (response.data && response.data.colleges) {
+          colleges = response.data.colleges;
+        } else if (Array.isArray(response.data)) {
+          colleges = response.data;
+        } else {
+          colleges = [];
+        }
+        updateCollegeSelect();
+      } catch (error) {
+        console.error('Error loading colleges:', error);
+        showStatus('Error loading colleges: ' + error.message, 'error');
+      }
+    }
+
+    async function loadAccountManagers() {
+      try {
+        const response = await axios.get('/api/account-managers');
+        accountManagers = response.data;
+        updateAccountManagerSelects();
+      } catch (error) {
+        console.error('Error loading account managers:', error);
+        showStatus('Error loading account managers: ' + error.message, 'error');
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const response = await axios.get('/api/templates');
+        const templates = response.data;
+        const templateSelect = document.getElementById('templateSelect');
+        if (templateSelect) {
+          templateSelect.innerHTML = '<option value="">No template - Use new data structure</option>' +
+            templates.map(template => `<option value="${template.id}">${template.name}</option>`).join('');
+        }
+      } catch (error) {
+        console.error('Error loading templates:', error);
+      }
+    }
+
+    // Update functions
+    function updateCollegeSelect() {
+      const select = document.getElementById('collegeSelect');
+      if (!select) return;
+      
+      if (!colleges || !Array.isArray(colleges)) {
+        select.innerHTML = '<option value="">Error loading colleges...</option>';
+        return;
+      }
+      
+      let filteredColleges = colleges;
+      
+      if (selectedAccountManagerId) {
+        filteredColleges = colleges.filter(college => 
+          String(college.accountManagerId) === String(selectedAccountManagerId)
+        );
+      }
+      
+      select.innerHTML = '<option value="">Select a college...</option>' +
+        filteredColleges.map(college => `<option value="${college.id}">${college.name}</option>`).join('');
+    }
+
+    function updateAccountManagerSelects() {
+      if (!accountManagers || !Array.isArray(accountManagers)) {
+        accountManagers = [];
+      }
+      
+      const filterSelect = document.getElementById('accountManagerFilter');
+      if (filterSelect) {
+        filterSelect.innerHTML = '<option value="">All Account Managers</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+    }
+
+    // Load previous report data for change tracking
+    async function loadPreviousReportData(collegeId) {
+      try {
+        const response = await axios.get(`/api/previous-report/${collegeId}`);
+        if (response.data.success && response.data.previousData) {
+          previousReportData = response.data.previousData.data;
+          console.log('Loaded previous report data:', previousReportData);
+        } else {
+          previousReportData = null;
+        }
+      } catch (error) {
+        console.error('Error loading previous report data:', error);
+        previousReportData = null;
+      }
+    }
+
+    // File processing
+    async function processFiles() {
+      console.log('=== processFiles called ===');
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) {
+        showStatus('Please select files to process', 'error');
+        return;
+      }
+      
+      console.log(`Processing ${fileInput.files.length} files:`, Array.from(fileInput.files).map(f => f.name));
+      
+      const formData = new FormData();
+      for (const file of fileInput.files) {
+        formData.append('files', file);
+        console.log(`Added file to FormData: ${file.name}`);
+      }
+      
+      showStatus('Processing files...', 'info');
+      
+      try {
+        console.log('Sending upload request...');
+        const response = await axios.post('/api/upload', formData);
+        console.log('Upload response received:', response.data);
+        
+        if (response.data.success) {
+          console.log('Processing successful, adapting table to data...');
+          console.log('Response data structure:', {
+            departments: response.data.data.departments?.length || 0,
+            metricsKeys: Object.keys(response.data.data.metrics || {}).length,
+            employerEngagementKeys: Object.keys(response.data.data.activities?.employerEngagement || {}).length,
+            enrichmentKeys: Object.keys(response.data.data.activities?.enrichment || {}).length
+          });
+          
+          // Log detailed activity data
+          console.log('Response departments:', response.data.data.departments);
+          console.log('Response metrics keys:', Object.keys(response.data.data.metrics || {}));
+          console.log('Response employer engagement keys:', Object.keys(response.data.data.activities?.employerEngagement || {}));
+          console.log('Response enrichment keys:', Object.keys(response.data.data.activities?.enrichment || {}));
+          
+          // Log detailed activity data for each department
+          Object.keys(response.data.data.activities?.employerEngagement || {}).forEach(dept => {
+            console.log(`Response Employer Engagement for ${dept}:`, response.data.data.activities.employerEngagement[dept]);
+          });
+          Object.keys(response.data.data.activities?.enrichment || {}).forEach(dept => {
+            console.log(`Response Enrichment for ${dept}:`, response.data.data.activities.enrichment[dept]);
+          });
+          
+          await adaptTableToData(response.data.data);
+          showStatus('Files processed successfully', 'success');
+        }
+      } catch (error) {
+        console.error('Error processing files:', error);
+        showStatus('Error processing files: ' + error.message, 'error');
+      }
+    }
+    
+    // Test activity processing
+    async function testActivityProcessing() {
+      showStatus('Testing activity processing...', 'info');
+      
+      // Create test data with proper activity structure
+      const testData = {
+        departments: ['Test Department 1', 'Test Department 2'],
+        metrics: {},
+        activities: {
+          employerEngagement: {
+            'Test Department 1': {
+              'Students with Activities (Employer Engagement)': 50,
+              'Total Activities (Employer Engagement)': 200,
+              '% Students with Activities (Employer Engagement)': 0.85,
+              'Total Activity Hours (Employer Engagement)': 1500
+            },
+            'Test Department 2': {
+              'Students with Activities (Employer Engagement)': 75,
+              'Total Activities (Employer Engagement)': 300,
+              '% Students with Activities (Employer Engagement)': 0.92,
+              'Total Activity Hours (Employer Engagement)': 2200
+            }
+          },
+          enrichment: {
+            'Test Department 1': {
+              'Students with Activities (Enrichment)': 30,
+              'Total Activities (Enrichment)': 150,
+              '% Students with Activities (Enrichment)': 0.75,
+              'Total Activity Hours (Enrichment)': 800
+            },
+            'Test Department 2': {
+              'Students with Activities (Enrichment)': 45,
+              'Total Activities (Enrichment)': 180,
+              '% Students with Activities (Enrichment)': 0.88,
+              'Total Activity Hours (Enrichment)': 1200
+            }
+          }
+        }
+      };
+      
+      console.log('Test data created:', testData);
+      await adaptTableToData(testData);
+      showStatus('Test activity processing completed', 'success');
+    }
+
+    // Table functions
+    async function adaptTableToData(data) {
+      console.log('=== adaptTableToData called ===');
+      console.log('Data received:', data);
+      // Store the headerFileMap and fileInfo for color assignment
+      if (data.headerFileMap) {
+        headerFileMap = data.headerFileMap;
+        console.log('Header file mapping:', headerFileMap);
+      } else {
+        // Fallback: assign all headers to file 0 if no mapping is provided
+        headerFileMap = {};
+        console.log('No headerFileMap provided, using fallback coloring');
+      }
+      
+      // Store file information for content type detection
+      if (data.fileInfo) {
+        window.fileInfo = data.fileInfo;
+        console.log('File info received:', window.fileInfo);
+        // Also store it in a global variable for easier access
+        globalThis.fileInfoData = data.fileInfo;
+      }
+      
+      if (data.departments) {
+        const selectedTemplate = getSelectedTemplate();
+        const templateMode = getTemplateMode();
+        
+        if (selectedTemplate && selectedTemplate.tableData) {
+          tableHeaders = selectedTemplate.headers;
+          tableData = selectedTemplate.tableData;
+          
+          // Update headerFileMap for template headers if not already set
+          if (Object.keys(headerFileMap).length === 0) {
+            tableHeaders.forEach((header, index) => {
+              if (header !== 'Department') {
+                headerFileMap[header] = Math.floor(index / 5); // Distribute across files
+              }
+            });
+          }
+        } else {
+          // Build headers with proper section organization
+          const allHeaders = new Set();
+          
+          // Add regular metrics
+          data.departments.forEach(dept => {
+            const metrics = data.metrics[dept] || {};
+            Object.keys(metrics).forEach(key => {
+              if (key !== 'Department') {
+                allHeaders.add(key);
+              }
+            });
+          });
+          
+          // Add activity metrics
+          console.log('Processing activity metrics...');
+          data.departments.forEach(dept => {
+            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+            const enrichment = data.activities?.enrichment?.[dept] || {};
+            
+            console.log(`Department ${dept} - Employer Engagement keys:`, Object.keys(employerEngagement));
+            console.log(`Department ${dept} - Enrichment keys:`, Object.keys(enrichment));
+            
+            Object.keys(employerEngagement).forEach(key => {
+              allHeaders.add(key);
+            });
+            
+            Object.keys(enrichment).forEach(key => {
+              allHeaders.add(key);
+            });
+          });
+          
+          console.log('All headers found:', Array.from(allHeaders));
+          console.log('All headers found (detailed):', Array.from(allHeaders).map(h => ({ header: h, type: h.includes('(Employer Engagement)') ? 'employer' : h.includes('(Enrichment)') ? 'enrichment' : 'other' })));
+          
+          // Organize headers by section
+          const organizedHeaders = organizeHeadersBySection(['Department', ...Array.from(allHeaders)]);
+          tableHeaders = organizedHeaders;
+          
+          // Update headerFileMap for any missing headers
+          if (Object.keys(headerFileMap).length === 0) {
+            console.log('Creating fallback headerFileMap');
+            tableHeaders.forEach((header, index) => {
+              if (header !== 'Department' && !headerFileMap.hasOwnProperty(header)) {
+                headerFileMap[header] = Math.floor(index / 5); // Distribute across files
+              }
+            });
+          }
+          
+          console.log('Organized headers:', tableHeaders);
+          console.log('Final headerFileMap:', headerFileMap);
+          
+          // Build table data
+          tableData = data.departments.map(dept => {
+            const row = [dept]; // Department column
+            
+            // Add regular metrics
+            const metrics = data.metrics[dept] || {};
+            tableHeaders.slice(1).forEach(header => {
+              if (header.includes('(Employer Engagement)') || header.includes('(Enrichment)')) {
+                // Handle activity columns
+                const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
+                const cleanHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '');
+                const activityData = data.activities?.[activityType]?.[dept] || {};
+                row.push(activityData[header] ?? '');
+              } else {
+                // Handle regular metrics
+                row.push(metrics[header] ?? '');
+              }
+            });
+            
+            return row;
+          });
+          
+          console.log('Table data built:', tableData.length, 'rows');
+        }
+        
+        console.log('About to call renderTable()...');
+        try {
+          renderTable();
+          console.log('renderTable() completed successfully');
+        } catch (error) {
+          console.error('Error in renderTable():', error);
+        }
+        
+        if (currentCollegeId) {
+          await loadPreviousReportData(currentCollegeId);
+          renderTable();
+        }
+      } else {
+        console.error('No departments found in data:', data);
+      }
+    }
+
+    // Organize headers by section for proper grouping
+    function organizeHeadersBySection(headers) {
+      const sections = {
+        department: [],
+        students: [],
+        placements: [],
+        activities: [],
+        assessments: [],
+        careers: [],
+        other: []
+      };
+      
+      headers.forEach(header => {
+        // Skip headers that are "1" or contain "1"
+        if (!header || header.toString().toLowerCase().includes('1')) {
+          return;
+        }
+        
+        if (header === 'Department') {
+          sections.department.push(header);
+        } else if (header.includes('(placement)') || header.includes('(Placement)') || 
+                   header.toLowerCase().includes('placement') || header.toLowerCase().includes('employer')) {
+          sections.placements.push(header);
+        } else if (header.includes('(assessment)') || header.includes('(Assessment)') ||
+                   header.toLowerCase().includes('assessment') || header.toLowerCase().includes('score')) {
+          sections.assessments.push(header);
+        } else if (header.includes('(careersQuiz)') || header.includes('(CareersQuiz)') ||
+                   header.toLowerCase().includes('career') || header.toLowerCase().includes('job profile')) {
+          sections.careers.push(header);
+        } else if (header.includes('(student)') || header.includes('(Student)') ||
+                   header.toLowerCase().includes('student')) {
+          sections.students.push(header);
+        } else if (header.toLowerCase().includes('activity') || header.toLowerCase().includes('enrichment') ||
+                   header.toLowerCase().includes('hours')) {
+          sections.activities.push(header);
+        } else {
+          // Default to other section for unknown headers
+          sections.other.push(header);
+        }
+      });
+      
+      // Return organized headers in correct order
+      return [
+        ...sections.department,
+        ...sections.students,
+        ...sections.placements,
+        ...sections.activities,
+        ...sections.assessments,
+        ...sections.careers,
+        ...sections.other
+      ];
+    }
+
+    // Create section headers based on content type
+    function createSectionHeaders(headers) {
+      const sections = [];
+      let currentContentType = null;
+      let currentCount = 0;
+      
+      headers.forEach((header, index) => {
+        const isChangeColumn = header.endsWith(' +/-');
+        const originalHeader = isChangeColumn ? header.replace(' +/-', '') : header;
+        
+        // Skip headers that are "1" or contain "1"
+        if (!originalHeader || originalHeader.toString().toLowerCase().includes('1')) {
+          return;
+        }
+        
+        // Get content type for this header
+        const sectionInfo = getColumnSection(originalHeader);
+        const contentType = sectionInfo.contentType;
+        
+        // Handle section changes based on content type
+        if (currentContentType !== contentType) {
+          if (currentContentType !== null && currentContentType !== undefined && typeof currentContentType === 'string' && currentCount > 0) {
+            const sectionName = currentContentType.charAt(0).toUpperCase() + currentContentType.slice(1);
+            sections.push({ 
+              name: sectionName, 
+              columns: currentCount 
+            });
+          }
+          currentContentType = contentType;
+          currentCount = 1; // Count the main column
+        } else {
+          currentCount++; // Count additional columns in same content type
+        }
+        
+        // Add change indicator column
+        if (isChangeColumn) {
+          currentCount++;
+        }
+      });
+      
+      // Add the last section
+      if (currentContentType !== null && currentContentType !== undefined && typeof currentContentType === 'string' && currentCount > 0) {
+        const sectionName = currentContentType.charAt(0).toUpperCase() + currentContentType.slice(1);
+        sections.push({ 
+          name: sectionName, 
+          columns: currentCount 
+        });
+      }
+      
+      return sections;
+    }
+
+    // Helper functions for section colors
+    function getSectionColor(sectionName) {
+      const sectionLower = sectionName.toLowerCase();
+      if (sectionLower.includes('placements')) return 'bg-blue-100';
+      if (sectionLower.includes('enrichment')) return 'bg-blue-200';
+      if (sectionLower.includes('employment')) return 'bg-purple-100';
+      if (sectionLower.includes('careers')) return 'bg-yellow-100';
+      if (sectionLower.includes('assessments')) return 'bg-green-200';
+      if (sectionLower.includes('targets')) return 'bg-pink-100';
+      if (sectionLower.includes('login')) return 'bg-indigo-100';
+      if (sectionLower.includes('department')) return 'bg-amber-100';
+      return 'bg-gray-100';
+    }
+    
+    function getSectionInlineColor(sectionName) {
+      const sectionLower = sectionName.toLowerCase();
+      if (sectionLower.includes('placements')) return '#dbeafe';
+      if (sectionLower.includes('enrichment')) return '#bfdbfe';
+      if (sectionLower.includes('employment')) return '#f3e8ff';
+      if (sectionLower.includes('careers')) return '#fef3c7';
+      if (sectionLower.includes('assessments')) return '#bbf7d0';
+      if (sectionLower.includes('targets')) return '#fce7f3';
+      if (sectionLower.includes('login')) return '#e0e7ff';
+      if (sectionLower.includes('department')) return '#fef3c7';
+      return '#f3f4f6';
+    }
+
+    // Function to determine column section and color based on filename content
+    // CACHE-BUST: 2025-01-27-15-30-00
+    function getColumnSection(header) {
+      console.log('=== getColumnSection called with header:', header);
+      // Define content-based colors - each content type gets its own color
+      const CONTENT_COLORS = {
+        'placements': 'bg-blue-100',      // Blue for placements
+        'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
+        'employment': 'bg-purple-100',    // Purple for employment
+        'careers': 'bg-yellow-100',       // Yellow for careers
+        'assessments': 'bg-green-200',    // Green-200 for assessments
+        'targets': 'bg-pink-100',         // Pink for targets
+        'login': 'bg-indigo-100',         // Indigo for login data
+        'default': 'bg-gray-100'          // Gray for unknown
+      };
+      
+      // Define inline styles as fallback for better specificity
+      const INLINE_COLORS = {
+        'placements': 'background-color: #dbeafe !important; border-color: #dbeafe !important;',      // Blue for placements
+        'enrichment': 'background-color: #bfdbfe !important; border-color: #bfdbfe !important;',      // Blue-200 for enrichment
+        'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',      // Purple for employment
+        'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',         // Yellow for careers
+        'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',     // Green-200 for assessments
+        'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',         // Pink for targets
+        'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',           // Indigo for login data
+        'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'          // Gray for unknown
+      };
+      
+      // Function to determine content type from header suffix
+      function getContentTypeFromFilename(header) {
+        // First check if the header itself contains type information (from our renaming)
+        const headerLower = header.toLowerCase();
+        
+        if (headerLower.includes('(enrichment)')) {
+          console.log(`Header "${header}" detected as enrichment from suffix`);
+          return 'enrichment';
+        }
+        
+        if (headerLower.includes('(employer)')) {
+          console.log(`Header "${header}" detected as employment from suffix`);
+          return 'employment';
+        }
+        
+        // Also check for variations in case
+        if (headerLower.includes('enrichment')) {
+          console.log(`Header "${header}" detected as enrichment from content`);
+          return 'enrichment';
+        }
+        
+        if (headerLower.includes('employer')) {
+          console.log(`Header "${header}" detected as employment from content`);
+          return 'employment';
+        }
+        
+        if (headerLower.includes('(placements)')) {
+          return 'placements';
+        }
+        
+        if (headerLower.includes('(careers)')) {
+          console.log(`Header "${header}" detected as careers from suffix`);
+          return 'careers';
+        }
+        
+        if (headerLower.includes('(assessments)')) {
+          console.log(`Header "${header}" detected as assessments from suffix`);
+          return 'assessments';
+        }
+        
+        if (headerLower.includes('(targets)')) {
+          return 'targets';
+        }
+        
+        if (headerLower.includes('(login)')) {
+          return 'login';
+        }
+        
+        // Fallback to header content analysis if no filename info
+        if (headerLower.includes('placement') || headerLower.includes('placed') || 
+            headerLower.includes('employer confirmed') || headerLower.includes('student confirmed')) {
+          return 'placements';
+        }
+        
+        if (headerLower.includes('enrichment') || headerLower.includes('enrich')) {
+          return 'enrichment';
+        }
+        
+        if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
+            headerLower.includes('activity') || headerLower.includes('activities'))) {
+          return 'employment';
+        }
+        
+        if (headerLower.includes('career') || headerLower.includes('quiz') || 
+            headerLower.includes('job profile') || headerLower.includes('mapped')) {
+          return 'careers';
+        }
+         
+         if (headerLower.includes('assessment') || headerLower.includes('score') || 
+             headerLower.includes('assessed')) {
+           return 'assessments';
+         }
+         
+         if (headerLower.includes('target') || headerLower.includes('goal')) {
+           return 'targets';
+         }
+         
+         if (headerLower.includes('login') || headerLower.includes('log in') || 
+             headerLower.includes('access')) {
+           return 'login';
+         }
+         
+         return 'default';
+       }
+      
+      // Handle Department column specially
+      if (header === 'Department') {
+        return { section: 'Department', color: 'bg-amber-100', inlineColor: 'background-color: #fef3c7;' };
+      }
+      
+      // Determine content type and get appropriate color
+      const contentType = getContentTypeFromFilename(header);
+      const color = CONTENT_COLORS[contentType] || CONTENT_COLORS.default;
+      const inlineColor = INLINE_COLORS[contentType] || INLINE_COLORS.default;
+      
+      // Debug logging for color assignment
+      console.log(`Header "${header}" -> contentType: "${contentType}" -> color: "${color}"`);
+      
+      // Capitalize first letter for display
+      const sectionName = contentType.charAt(0).toUpperCase() + contentType.slice(1);
+      
+      const result = { 
+        section: sectionName,
+        color: color,
+        contentType: contentType,
+        inlineColor: inlineColor
+      };
+      
+      console.log(`getColumnSection result for "${header}":`, result);
+      return result;
+    }
+
+    function renderTable() {
+      console.log('=== renderTable called ===');
+      console.log('tableHeaders:', tableHeaders);
+      const header = document.getElementById('tableHeader');
+      const body = document.getElementById('tableBody');
+      
+      if (!header || !body) return;
+      
+      // Build complete header structure with change columns
+      let completeHeaders = [];
+      let changeColumnIndices = [];
+      
+      tableHeaders.forEach((h, colIdx) => {
+        completeHeaders.push(h);
+        // Add change indicator column if this is a numeric column (not Department)
+        if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || !isNaN(parseFloat('0')))) {
+          completeHeaders.push(`${h} +/-`);
+          changeColumnIndices.push(completeHeaders.length - 1);
+        }
+      });
+      
+      // Create section headers
+      const sectionHeaders = createSectionHeaders(completeHeaders);
+      
+      // Render section headers first
+      let headerHTML = '';
+      sectionHeaders.forEach(section => {
+        if (section.columns > 0) {
+          // Get the appropriate color for this section
+          const sectionColor = getSectionColor(section.name);
+          headerHTML += `<tr><th colspan="${section.columns}" class="px-6 py-2 text-left text-sm font-semibold text-gray-900 border-b-2 border-gray-300 ${sectionColor}" style="background-color: ${getSectionInlineColor(section.name)} !important;">${section.name}</th></tr>`;
+        }
+      });
+      
+      // Render data headers with section colors
+      const headerCells = completeHeaders.map((h, colIdx) => {
+        // Determine if this is a change column and get section color
+        const isChangeColumn = h.endsWith(' +/-');
+        const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
+        const sectionInfo = getColumnSection(originalHeader);
+        
+        console.log(`Rendering header "${h}" (original: "${originalHeader}") with color: "${sectionInfo.color}" and inline style: "${sectionInfo.inlineColor}"`);
+        
+        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}" style="${sectionInfo.inlineColor} !important;">${h}</th>`;
+      }).join('');
+      
+      headerHTML += `<tr>${headerCells}</tr>`;
+      header.innerHTML = headerHTML;
+      
+      // Render body with proper column alignment
+      body.innerHTML = tableData.map((row, rowIdx) => {
+        let completeRowCells = [];
+        
+        tableHeaders.forEach((header, originalColIdx) => {
+          const cell = row[originalColIdx];
+          let displayValue = cell;
+          let percentageBar = '';
+          
+          // Format percentages and add percentage bars
+          if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+            if (typeof cell === 'number' || !isNaN(parseFloat(cell))) {
+              // Check if the value is already a percentage (0-100) or needs conversion (0-1)
+              let percentage;
+              if (parseFloat(cell) <= 1) {
+                percentage = parseFloat(cell) * 100;
+              } else {
+                percentage = parseFloat(cell);
+              }
+              displayValue = percentage.toFixed(1) + '%';
+              
+              // Add percentage bar with gradient colors
+              const barWidth = Math.min(percentage, 100);
+              let barColor;
+              if (percentage < 40) {
+                barColor = 'bg-red-500';
+              } else if (percentage >= 40 && percentage <= 70) {
+                // Orange gradient between 40-70%
+                const orangeIntensity = Math.round(255 - ((percentage - 40) / 30) * 100);
+                barColor = `rgb(255, ${orangeIntensity}, 0)`;
+              } else {
+                // Green gradient above 70%
+                const greenIntensity = Math.round(100 + ((percentage - 70) / 30) * 155);
+                barColor = `rgb(0, ${greenIntensity}, 0)`;
+              }
+              
+              percentageBar = `
+                <div class="mt-1 w-full bg-gray-200 rounded-full h-2">
+                  <div class="h-2 rounded-full transition-all duration-300 ${typeof barColor === 'string' && !barColor.startsWith('rgb') ? barColor : ''}" style="width: ${barWidth}%; ${typeof barColor === 'string' && barColor.startsWith('rgb') ? `background-color: ${barColor}` : ''}"></div>
+                </div>
+              `;
+            }
+          }
+          // Format numbers
+          else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) {
+            displayValue = parseFloat(cell).toLocaleString();
+          }
+          
+          // Add the main data cell
+          completeRowCells.push(`
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <div class="editable-cell" contenteditable="true" data-row="${rowIdx}" data-col="${originalColIdx}">${displayValue}</div>
+              ${percentageBar}
+            </td>
+          `);
+          
+          // Add change indicator cell if this column should have one
+          if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+            let changeIndicator = '';
+            
+            // Calculate change from previous report
+            if (previousReportData) {
+              const previousRow = previousReportData.rows ? previousReportData.rows.find(r => r[0] === row[0]) : null;
+              if (previousRow && previousRow[originalColIdx] !== undefined) {
+                const currentValue = parseFloat(cell) || 0;
+                const previousValue = parseFloat(previousRow[originalColIdx]) || 0;
+                const change = currentValue - previousValue;
+                
+                if (change !== 0) {
+                  const changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
+                  // Green for increase, red for decrease, orange for no change
+                  const changeColor = change > 0 ? 'text-green-600' : 'text-red-600';
+                  const changeBg = change > 0 ? 'bg-green-100' : 'bg-red-100';
+                  changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium ${changeBg} ${changeColor}">${changeText}</span>`;
+                } else {
+                  changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
+                }
+              } else {
+                // No previous data found, show neutral indicator
+                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
+              }
+            } else {
+              // No previous report data available, show neutral indicator
+              changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
+            }
+            
+            completeRowCells.push(`
+              <td class="px-2 py-4 whitespace-nowrap text-sm">
+                ${changeIndicator}
+              </td>
+            `);
+          }
+        });
+        
+        return `<tr>${completeRowCells.join('')}</tr>`;
+      }).join('');
+      
+      // Add event listeners to editable cells
+      document.querySelectorAll('.editable-cell').forEach(cell => {
+        cell.addEventListener('focus', () => {
+          const row = parseInt(cell.dataset.row);
+          const col = parseInt(cell.dataset.col);
+          tableData[row][col] = cell.textContent;
+        });
+        cell.addEventListener('blur', (e) => {
+          const row = parseInt(e.target.dataset.row);
+          const col = parseInt(e.target.dataset.col);
+          tableData[row][col] = e.target.textContent;
+        });
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.target.blur();
+          }
+        });
+      });
+    }
+
+    // Table editing functions
+    function addRow() {
+      if (!tableHeaders || tableHeaders.length === 0) {
+        showStatus('No table data available. Please upload files first.', 'error');
+        return;
+      }
+      
+      const newRow = Array(tableHeaders.length).fill('');
+      tableData.push(newRow);
+      renderTable();
+      showStatus('Row added successfully', 'success');
+    }
+
+    function addColumn() {
+      const colName = prompt('Enter new column name:');
+      if (!colName) return;
+      
+      if (!tableHeaders) {
+        tableHeaders = [];
+      }
+      
+      tableHeaders.push(colName);
+      tableData.forEach(row => row.push(''));
+      renderTable();
+      showStatus(`Column "${colName}" added successfully`, 'success');
+    }
+
+    function smartDelete() {
+      if (!tableData || tableData.length === 0) {
+        showStatus('No data to delete', 'error');
+        return;
+      }
+      
+      if (!isSelectionMode) {
+        toggleSelectionMode();
+        return;
+      }
+      
+      if (selectedRows.size === 0 && selectedColumns.size === 0) {
+        showStatus('Please select rows or columns to delete', 'error');
+        return;
+      }
+      
+      // Delete selected rows
+      if (selectedRows.size > 0) {
+        const sortedRows = Array.from(selectedRows).sort((a, b) => b - a);
+        sortedRows.forEach(rowIndex => {
+          tableData.splice(rowIndex, 1);
+        });
+      }
+      
+      // Delete selected columns
+      if (selectedColumns.size > 0) {
+        const sortedColumns = Array.from(selectedColumns).sort((a, b) => b - a);
+        sortedColumns.forEach(colIndex => {
+          tableHeaders.splice(colIndex, 1);
+          tableData.forEach(row => row.splice(colIndex, 1));
+        });
+      }
+      
+      selectedRows.clear();
+      selectedColumns.clear();
+      isSelectionMode = false;
+      renderTable();
+      showStatus('Selected items deleted successfully', 'success');
+    }
+
+    function toggleSelectionMode() {
+      isSelectionMode = !isSelectionMode;
+      selectedRows.clear();
+      selectedColumns.clear();
+      
+      const cancelBtn = document.getElementById('cancelSelectionBtn');
+      if (cancelBtn) {
+        cancelBtn.classList.toggle('hidden', !isSelectionMode);
+      }
+      
+      renderTable();
+    }
+
+    function toggleRowSelection(rowIndex) {
+      if (!isSelectionMode) return;
+      
+      if (selectedRows.has(rowIndex)) {
+        selectedRows.delete(rowIndex);
+      } else {
+        selectedRows.add(rowIndex);
+      }
+      renderTable();
+    }
+
+    function toggleColumnSelection(colIndex) {
+      if (!isSelectionMode) return;
+      
+      if (selectedColumns.has(colIndex)) {
+        selectedColumns.delete(colIndex);
+      } else {
+        selectedColumns.add(colIndex);
+      }
+      renderTable();
+    }
+
+    function toggleCellSelection(rowIndex, colIndex) {
+      if (!isSelectionMode) return;
+      
+      toggleRowSelection(rowIndex);
+      toggleColumnSelection(colIndex);
+    }
+
+    function updateCell(rowIndex, colIndex, value) {
+      if (rowIndex < tableData.length && colIndex < tableData[rowIndex].length) {
+        tableData[rowIndex][colIndex] = value;
+      }
+    }
+
+    // Report generation
+    async function generateReport() {
+      if (!currentCollegeId) {
+        showStatus('Please select a college first', 'error');
+        return;
+      }
+      
+      if (!tableData || tableData.length === 0) {
+        showStatus('No data to generate report from', 'error');
+        return;
+      }
+      
+      try {
+        const reportName = prompt('Enter report name:') || 'Generated Report';
+        const summary = prompt('Enter report summary (optional):') || '';
+        
+        const response = await axios.post('/api/reports/generate', {
+          collegeId: currentCollegeId,
+          reportData: { headers: tableHeaders, data: tableData },
+          reportName,
+          summary
+        });
+        
+        if (response.data.success) {
+          showStatus('Report generated successfully', 'success');
+          // Store current report as previous for future comparisons
+          await storeCurrentReportAsPrevious(currentCollegeId, { headers: tableHeaders, data: tableData });
+        }
+      } catch (error) {
+        showStatus('Error generating report: ' + error.message, 'error');
+      }
+    }
+
+    // Template functions
+    function getSelectedTemplate() {
+      const templateSelect = document.getElementById('templateSelect');
+      if (!templateSelect || !templateSelect.value) return null;
+      
+      // This would need to be implemented to get template data
+      return null;
+    }
+
+    function getTemplateMode() {
+      const templateMode = document.getElementById('templateMode');
+      return templateMode ? templateMode.value : 'flexible';
+    }
+
+    function showSaveTemplateModal() {
+      const templateName = prompt('Enter template name:');
+      if (!templateName) return;
+      
+      // This would need to be implemented to save template
+      showStatus('Template saved successfully', 'success');
+    }
+
+    // Previous report data
+    async function loadPreviousReportData(collegeId) {
+      try {
+        const response = await axios.get(`/api/previous-report/${collegeId}`);
+        if (response.data.success && response.data.data) {
+          previousReportData = response.data.data;
+        } else {
+          previousReportData = null;
+        }
+      } catch (error) {
+        console.error('Error loading previous report data:', error);
+        previousReportData = null;
+      }
+    }
+
+    async function storeCurrentReportAsPrevious(collegeId, reportData) {
+      try {
+        await axios.post(`/api/previous-report/${collegeId}`, { data: reportData });
+      } catch (error) {
+        console.error('Error storing previous report data:', error);
+      }
+    }
+
+    // Utility functions
+    function showStatus(message, type = 'info') {
+      const statusArea = document.getElementById('statusArea');
+      if (!statusArea) return;
+      
+      const statusDiv = document.createElement('div');
+      statusDiv.className = `p-4 rounded-lg shadow-lg mb-2 ${
+        type === 'error' ? 'bg-red-500 text-white' :
+        type === 'success' ? 'bg-green-500 text-white' :
+        'bg-blue-500 text-white'
+      }`;
+      statusDiv.innerHTML = `
+        <div class="flex justify-between items-center">
+          <span>${message}</span>
+          <button onclick="this.parentElement.parentElement.remove()" class="ml-4 text-white hover:text-gray-200">
+            ×
+          </button>
+        </div>
+      `;
+      
+      statusArea.appendChild(statusDiv);
+      
+      setTimeout(() => {
+        if (statusDiv.parentElement) {
+          statusDiv.remove();
+        }
+      }, 5000);
+    }
+
+    function logout() {
+      axios.post('/api/auth/logout')
+        .then(() => {
+          window.location.href = '/login';
+        })
+        .catch(() => {
+          window.location.href = '/login';
+        });
+    }
+
+    // ===== EDITING FUNCTIONS =====
+    
+    // Add column functionality
+    function addColumn() {
+      const columnName = prompt('Enter column name:');
+      if (!columnName) return;
+      
+      // Add to headers
+      tableHeaders.push(columnName);
+      
+      // Add empty values to all rows
+      tableData.forEach(row => {
+        row.push('');
+      });
+      
+      // Re-render table
+      renderTable();
+      showStatus('Column added successfully', 'success');
+    }
+    
+    // Delete column functionality
+    function deleteColumn() {
+      if (tableHeaders.length <= 1) {
+        showStatus('Cannot delete the last column', 'error');
+        return;
+      }
+      
+      const columnIndex = prompt('Enter column index to delete (0-' + (tableHeaders.length - 1) + '):');
+      if (columnIndex === null) return;
+      
+      const index = parseInt(columnIndex);
+      if (isNaN(index) || index < 0 || index >= tableHeaders.length) {
+        showStatus('Invalid column index', 'error');
+        return;
+      }
+      
+      // Remove from headers
+      tableHeaders.splice(index, 1);
+      
+      // Remove from all rows
+      tableData.forEach(row => {
+        row.splice(index, 1);
+      });
+      
+      // Re-render table
+      renderTable();
+      showStatus('Column deleted successfully', 'success');
+    }
+    
+    // Add row functionality
+    function addRow() {
+      // Create new row with empty values
+      const newRow = new Array(tableHeaders.length).fill('');
+      tableData.push(newRow);
+      
+      // Re-render table
+      renderTable();
+      showStatus('Row added successfully', 'success');
+    }
+    
+    // Delete row functionality
+    function deleteRow() {
+      if (tableData.length <= 1) {
+        showStatus('Cannot delete the last row', 'error');
+        return;
+      }
+      
+      const rowIndex = prompt('Enter row index to delete (0-' + (tableData.length - 1) + '):');
+      if (rowIndex === null) return;
+      
+      const index = parseInt(rowIndex);
+      if (isNaN(index) || index < 0 || index >= tableData.length) {
+        showStatus('Invalid row index', 'error');
+        return;
+      }
+      
+      // Remove row
+      tableData.splice(index, 1);
+      
+      // Re-render table
+      renderTable();
+      showStatus('Row deleted successfully', 'success');
+    }
+    
+    // Enhanced save template functionality
+    async function saveTemplate() {
+      const templateName = prompt('Enter template name:');
+      if (!templateName) return;
+      
+      try {
+        const response = await axios.post('/api/save-template', {
+          name: templateName,
+          headers: tableHeaders,
+          data: tableData,
+          type: 'custom'
+        });
+        
+        if (response.data.success) {
+          showStatus('Template saved successfully', 'success');
+        } else {
+          showStatus('Error saving template: ' + response.data.error, 'error');
+        }
+      } catch (error) {
+        showStatus('Error saving template: ' + error.message, 'error');
+      }
+    }
+    
+    // Cell editing functionality
+    function setupCellEditing() {
+      // Add event listeners for editable cells
+      document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('editable-cell')) {
+          e.target.focus();
+        }
+      });
+      
+      // Handle cell content changes
+      document.addEventListener('blur', function(e) {
+        if (e.target.classList.contains('editable-cell')) {
+          const row = parseInt(e.target.dataset.row);
+          const col = parseInt(e.target.dataset.col);
+          const newValue = e.target.textContent.trim();
+          
+          if (row >= 0 && col >= 0 && row < tableData.length && col < tableHeaders.length) {
+            tableData[row][col] = newValue;
+            showStatus('Cell updated', 'info');
+          }
+        }
+      }, true);
+      
+      // Handle Enter key to save and move to next cell
+      document.addEventListener('keydown', function(e) {
+        if (e.target.classList.contains('editable-cell') && e.key === 'Enter') {
+          e.preventDefault();
+          e.target.blur();
+          
+          // Find next editable cell
+          const currentCell = e.target;
+          const nextCell = currentCell.parentElement.nextElementSibling?.querySelector('.editable-cell') ||
+                          currentCell.parentElement.parentElement.nextElementSibling?.querySelector('.editable-cell');
+          
+          if (nextCell) {
+            nextCell.focus();
+          }
+        }
+      });
+    }
+    
+    // Initialize editing functionality
+    function initializeEditing() {
+      // Add event listeners for editing buttons
+      document.getElementById('addColumnBtn').addEventListener('click', addColumn);
+      document.getElementById('deleteColumnBtn').addEventListener('click', deleteColumn);
+      document.getElementById('addRowBtn').addEventListener('click', addRow);
+      document.getElementById('deleteRowBtn').addEventListener('click', deleteRow);
+      
+      // Override save template button
+      const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+      if (saveTemplateBtn) {
+        saveTemplateBtn.removeEventListener('click', showSaveTemplateModal);
+        saveTemplateBtn.addEventListener('click', saveTemplate);
+      }
+      
+      // Setup cell editing
+      setupCellEditing();
+    }
+    
+    // Call initialization when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize editing after a short delay to ensure table is rendered
+      setTimeout(initializeEditing, 1000);
+    });
+  </script>
+</body>
+</html> 

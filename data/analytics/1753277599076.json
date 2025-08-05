@@ -1,0 +1,197 @@
+{
+  "collegeId": "1753277599076",
+  "lastUpdated": "2025-07-30T14:45:38.846Z",
+  "version": "1.0",
+  "timeSeries": {
+    "placements": [
+      {
+        "date": "2025-07-23",
+        "value": 964,
+        "reportId": "1753283593822",
+        "timestamp": "2025-07-23T15:13:13.822Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 964,
+        "reportId": "1753285697518",
+        "timestamp": "2025-07-23T15:48:17.519Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 2717,
+        "reportId": "1753313184158",
+        "timestamp": "2025-07-23T23:26:24.158Z"
+      },
+      {
+        "date": "2025-07-24",
+        "value": 2717,
+        "reportId": "1753315937939",
+        "timestamp": "2025-07-24T00:12:17.940Z"
+      },
+      {
+        "date": "2025-07-25",
+        "value": 0,
+        "reportId": "1753451982422",
+        "timestamp": "2025-07-25T13:59:42.422Z"
+      },
+      {
+        "date": "2025-07-30",
+        "value": 110,
+        "reportId": "1753886738841",
+        "timestamp": "2025-07-30T14:45:38.841Z"
+      }
+    ],
+    "activities": [
+      {
+        "date": "2025-07-23",
+        "value": 433,
+        "reportId": "1753283593822",
+        "timestamp": "2025-07-23T15:13:13.822Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 433,
+        "reportId": "1753285697518",
+        "timestamp": "2025-07-23T15:48:17.519Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 1545,
+        "reportId": "1753313184158",
+        "timestamp": "2025-07-23T23:26:24.158Z"
+      },
+      {
+        "date": "2025-07-24",
+        "value": 1545,
+        "reportId": "1753315937939",
+        "timestamp": "2025-07-24T00:12:17.940Z"
+      },
+      {
+        "date": "2025-07-25",
+        "value": 1545,
+        "reportId": "1753451982422",
+        "timestamp": "2025-07-25T13:59:42.422Z"
+      },
+      {
+        "date": "2025-07-30",
+        "value": 3,
+        "reportId": "1753886738841",
+        "timestamp": "2025-07-30T14:45:38.841Z"
+      }
+    ],
+    "assessments": [
+      {
+        "date": "2025-07-23",
+        "completed": 1302,
+        "pending": 1415,
+        "total": 2717,
+        "reportId": "1753283593822",
+        "timestamp": "2025-07-23T15:13:13.822Z"
+      },
+      {
+        "date": "2025-07-23",
+        "completed": 1302,
+        "pending": 1415,
+        "total": 2717,
+        "reportId": "1753285697518",
+        "timestamp": "2025-07-23T15:48:17.519Z"
+      },
+      {
+        "date": "2025-07-23",
+        "completed": 0,
+        "pending": 2717,
+        "total": 2717,
+        "reportId": "1753313184158",
+        "timestamp": "2025-07-23T23:26:24.158Z"
+      },
+      {
+        "date": "2025-07-24",
+        "completed": 0,
+        "pending": 2717,
+        "total": 2717,
+        "reportId": "1753315937939",
+        "timestamp": "2025-07-24T00:12:17.940Z"
+      },
+      {
+        "date": "2025-07-25",
+        "completed": 0,
+        "pending": 2717,
+        "total": 2717,
+        "reportId": "1753451982422",
+        "timestamp": "2025-07-25T13:59:42.422Z"
+      },
+      {
+        "date": "2025-07-30",
+        "completed": 110,
+        "pending": 0,
+        "total": 110,
+        "reportId": "1753886738841",
+        "timestamp": "2025-07-30T14:45:38.841Z"
+      }
+    ],
+    "careers": [
+      {
+        "date": "2025-07-23",
+        "value": 408,
+        "reportId": "1753283593822",
+        "timestamp": "2025-07-23T15:13:13.822Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 408,
+        "reportId": "1753285697518",
+        "timestamp": "2025-07-23T15:48:17.519Z"
+      },
+      {
+        "date": "2025-07-23",
+        "value": 408,
+        "reportId": "1753313184158",
+        "timestamp": "2025-07-23T23:26:24.158Z"
+      },
+      {
+        "date": "2025-07-24",
+        "value": 408,
+        "reportId": "1753315937939",
+        "timestamp": "2025-07-24T00:12:17.940Z"
+      },
+      {
+        "date": "2025-07-25",
+        "value": 408,
+        "reportId": "1753451982422",
+        "timestamp": "2025-07-25T13:59:42.422Z"
+      },
+      {
+        "date": "2025-07-30",
+        "value": 17,
+        "reportId": "1753886738841",
+        "timestamp": "2025-07-30T14:45:38.841Z"
+      }
+    ]
+  },
+  "summary": {
+    "totalReports": 6,
+    "dateRange": {
+      "firstReport": "2025-07-23T15:13:13.822Z",
+      "lastReport": "2025-07-30T14:45:38.841Z"
+    },
+    "averages": {
+      "placements": 1245,
+      "activities": 917,
+      "assessments": 110,
+      "careers": 343
+    },
+    "trends": {
+      "placements": "decreasing",
+      "activities": "decreasing",
+      "assessments": "stable",
+      "careers": "decreasing"
+    }
+  },
+  "metadata": {
+    "lastProcessedReport": "1753886738841",
+    "dataIntegrity": {
+      "checksum": null,
+      "lastValidated": null
+    }
+  }
+}

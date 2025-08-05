@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-07-24T02:23:02.238Z",
+  "summary": {
+    "totalMetrics": 0,
+    "storageCompression": "97.9%",
+    "averageAnalyticsGeneration": "0ms",
+    "averageChartRequest": "0ms"
+  },
+  "details": {
+    "analyticsGeneration": {
+      "count": 0,
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "recent": []
+    },
+    "chartDataRequests": {
+      "count": 0,
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "recent": []
+    },
+    "reportProcessing": {
+      "count": 0,
+      "average": 0,
+      "min": 0,
+      "max": 0,
+      "recent": []
+    },
+    "storageUsage": {
+      "timestamp": "2025-07-24T02:23:02.236Z",
+      "reports": {
+        "totalFiles": 7,
+        "totalSize": 166830,
+        "averageFileSize": 23832.85714285714
+      },
+      "analytics": {
+        "totalFiles": 1,
+        "totalSize": 3479,
+        "averageFileSize": 3479
+      },
+      "total": {
+        "size": 170309,
+        "compressionRatio": 97.91464364922376
+      }
+    }
+  }
+}
