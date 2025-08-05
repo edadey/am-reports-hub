@@ -1870,6 +1870,35 @@ app.post('/api/reports/generate', authService.requireAuth(), async (req, res) =>
   }
 });
 
+// Add the missing generate-report endpoint for backwards compatibility
+app.post('/api/generate-report', authService.requireAuth(), async (req, res) => {
+  try {
+    console.log('📊 Generate report request received (legacy endpoint)');
+    console.log('📄 Request body:', { collegeId: req.body.collegeId, reportName: req.body.reportName });
+    
+    const { collegeId, reportData, reportName, summary } = req.body;
+    
+    if (!collegeId || !reportData) {
+      return res.status(400).json({ error: 'College ID and report data are required' });
+    }
+    
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
+    
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'Report generated successfully',
+        report: result.report
+      });
+    } else {
+      res.status(400).json({ error: result.message });
+    }
+  } catch (error) {
+    console.error('Legacy report generation error:', error);
+    res.status(500).json({ error: 'Report generation failed' });
+  }
+});
+
 app.get('/api/reports/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
