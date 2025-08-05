@@ -1874,12 +1874,31 @@ app.post('/api/reports/generate', authService.requireAuth(), async (req, res) =>
 app.post('/api/generate-report', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📊 Generate report request received (legacy endpoint)');
-    console.log('📄 Request body:', { collegeId: req.body.collegeId, reportName: req.body.reportName });
+    console.log('📄 Request body:', { 
+      collegeId: req.body.collegeId, 
+      reportName: req.body.reportName,
+      hasReportData: !!req.body.reportData,
+      reportDataLength: req.body.reportData?.length || 0
+    });
     
     const { collegeId, reportData, reportName, summary } = req.body;
     
     if (!collegeId || !reportData) {
-      return res.status(400).json({ error: 'College ID and report data are required' });
+      console.log('❌ Missing required data:', { 
+        hasCollegeId: !!collegeId, 
+        hasReportData: !!reportData,
+        collegeId,
+        reportDataLength: reportData?.length || 0
+      });
+      return res.status(400).json({ 
+        error: 'College ID and report data are required',
+        provided: {
+          hasCollegeId: !!collegeId,
+          hasReportData: !!reportData,
+          collegeId,
+          reportDataLength: reportData?.length || 0
+        }
+      });
     }
     
     const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
@@ -1974,6 +1993,15 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     
     // Validate template data before saving
     console.log('🔍 Validating template data...');
+    console.log('📄 Template data structure:', {
+      hasName: !!req.body.name,
+      hasColumns: !!req.body.columns,
+      hasData: !!req.body.data,
+      name: req.body.name,
+      columnsCount: req.body.columns?.length || 0,
+      dataCount: req.body.data?.length || 0
+    });
+    
     try {
       const validationResult = await dataValidationService.validateTemplateData(req.body);
       
@@ -1982,7 +2010,12 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
         return res.status(400).json({ 
           error: 'Template validation failed', 
           errors: validationResult.errors,
-          warnings: validationResult.warnings
+          warnings: validationResult.warnings,
+          dataStructure: {
+            hasName: !!req.body.name,
+            hasColumns: !!req.body.columns,
+            hasData: !!req.body.data
+          }
         });
       }
       
@@ -1994,7 +2027,13 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     } catch (validationError) {
       console.error('❌ Template validation error:', validationError);
       return res.status(400).json({ 
-        error: 'Template validation error: ' + validationError.message 
+        error: 'Template validation error: ' + validationError.message,
+        stack: validationError.stack,
+        dataStructure: {
+          hasName: !!req.body.name,
+          hasColumns: !!req.body.columns,
+          hasData: !!req.body.data
+        }
       });
     }
     
