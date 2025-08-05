@@ -195,17 +195,7 @@ class AuthService {
 
   async createSession(userId, token) {
     try {
-      const sessions = await this.getSessions();
-      const session = {
-        id: Date.now().toString(),
-        userId,
-        token,
-        createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
-      };
-      
-      sessions.push(session);
-      await fs.writeJson(this.sessionsFile, sessions, { spaces: 2 });
+      this.sessionService.createSession(userId, token);
     } catch (error) {
       console.error('Error creating session:', error);
     }
@@ -213,40 +203,27 @@ class AuthService {
 
   async getSessions() {
     try {
-      // Ensure the sessions file exists
-      await fs.ensureFile(this.sessionsFile);
-      return await fs.readJson(this.sessionsFile);
+      return this.sessionService.getAllSessions();
     } catch (error) {
-      // If file doesn't exist or is invalid, create it with empty array
-      await fs.writeJson(this.sessionsFile, [], { spaces: 2 });
+      console.error('Error getting sessions:', error);
       return [];
     }
   }
 
   async validateSession(token) {
     try {
-      const sessions = await this.getSessions();
-      console.log(`Session validation: Found ${sessions.length} sessions, looking for token: ${token.substring(0, 10)}...`);
-      
-      const session = sessions.find(s => s.token === token);
+      const session = this.sessionService.getSession(token);
       
       if (!session) {
         console.log('Session validation: Session not found');
         return { success: false, message: 'Session not found' };
       }
 
-      // Check if session is expired
-      if (new Date() > new Date(session.expiresAt)) {
-        console.log('Session validation: Session expired');
-        await this.removeSession(token);
-        return { success: false, message: 'Session expired' };
-      }
-
       // Verify JWT token
       const tokenVerification = this.verifyToken(token);
       if (!tokenVerification.success) {
         console.log('Session validation: Invalid token');
-        await this.removeSession(token);
+        this.sessionService.removeSession(token);
         return { success: false, message: 'Invalid token' };
       }
 
@@ -260,9 +237,7 @@ class AuthService {
 
   async removeSession(token) {
     try {
-      const sessions = await this.getSessions();
-      const filteredSessions = sessions.filter(s => s.token !== token);
-      await fs.writeJson(this.sessionsFile, filteredSessions, { spaces: 2 });
+      this.sessionService.removeSession(token);
     } catch (error) {
       console.error('Error removing session:', error);
     }
