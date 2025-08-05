@@ -3,7 +3,8 @@ const path = require("path");
 
 class VolumeService {
   constructor() {
-    this.volumePath = "/app/data";
+    // Use environment variable for volume path, fallback to Railway default
+    this.volumePath = process.env.VOLUME_PATH || "/app/data";
     this.localDataPath = path.join(__dirname, "../../data");
     this.isVolumeMounted = false;
   }
@@ -13,6 +14,11 @@ class VolumeService {
    */
   async initialize() {
     try {
+      console.log("🔄 Initializing VolumeService...");
+      console.log("📁 Volume path:", this.volumePath);
+      console.log("📁 Local data path:", this.localDataPath);
+      console.log("🌍 Environment:", process.env.NODE_ENV || 'development');
+      
       // Check if Railway volume is mounted
       this.isVolumeMounted = await fs.pathExists(this.volumePath);
       
@@ -25,10 +31,13 @@ class VolumeService {
         // Migrate data from local to volume if needed
         await this.migrateDataToVolume();
       } else {
-        console.log("⚠️ Railway volume not mounted, using local storage");
+        console.log("⚠️ Railway volume not mounted, using local storage at:", this.localDataPath);
         // Create local data directory as fallback
         await fs.ensureDir(this.localDataPath);
       }
+      
+      console.log("✅ VolumeService initialized successfully");
+      console.log("📊 Current data path:", this.getDataPath());
       
       return true;
     } catch (error) {

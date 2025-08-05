@@ -166,6 +166,7 @@ class UserManager {
 
   async updateCollege(collegeId, updates) {
     console.log('🔄 UserManager.updateCollege called with:', { collegeId, updates });
+    console.log('📁 Using VolumeService:', !!this.volumeService);
     
     const colleges = await this.getColleges();
     console.log('📋 Found colleges:', colleges.length);
@@ -180,9 +181,11 @@ class UserManager {
       
       try {
         if (this.volumeService) {
+          console.log('💾 Writing to VolumeService...');
           await this.volumeService.writeFile(this.collegesFile, colleges);
           console.log('✅ College data written to volume service');
         } else {
+          console.log('💾 Writing to local file system...');
           await fs.writeJson(`data/${this.collegesFile}`, colleges, { spaces: 2 });
           console.log('✅ College data written to file system');
         }
