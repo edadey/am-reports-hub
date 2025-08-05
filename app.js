@@ -585,6 +585,53 @@ app.get('/api/auth/debug', async (req, res) => {
   }
 });
 
+// Debug endpoint to check reports for a college
+app.get('/api/debug/reports/:collegeId', async (req, res) => {
+  try {
+    const { collegeId } = req.params;
+    console.log(`🔍 Debug reports for college ${collegeId}...`);
+    
+    // Ensure reports directory exists
+    await fs.ensureDir('data/reports');
+    
+    const reportsPath = `data/reports/${collegeId}.json`;
+    console.log(`📁 Checking reports file: ${reportsPath}`);
+    
+    if (await fs.pathExists(reportsPath)) {
+      const reports = await fs.readJson(reportsPath);
+      console.log(`✅ Found ${reports.length} reports for college ${collegeId}`);
+      res.json({
+        collegeId,
+        reportsCount: reports.length,
+        reports: reports.map(r => ({
+          id: r.id,
+          name: r.name,
+          createdAt: r.createdAt,
+          summary: r.summary
+        })),
+        filePath: reportsPath,
+        fileExists: true
+      });
+    } else {
+      console.log(`📝 No reports file found for college ${collegeId}`);
+      res.json({
+        collegeId,
+        reportsCount: 0,
+        reports: [],
+        filePath: reportsPath,
+        fileExists: false
+      });
+    }
+  } catch (error) {
+    console.error('❌ Debug reports error:', error);
+    res.json({ 
+      collegeId: req.params.collegeId,
+      error: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // Forgot Password endpoint
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
@@ -2182,19 +2229,37 @@ function calculateChanges(currentData, previousReportPath) {
 
 async function getCollegeReports(collegeId) {
   try {
+    console.log(`📊 Loading reports for college ${collegeId}...`);
+    
+    // Ensure reports directory exists
+    await fs.ensureDir('data/reports');
+    
     const reportsPath = `data/reports/${collegeId}.json`;
+    console.log(`📁 Checking reports file: ${reportsPath}`);
+    
     if (await fs.pathExists(reportsPath)) {
-      return await fs.readJson(reportsPath);
+      const reports = await fs.readJson(reportsPath);
+      console.log(`✅ Found ${reports.length} reports for college ${collegeId}`);
+      return reports;
+    } else {
+      console.log(`📝 No reports file found for college ${collegeId}`);
+      return [];
     }
-    return [];
   } catch (error) {
-    console.error('Get college reports error:', error);
+    console.error('❌ Get college reports error:', error);
     return [];
   }
 }
 
 async function saveCollegeReport(collegeId, reportData, reportName, summary) {
   try {
+    console.log(`💾 Saving report for college ${collegeId}...`);
+    console.log(`📄 Report name: ${reportName}`);
+    console.log(`📊 Report data rows: ${reportData?.length || 0}`);
+    
+    // Ensure reports directory exists
+    await fs.ensureDir('data/reports');
+    
     // Validate report data before saving
     console.log('🔍 Validating report data...');
     const validationResult = await dataValidationService.validateReportData(reportData, collegeId);
@@ -2216,7 +2281,16 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     console.log('✅ Report validation passed');
     
     const reportsPath = `data/reports/${collegeId}.json`;
-    const reports = await fs.readJson(reportsPath).catch(() => []);
+    console.log(`📁 Reports file path: ${reportsPath}`);
+    
+    let reports = [];
+    try {
+      reports = await fs.readJson(reportsPath);
+      console.log(`📖 Read ${reports.length} existing reports`);
+    } catch (e) {
+      console.log('📝 No existing reports file, starting fresh');
+      reports = [];
+    }
     
     const report = {
       id: Date.now().toString(),
@@ -2229,8 +2303,12 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       validationTime: validationResult.validationTime
     };
     
+    console.log(`📋 Adding new report with ID: ${report.id}`);
     reports.push(report);
+    
+    console.log(`💾 Writing ${reports.length} reports to file...`);
     await fs.writeJson(reportsPath, reports, { spaces: 2 });
+    console.log('✅ Reports file written successfully');
     
     // Create backup after successful save
     try {
