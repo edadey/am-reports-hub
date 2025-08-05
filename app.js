@@ -2009,10 +2009,10 @@ app.delete('/api/reports/:collegeId/:reportId', authService.requireAuth(), async
 
 app.get('/api/templates', authService.requireAuth(), async (req, res) => {
   try {
-    const templatesFile = 'data/templates.json';
+    const templatesFile = 'templates.json';
     let templates = [];
     try {
-      templates = await fs.readJson(templatesFile);
+      templates = await volumeService.readFile(templatesFile);
     } catch (e) {
       templates = [];
     }
@@ -2105,13 +2105,13 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       });
     }
     
-    const templatesFile = 'data/templates.json';
+    const templatesFile = 'templates.json';
     let templates = [];
     
-    console.log('📖 Reading existing templates...');
+    console.log('📖 Reading existing templates from volume...');
     try {
-      templates = await fs.readJson(templatesFile);
-      console.log(`✅ Read ${templates.length} existing templates`);
+      templates = await volumeService.readFile(templatesFile);
+      console.log(`✅ Read ${templates.length} existing templates from volume`);
     } catch (e) {
       console.log('📝 No existing templates file, starting fresh');
       templates = [];
@@ -2140,9 +2140,9 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       templates.push(newTemplate);
     }
     
-    console.log('💾 Writing templates to file...');
-    await fs.writeJson(templatesFile, templates, { spaces: 2 });
-    console.log('✅ Templates file written successfully');
+    console.log('💾 Writing templates to volume...');
+    await volumeService.writeFile(templatesFile, templates);
+    console.log('✅ Templates file written to volume successfully');
     
     // Create backup after successful save
     try {
@@ -2174,10 +2174,10 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
   try {
     const { id } = req.params;
     console.log('Delete template request for ID:', id, 'Type:', typeof id);
-    const templatesFile = 'data/templates.json';
+    const templatesFile = 'templates.json';
     let templates = [];
     try {
-      templates = await fs.readJson(templatesFile);
+      templates = await volumeService.readFile(templatesFile);
       console.log('Loaded templates:', templates.length, 'templates');
       console.log('Template IDs:', templates.map(t => ({ id: t.id, type: typeof t.id, name: t.name })));
     } catch (e) {
@@ -2193,7 +2193,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     }
     
     const deletedTemplate = templates.splice(templateIndex, 1)[0];
-    await fs.writeJson(templatesFile, templates, { spaces: 2 });
+    await volumeService.writeFile(templatesFile, templates);
     
     // Create backup after deletion
     try {
