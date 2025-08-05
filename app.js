@@ -2048,13 +2048,20 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     });
     
     // Transform frontend data to match validation expectations
+    const columnCount = typeof req.body.headers === 'number' ? req.body.headers : (Array.isArray(req.body.headers) ? req.body.headers.length : 0);
+    const rowCount = typeof req.body.rows === 'number' ? req.body.rows : 0;
+    
+    // Create a headers array with the correct number of columns
+    const headers = Array.isArray(req.body.headers) ? req.body.headers : 
+                   Array.from({ length: columnCount }, (_, i) => `Column ${i + 1}`);
+    
     const templateData = {
       id: Date.now(),
       name: req.body.name,
       description: req.body.description || '',
-      headers: Array.isArray(req.body.headers) ? req.body.headers : [],
-      columnCount: Array.isArray(req.body.headers) ? req.body.headers.length : (req.body.headers || 0),
-      rowCount: req.body.rows || 0,
+      headers: headers,
+      columnCount: columnCount,
+      rowCount: rowCount,
       createdAt: new Date().toISOString()
     };
     
