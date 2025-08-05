@@ -632,6 +632,51 @@ app.get('/api/debug/reports/:collegeId', async (req, res) => {
   }
 });
 
+// Debug endpoint to test data validation service
+app.post('/api/debug/validate-template', async (req, res) => {
+  try {
+    console.log('🔍 Testing template validation...');
+    console.log('📄 Received data:', {
+      hasName: !!req.body.name,
+      hasColumns: !!req.body.columns,
+      hasData: !!req.body.data,
+      name: req.body.name,
+      columnsCount: req.body.columns?.length || 0,
+      dataCount: req.body.data?.length || 0
+    });
+    
+    const validationResult = await dataValidationService.validateTemplateData(req.body);
+    
+    res.json({
+      success: true,
+      validationResult,
+      receivedData: {
+        hasName: !!req.body.name,
+        hasColumns: !!req.body.columns,
+        hasData: !!req.body.data,
+        name: req.body.name,
+        columnsCount: req.body.columns?.length || 0,
+        dataCount: req.body.data?.length || 0
+      }
+    });
+  } catch (error) {
+    console.error('❌ Template validation test error:', error);
+    res.json({
+      success: false,
+      error: error.message,
+      stack: error.stack,
+      receivedData: {
+        hasName: !!req.body.name,
+        hasColumns: !!req.body.columns,
+        hasData: !!req.body.data,
+        name: req.body.name,
+        columnsCount: req.body.columns?.length || 0,
+        dataCount: req.body.data?.length || 0
+      }
+    });
+  }
+});
+
 // Forgot Password endpoint
 app.post('/api/auth/forgot-password', async (req, res) => {
   try {
