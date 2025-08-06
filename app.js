@@ -3551,6 +3551,64 @@ app.get('/api/debug/volume-status', async (req, res) => {
   }
 });
 
+// Debug endpoint to check Railway backup status
+app.get('/api/debug/railway-backup-status', async (req, res) => {
+  try {
+    const backupStats = await railwayBackupService.getStorageStats();
+    const backups = await railwayBackupService.listBackups();
+    const dataPath = railwayBackupService.getDataPath();
+    const backupPath = railwayBackupService.getBackupPath();
+    
+    res.json({
+      success: true,
+      backupStats,
+      backups: backups.slice(0, 5), // Show first 5 backups
+      dataPath,
+      backupPath,
+      environment: process.env.NODE_ENV,
+      railwayEnvironment: process.env.RAILWAY_ENVIRONMENT
+    });
+  } catch (error) {
+    console.error('Railway backup status error:', error);
+    res.status(500).json({ error: 'Failed to get Railway backup status' });
+  }
+});
+
+// Direct access to Railway cloud data
+app.get('/api/railway-cloud-data', async (req, res) => {
+  try {
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    // Check if we're on Railway
+    const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // Check if data exists
+    const collegesPath = path.join(dataPath, 'colleges.json');
+    const collegesExist = await fs.pathExists(collegesPath);
+    
+    let colleges = [];
+    if (collegesExist) {
+      colleges = await fs.readJson(collegesPath);
+    }
+    
+    res.json({
+      success: true,
+      isRailway,
+      dataPath,
+      collegesExist,
+      collegesCount: colleges.length,
+      colleges: colleges.map(c => ({ id: c.id, name: c.name })),
+      environment: process.env.NODE_ENV,
+      railwayEnvironment: process.env.RAILWAY_ENVIRONMENT
+    });
+  } catch (error) {
+    console.error('Railway cloud data error:', error);
+    res.status(500).json({ error: 'Failed to access Railway cloud data' });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
