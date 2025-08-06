@@ -63,6 +63,22 @@ class BackupAPIService {
       this.authService.requireAuth(), 
       this.scheduleBackup.bind(this)
     );
+
+    // Cloud storage endpoints
+    this.app.get('/api/backup/cloud/status', 
+      this.authService.requireAuth(), 
+      this.getCloudStorageStatus.bind(this)
+    );
+
+    this.app.get('/api/backup/cloud/list', 
+      this.authService.requireAuth(), 
+      this.listCloudBackups.bind(this)
+    );
+
+    this.app.post('/api/backup/cloud/:backupId/download', 
+      this.authService.requireAuth(), 
+      this.downloadCloudBackup.bind(this)
+    );
   }
 
   async getBackupStatus(req, res) {
@@ -370,6 +386,62 @@ class BackupAPIService {
       return totalSize;
     } catch (error) {
       return 0;
+    }
+  }
+
+  async getCloudStorageStatus(req, res) {
+    try {
+      const status = this.cloudBackupService.cloudStorageService.getCloudStorageStatus();
+      
+      res.json({
+        cloudStorage: status,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error getting cloud storage status:', error);
+      res.status(500).json({ error: 'Failed to get cloud storage status' });
+    }
+  }
+
+  async listCloudBackups(req, res) {
+    try {
+      const cloudBackups = await this.cloudBackupService.cloudStorageService.listCloudBackups();
+      
+      res.json({
+        cloudBackups,
+        count: cloudBackups.length,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Error listing cloud backups:', error);
+      res.status(500).json({ error: 'Failed to list cloud backups' });
+    }
+  }
+
+  async downloadCloudBackup(req, res) {
+    try {
+      const { backupId } = req.params;
+      const { targetPath } = req.body;
+      
+      const result = await this.cloudBackupService.cloudStorageService.downloadFromCloud(
+        backupId, 
+        targetPath
+      );
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: `Cloud backup ${backupId} downloaded successfully`
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      console.error('Error downloading cloud backup:', error);
+      res.status(500).json({ error: 'Failed to download cloud backup' });
     }
   }
 }

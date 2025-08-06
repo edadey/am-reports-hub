@@ -1,12 +1,14 @@
 const fs = require('fs-extra');
 const path = require('path');
 const crypto = require('crypto');
+const CloudStorageService = require('./CloudStorageService');
 
 class CloudBackupService {
   constructor() {
     this.dataPath = path.join(__dirname, '../../data');
     this.backupPath = path.join(this.dataPath, 'backups');
     this.cloudBackupPath = path.join(this.backupPath, 'cloud');
+    this.cloudStorageService = new CloudStorageService();
     
     // Backup configuration
     this.backupConfig = {
@@ -52,6 +54,9 @@ class CloudBackupService {
     console.log('☁️ Initializing Cloud Backup Service...');
     
     try {
+      // Initialize cloud storage service
+      await this.cloudStorageService.initialize();
+      
       // Ensure backup directories exist
       await fs.ensureDir(this.backupPath);
       await fs.ensureDir(this.cloudBackupPath);
@@ -123,12 +128,18 @@ class CloudBackupService {
       // Clean up old backups
       await this.cleanupOldBackups(category);
 
-      return {
+      // Upload to external cloud storage if configured
+      const cloudUpload = await this.cloudStorageService.uploadToCloud(backupDir, backupId);
+      
+      const result = {
         backupId,
         backupDir,
         manifest,
-        summary
+        summary,
+        cloudStorage: cloudUpload
       };
+
+      return result;
 
     } catch (error) {
       console.error(`❌ Error creating ${backupType} backup:`, error);

@@ -522,6 +522,28 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 });
 */
 
+// Simple health check endpoint for Railway
+app.get('/health', (req, res) => {
+  try {
+    // Basic health check - just ensure the app is responding
+    res.status(200).json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      environment: process.env.NODE_ENV || 'development',
+      port: PORT,
+      ready: true
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ 
+      status: 'unhealthy', 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // Check authentication status endpoint
 app.get('/api/auth/status', async (req, res) => {
   try {
@@ -3575,17 +3597,20 @@ async function initializeServices() {
     console.log('✅ All services initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize services:', error);
+    // Don't throw error - allow app to continue running
   }
 }
 
 // Start server
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   console.log(`AM Reports Hub running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
   
-  // Initialize services after server starts
-  await initializeServices();
+  // Initialize services in background (non-blocking)
+  initializeServices().catch(error => {
+    console.error('❌ Service initialization failed:', error);
+  });
 });
 
 module.exports = app; 
