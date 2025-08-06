@@ -1,0 +1,45 @@
+[
+  {
+    "id": 1753277599076,
+    "name": "Sample College",
+    "numberOfProviders": "2",
+    "accountManagerId": null,
+    "keyStakeholders": [
+      {
+        "name": "John Director",
+        "position": "Director",
+        "email": "john.director@college.edu"
+      }
+    ],
+    "superUsers": [
+      {
+        "name": "Alice Admin",
+        "position": "System Administrator",
+        "email": "alice.admin@college.edu"
+      }
+    ],
+    "misContact": "",
+    "dataTransferMethod": "live-link",
+    "status": "A",
+    "ofstedRating": "O",
+    "reportFrequency": "monthly",
+    "template": "standard",
+    "initialConcerns": "",
+    "lastReportDate": null,
+    "createdAt": "2025-07-23T13:33:19.076Z",
+    "misContactName": "Sample Contact",
+    "misContactEmail": "sample@college.edu",
+    "renewalDate": "2025-12-31",
+    "modules": [
+      {
+        "name": "Sample Module",
+        "cost": 5000
+      }
+    ],
+    "engagementLevel": "Excellent",
+    "swotStrengths": "Sample strengths",
+    "swotWeaknesses": "Sample weaknesses",
+    "swotOpportunities": "Sample opportunities",
+    "swotThreats": "Sample threats"
+  }
+] 
