@@ -3581,9 +3581,8 @@ async function initializeServices() {
     console.log('🔄 Initializing volume service...');
     await volumeService.initialize();
     
-    // Temporarily disable all new services to fix deployment
-    console.log('🔄 Skipping data preservation service (temporarily disabled)...');
-    // await dataPreservationService.initializeDataPreservation();
+    console.log('🔄 Initializing data preservation service...');
+    await dataPreservationService.initializeDataPreservation();
     
     console.log('🔄 Skipping cloud backup service (temporarily disabled)...');
     // await cloudBackupService.initialize();
