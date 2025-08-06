@@ -3587,7 +3587,7 @@ app.get('/api/debug/railway-backup-status', async (req, res) => {
     res.json({
       success: true,
       backupStats,
-      backups: backups.slice(0, 5), // Show first 5 backups
+      backups: backups, // Show all backups (unlimited)
       dataPath,
       backupPath,
       environment: process.env.NODE_ENV,
