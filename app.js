@@ -3733,6 +3733,99 @@ app.post('/api/restore-simple-backup/:backupId', async (req, res) => {
   }
 });
 
+// Search all possible backup locations
+app.get('/api/search-all-backups', async (req, res) => {
+  try {
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // List of all possible backup locations to check
+    const possibleLocations = [
+      '/app/simple-backups',
+      '/app/backups', 
+      '/app/data/simple-backups',
+      '/app/data/backups',
+      '/app/data/data-backup-simulation/simple-backups',
+      '/app/data/data-backup-simulation/backups',
+      '/app/data/old-backups',
+      '/app/data/backup-simulation',
+      '/app/backup-simulation',
+      '/app/data/colleges-backup',
+      '/app/colleges-backup',
+      '/app/data/backup-data',
+      '/app/backup-data'
+    ];
+    
+    const searchResults = [];
+    
+    for (const location of possibleLocations) {
+      try {
+        const exists = await fs.pathExists(location);
+        if (exists) {
+          const items = await fs.readdir(location);
+          
+          // Check each item for colleges.json
+          const collegesFiles = [];
+          for (const item of items) {
+            const itemPath = path.join(location, item);
+            const stats = await fs.stat(itemPath);
+            
+            if (stats.isDirectory()) {
+              const collegesPath = path.join(itemPath, 'colleges.json');
+              if (await fs.pathExists(collegesPath)) {
+                try {
+                  const colleges = await fs.readJson(collegesPath);
+                  collegesFiles.push({
+                    directory: item,
+                    collegesCount: colleges.length,
+                    colleges: colleges.map(c => ({ id: c.id, name: c.name }))
+                  });
+                } catch (error) {
+                  collegesFiles.push({
+                    directory: item,
+                    error: 'Could not read colleges.json'
+                  });
+                }
+              }
+            }
+          }
+          
+          searchResults.push({
+            location,
+            exists: true,
+            items,
+            collegesFiles
+          });
+        } else {
+          searchResults.push({
+            location,
+            exists: false
+          });
+        }
+      } catch (error) {
+        searchResults.push({
+          location,
+          exists: false,
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      isRailway,
+      dataPath,
+      searchResults
+    });
+  } catch (error) {
+    console.error('Search all backups error:', error);
+    res.status(500).json({ error: 'Failed to search all backups' });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
