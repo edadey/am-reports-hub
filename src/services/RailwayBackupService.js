@@ -4,8 +4,17 @@ const crypto = require('crypto');
 
 class RailwayBackupService {
   constructor() {
-    // Railway cloud storage paths
-    this.railwayDataPath = '/app/data';
+    // Use Railway cloud storage in production, local storage in development
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+      // Railway cloud storage
+      this.railwayDataPath = '/app/data';
+      console.log('☁️ Using Railway cloud storage:', this.railwayDataPath);
+    } else {
+      // Local development storage
+      this.railwayDataPath = path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data');
+      console.log('💻 Using local development storage:', this.railwayDataPath);
+    }
+    
     this.backupPath = path.join(this.railwayDataPath, 'backups');
     this.dataPath = path.join(this.railwayDataPath, 'data');
     
