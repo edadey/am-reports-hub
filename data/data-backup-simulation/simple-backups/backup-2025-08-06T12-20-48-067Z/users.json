@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "username": "admin",
+    "email": "admin@amreports.com",
+    "password": "$2b$10$Eyurx4DhJfe5T4sOtz1hkO.LZayjp3r7b/FHvh/ZO4kRsvVidqUsi",
+    "role": "admin",
+    "name": "System Administrator",
+    "accountManagerId": null,
+    "isActive": true,
+    "createdAt": "2025-07-16T16:02:59.697Z",
+    "lastLogin": "2025-08-06T08:50:42.136Z"
+  },
+  {
+    "id": 2,
+    "username": "demo",
+    "email": "demo@amreports.com",
+    "password": "$2b$10$raGmgwtvtKQlwVkirtAycuo1WkEY.J4QGKHEy40mbx2PFh4kfb/ei",
+    "role": "account_manager",
+    "name": "Demo Account Manager",
+    "accountManagerId": 1,
+    "isActive": true,
+    "createdAt": "2025-07-16T16:02:59.769Z",
+    "lastLogin": "2025-07-27T15:21:36.156Z"
+  },
+  {
+    "id": 1752699869877,
+    "username": "edadey",
+    "email": "emmanuel.dadey@navigate.uk.com",
+    "password": "$2b$10$XRwKMzbVAERQK8El1FDRtOuEoWZJn.EZySDx73KKpF8/i8PImmai.",
+    "role": "account_manager",
+    "name": "Emmanuel Dadey",
+    "accountManagerId": null,
+    "isActive": true,
+    "createdAt": "2025-07-16T21:04:29.970Z",
+    "lastLogin": "2025-07-16T21:04:50.309Z"
+  }
+]

@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railway Cloud Backup Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .cloud-status {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border-left: 4px solid #667eea;
+        }
+
+        .stat-card h3 {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .subtitle {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+        }
+
+        .backups-section {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            color: #2c3e50;
+            font-size: 1.5rem;
+        }
+
+        .backups-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .backup-item {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .backup-item:hover {
+            background: #f8f9fa;
+        }
+
+        .backup-item:last-child {
+            border-bottom: none;
+        }
+
+        .backup-info h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        .backup-info p {
+            color: #6c757d;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .backup-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .backup-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #6c757d;
+        }
+
+        .close:hover {
+            color: #2c3e50;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .form-group input, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+
+            .backup-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .backup-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>☁️ Railway Cloud Backup</h1>
+            <p>Manage your cloud backups on Railway's persistent storage</p>
+        </div>
+
+        <div class="cloud-status">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>Railway Cloud Storage Active</span>
+            </div>
+            <div id="storage-info">Loading...</div>
+        </div>
+
+        <div class="main-content">
+            <div id="message"></div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Backups</h3>
+                    <div class="value" id="total-backups">-</div>
+                    <div class="subtitle">Cloud backups stored</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Storage Used</h3>
+                    <div class="value" id="storage-used">-</div>
+                    <div class="subtitle" id="storage-percentage">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Available Space</h3>
+                    <div class="value" id="available-space">-</div>
+                    <div class="subtitle">9GB total capacity</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Latest Backup</h3>
+                    <div class="value" id="latest-backup">-</div>
+                    <div class="subtitle">Most recent backup</div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary" onclick="createBackup()">
+                    📦 Create Backup
+                </button>
+                <button class="btn btn-secondary" onclick="refreshBackups()">
+                    🔄 Refresh
+                </button>
+                <button class="btn btn-success" onclick="showStorageInfo()">
+                    💾 Storage Info
+                </button>
+            </div>
+
+            <div class="backups-section">
+                <div class="section-header">
+                    <h2>Cloud Backups</h2>
+                    <span id="backups-count">Loading...</span>
+                </div>
+                <div class="backups-list" id="backups-list">
+                    <div class="loading">Loading cloud backups...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Backup Modal -->
+    <div id="createBackupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Railway Cloud Backup</h3>
+                <span class="close" onclick="closeModal('createBackupModal')">&times;</span>
+            </div>
+            <div class="form-group">
+                <label for="backupDescription">Backup Description:</label>
+                <textarea id="backupDescription" rows="3" placeholder="Enter a description for this backup..."></textarea>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="confirmCreateBackup()">Create Backup</button>
+                <button class="btn btn-secondary" onclick="closeModal('createBackupModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Restore Confirmation Modal -->
+    <div id="restoreModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Restore Cloud Backup</h3>
+                <span class="close" onclick="closeModal('restoreModal')">&times;</span>
+            </div>
+            <div id="restoreModalContent">
+                <p>Are you sure you want to restore this backup? This will overwrite current data.</p>
+                <div class="backup-info" id="restoreBackupInfo"></div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-warning" onclick="confirmRestore()">Restore Backup</button>
+                <button class="btn btn-secondary" onclick="closeModal('restoreModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBackups = [];
+        let selectedBackupId = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboard();
+        });
+
+        async function loadDashboard() {
+            try {
+                await Promise.all([
+                    loadBackups(),
+                    loadStorageStats()
+                ]);
+            } catch (error) {
+                showMessage('Error loading dashboard: ' + error.message, 'error');
+            }
+        }
+
+        async function loadBackups() {
+            try {
+                const response = await fetch('/api/backup/list', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load backups');
+                }
+
+                const data = await response.json();
+                currentBackups = data.backups || [];
+                
+                displayBackups(currentBackups);
+                updateBackupCount();
+            } catch (error) {
+                console.error('Error loading backups:', error);
+                showMessage('Error loading backups: ' + error.message, 'error');
+            }
+        }
+
+        async function loadStorageStats() {
+            try {
+                const response = await fetch('/api/backup/stats', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load storage stats');
+                }
+
+                const data = await response.json();
+                const stats = data.stats;
+                
+                updateStorageStats(stats);
+            } catch (error) {
+                console.error('Error loading storage stats:', error);
+            }
+        }
+
+        function displayBackups(backups) {
+            const backupsList = document.getElementById('backups-list');
+            
+            if (backups.length === 0) {
+                backupsList.innerHTML = '<div class="loading">No cloud backups found</div>';
+                return;
+            }
+
+            backupsList.innerHTML = backups.map(backup => `
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <h4>${backup.description || 'Unnamed Backup'}</h4>
+                        <p>Backup ID: ${backup.backupId}</p>
+                        <div class="backup-meta">
+                            <span>📅 ${new Date(backup.timestamp).toLocaleString()}</span>
+                            <span>📁 ${backup.files} files</span>
+                            <span>💾 ${backup.sizeFormatted}</span>
+                        </div>
+                    </div>
+                    <div class="backup-actions">
+                        <button class="btn btn-sm btn-warning" onclick="restoreBackup('${backup.backupId}')">
+                            🔄 Restore
+                        </button>
+                        <button class="btn btn-sm btn-secondary" onclick="showBackupDetails('${backup.backupId}')">
+                            📋 Details
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateBackupCount() {
+            const count = currentBackups.length;
+            document.getElementById('backups-count').textContent = `${count} backup${count !== 1 ? 's' : ''}`;
+            document.getElementById('total-backups').textContent = count;
+        }
+
+        function updateStorageStats(stats) {
+            document.getElementById('storage-used').textContent = stats.totalSizeFormatted;
+            document.getElementById('available-space').textContent = stats.availableSpaceFormatted;
+            document.getElementById('storage-percentage').textContent = `${stats.usagePercentage}% used`;
+            
+            const storageInfo = document.getElementById('storage-info');
+            storageInfo.textContent = `${stats.totalSizeFormatted} / ${stats.maxStorageGB}GB used`;
+            
+            if (currentBackups.length > 0) {
+                const latest = currentBackups[0];
+                document.getElementById('latest-backup').textContent = new Date(latest.timestamp).toLocaleDateString();
+            }
+        }
+
+        function createBackup() {
+            document.getElementById('createBackupModal').style.display = 'block';
+        }
+
+        async function confirmCreateBackup() {
+            const description = document.getElementById('backupDescription').value || 'Manual Railway cloud backup';
+            
+            try {
+                showMessage('Creating Railway cloud backup...', 'success');
+                
+                const response = await fetch('/api/backup/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ description })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create backup');
+                }
+
+                const data = await response.json();
+                showMessage('Railway cloud backup created successfully!', 'success');
+                
+                closeModal('createBackupModal');
+                document.getElementById('backupDescription').value = '';
+                
+                // Reload dashboard
+                await loadDashboard();
+                
+            } catch (error) {
+                console.error('Error creating backup:', error);
+                showMessage('Error creating backup: ' + error.message, 'error');
+            }
+        }
+
+        function restoreBackup(backupId) {
+            const backup = currentBackups.find(b => b.backupId === backupId);
+            if (!backup) return;
+
+            selectedBackupId = backupId;
+            
+            const restoreBackupInfo = document.getElementById('restoreBackupInfo');
+            restoreBackupInfo.innerHTML = `
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <h4>${backup.description || 'Unnamed Backup'}</h4>
+                        <p>Backup ID: ${backup.backupId}</p>
+                        <div class="backup-meta">
+                            <span>📅 ${new Date(backup.timestamp).toLocaleString()}</span>
+                            <span>📁 ${backup.files} files</span>
+                            <span>💾 ${backup.sizeFormatted}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('restoreModal').style.display = 'block';
+        }
+
+        async function confirmRestore() {
+            if (!selectedBackupId) return;
+            
+            try {
+                showMessage('Restoring Railway cloud backup...', 'success');
+                
+                const response = await fetch(`/api/backup/restore/${selectedBackupId}`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to restore backup');
+                }
+
+                const data = await response.json();
+                showMessage('Railway cloud backup restored successfully!', 'success');
+                
+                closeModal('restoreModal');
+                selectedBackupId = null;
+                
+                // Reload dashboard
+                await loadDashboard();
+                
+            } catch (error) {
+                console.error('Error restoring backup:', error);
+                showMessage('Error restoring backup: ' + error.message, 'error');
+            }
+        }
+
+        function showBackupDetails(backupId) {
+            const backup = currentBackups.find(b => b.backupId === backupId);
+            if (!backup) return;
+
+            alert(`Backup Details:\n\n` +
+                  `Description: ${backup.description || 'Unnamed Backup'}\n` +
+                  `ID: ${backup.backupId}\n` +
+                  `Created: ${new Date(backup.timestamp).toLocaleString()}\n` +
+                  `Files: ${backup.files}\n` +
+                  `Size: ${backup.sizeFormatted}\n` +
+                  `Location: Railway Cloud Storage`);
+        }
+
+        function showStorageInfo() {
+            const info = `Railway Cloud Storage Information:\n\n` +
+                        `• Storage Type: Railway Persistent Volume\n` +
+                        `• Location: /app/data (Railway Cloud)\n` +
+                        `• Total Capacity: 9GB\n` +
+                        `• Backup Limit: 1,000 backups\n` +
+                        `• Data Persistence: Survives deployments\n` +
+                        `• Automatic Cleanup: Enabled`;
+            
+            alert(info);
+        }
+
+        function refreshBackups() {
+            loadDashboard();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+            }, 5000);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html> 

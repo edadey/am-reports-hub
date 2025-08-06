@@ -108,7 +108,7 @@ console.log('AI_ANALYSIS_ENABLED:', process.env.AI_ANALYSIS_ENABLED);
 // Import services
 const UserManager = require('./src/services/UserManager');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
-const DataPersistenceService = require('./src/services/DataPersistenceService');
+const RailwayBackupService = require('./src/services/RailwayBackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
@@ -117,7 +117,7 @@ const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
-const dataPersistenceService = new DataPersistenceService();
+const railwayBackupService = new RailwayBackupService();
 const dataPreservationService = new DataPreservationService(volumeService);
 const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
@@ -193,8 +193,8 @@ app.get('/admin-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
 
-app.get('/persistent-backup-dashboard', authService.requireAuth(), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/persistent-backup-dashboard.html'));
+app.get('/railway-backup-dashboard', authService.requireAuth(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/railway-backup-dashboard.html'));
 });
 
 app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
@@ -207,7 +207,7 @@ app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
     const { description } = req.body;
     console.log('🔄 Creating persistent backup...');
     
-    const result = await dataPersistenceService.createBackup(description || 'Manual backup');
+    const result = await railwayBackupService.createBackup(description || 'Manual Railway cloud backup');
     
     res.json({ 
       success: true, 
@@ -222,8 +222,8 @@ app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
 
 app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
   try {
-    const backups = await dataPersistenceService.listBackups();
-    const stats = await dataPersistenceService.getStorageStats();
+    const backups = await railwayBackupService.listBackups();
+    const stats = await railwayBackupService.getStorageStats();
     
     res.json({
       success: true,
@@ -241,7 +241,7 @@ app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req,
     const { backupId } = req.params;
     console.log(`🔄 Restoring persistent backup: ${backupId}`);
     
-    const result = await dataPersistenceService.restoreBackup(backupId);
+    const result = await railwayBackupService.restoreBackup(backupId);
     
     res.json({
       success: true,
@@ -256,7 +256,7 @@ app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req,
 
 app.get('/api/backup/stats', authService.requireAuth(), async (req, res) => {
   try {
-    const stats = await dataPersistenceService.getStorageStats();
+    const stats = await railwayBackupService.getStorageStats();
     res.json({
       success: true,
       stats
@@ -2244,7 +2244,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     // Create backup after successful save
     try {
       console.log('💾 Creating backup...');
-      await dataPersistenceService.createBackup(`Manual template backup - ${Date.now()}`);
+              await railwayBackupService.createBackup(`Manual template backup - ${Date.now()}`);
       console.log('✅ Backup created after template save');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after template save:', backupError);
@@ -2295,7 +2295,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     
     // Create backup after deletion
     try {
-      await dataPersistenceService.createBackup(`Manual template deletion backup - ${Date.now()}`);
+              await railwayBackupService.createBackup(`Manual template deletion backup - ${Date.now()}`);
       console.log('✅ Backup created after template deletion');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after template deletion:', backupError);
@@ -2470,7 +2470,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     
     // Create backup after successful save
     try {
-      await dataPersistenceService.createBackup(`Manual report backup - ${collegeId} - ${Date.now()}`);
+              await railwayBackupService.createBackup(`Manual report backup - ${collegeId} - ${Date.now()}`);
       console.log('✅ Backup created after report save');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after report save:', backupError);
@@ -3594,8 +3594,8 @@ async function initializeServices() {
     console.log('🔄 Initializing data preservation service...');
     await dataPreservationService.initializeDataPreservation();
     
-    console.log('🔄 Initializing data persistence service...');
-    await dataPersistenceService.initialize();
+    console.log('🔄 Initializing Railway cloud backup service...');
+    await railwayBackupService.initialize();
     
     console.log('🔄 Initializing cloud backup service...');
     await cloudBackupService.initialize();

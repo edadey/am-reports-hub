@@ -4,10 +4,20 @@ const crypto = require('crypto');
 
 class DataPersistenceService {
   constructor() {
-    // Store data in a persistent location outside the app directory
-    this.persistentDataPath = path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.am-reports-data');
-    this.backupPath = path.join(this.persistentDataPath, 'backups');
-    this.dataPath = path.join(this.persistentDataPath, 'data');
+    // Use Railway's persistent volume storage in production
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+      // Railway cloud storage
+      this.persistentDataPath = '/app/data';
+      this.backupPath = path.join(this.persistentDataPath, 'backups');
+      this.dataPath = path.join(this.persistentDataPath, 'data');
+      console.log('☁️ Using Railway cloud storage:', this.persistentDataPath);
+    } else {
+      // Local development storage
+      this.persistentDataPath = path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.am-reports-data');
+      this.backupPath = path.join(this.persistentDataPath, 'backups');
+      this.dataPath = path.join(this.persistentDataPath, 'data');
+      console.log('💻 Using local development storage:', this.persistentDataPath);
+    }
     
     // Use full storage capacity - calculate based on available space
     this.maxBackups = 1000; // Allow thousands of backups
@@ -86,6 +96,12 @@ class DataPersistenceService {
     const hasPersistentData = await this.hasPersistentData();
     if (hasPersistentData) {
       console.log('ℹ️ Persistent data already exists, skipping migration');
+      return;
+    }
+    
+    // In Railway production, we're already using the volume, so no migration needed
+    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+      console.log('☁️ Running on Railway - data already in cloud storage, skipping migration');
       return;
     }
     
