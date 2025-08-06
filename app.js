@@ -189,7 +189,7 @@ app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
 });
 
-app.get('/admin-dashboard', authService.requireAuth(), (req, res) => {
+app.get('/admin-dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
 
@@ -251,6 +251,31 @@ app.post('/api/backup/restore/:backupId', async (req, res) => {
   } catch (error) {
     console.error('Backup restore error:', error);
     res.status(500).json({ error: 'Failed to restore backup' });
+  }
+});
+
+// Restore latest backup (for admin dashboard)
+app.post('/api/backup/restore', async (req, res) => {
+  try {
+    console.log('🔄 Restoring latest persistent backup...');
+    
+    const backups = await railwayBackupService.listBackups();
+    if (backups.length === 0) {
+      return res.status(404).json({ error: 'No backups found' });
+    }
+    
+    // Get the latest backup (first in the list)
+    const latestBackup = backups[0];
+    const result = await railwayBackupService.restoreBackup(latestBackup.backupId);
+    
+    res.json({
+      success: true,
+      message: 'Latest backup restored successfully',
+      result
+    });
+  } catch (error) {
+    console.error('Latest backup restore error:', error);
+    res.status(500).json({ error: 'Failed to restore latest backup' });
   }
 });
 
