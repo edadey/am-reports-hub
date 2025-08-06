@@ -36,6 +36,10 @@ class DataPreservationService {
   async preserveProductionData() {
     console.log('🛡️ Preserving production data...');
     
+    // First, check if we need to restore from backups
+    await this.checkAndRestoreData();
+    
+    // Then preserve current data
     const dataFiles = [
       'colleges.json',
       'accountManagers.json',
@@ -58,8 +62,8 @@ class DataPreservationService {
     await this.preserveDirectory('analytics');
     await this.preserveDirectory('ai-cache');
     
-    // Check for restoration data and restore if needed
-    await this.checkAndRestoreData();
+    // Create a backup of current data for safety
+    await this.createDataBackup();
   }
 
   async preserveFile(filename) {
@@ -295,6 +299,7 @@ class DataPreservationService {
   async checkAndRestoreData() {
     console.log('🔄 Checking for data restoration...');
     
+    // Check for restoration data first
     const restorationPath = path.join(__dirname, '../../data-restoration');
     
     try {
@@ -308,22 +313,9 @@ class DataPreservationService {
             const sourcePath = path.join(restorationPath, file);
             const targetPath = path.join(this.dataPath, file);
             
-            // Check if target file is empty or doesn't exist
-            let shouldRestore = false;
-            
-            if (await fs.pathExists(targetPath)) {
-              const stats = await fs.stat(targetPath);
-              shouldRestore = stats.size === 0;
-            } else {
-              shouldRestore = true;
-            }
-            
-            if (shouldRestore) {
-              await fs.copy(sourcePath, targetPath);
-              console.log(`   ✅ Restored ${file} from restoration data`);
-            } else {
-              console.log(`   ℹ️  ${file} already has data - keeping current version`);
-            }
+            // Always restore from restoration data if it exists
+            await fs.copy(sourcePath, targetPath);
+            console.log(`   ✅ Restored ${file} from restoration data`);
           }
         }
         
@@ -335,6 +327,34 @@ class DataPreservationService {
       }
     } catch (error) {
       console.log(`   ❌ Error during restoration: ${error.message}`);
+    }
+    
+    // Check for backups and restore if data is missing
+    await this.restoreFromBackupsIfNeeded();
+  }
+
+  async restoreFromBackupsIfNeeded() {
+    console.log('🔄 Checking if data needs restoration from backups...');
+    
+    const criticalFiles = ['colleges.json', 'accountManagers.json'];
+    
+    for (const file of criticalFiles) {
+      const filePath = path.join(this.dataPath, file);
+      let needsRestore = false;
+      
+      if (await fs.pathExists(filePath)) {
+        const stats = await fs.stat(filePath);
+        needsRestore = stats.size === 0;
+      } else {
+        needsRestore = true;
+      }
+      
+      if (needsRestore) {
+        console.log(`⚠️  ${file} is missing or empty - attempting to restore from backup`);
+        await this.restoreFile(file);
+      } else {
+        console.log(`✅ ${file} has data`);
+      }
     }
   }
 }

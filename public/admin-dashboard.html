@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - AM Reports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-4">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+                <div class="flex space-x-4">
+                    <a href="/college-dashboard" class="bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        ← Back to College Dashboard
+                    </a>
+                    <a href="/" class="bg-white text-purple-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        Main Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-6 py-8">
+        <!-- System Status -->
+        <div class="bg-white rounded-lg card-shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">System Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-green-500 rounded-full mr-3"></div>
+                        <div>
+                            <p class="text-sm text-gray-600">Data Protection</p>
+                            <p class="font-semibold text-green-700">Active</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                        <div>
+                            <p class="text-sm text-gray-600">Backups Available</p>
+                            <p class="font-semibold text-blue-700" id="backupCount">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
+                        <div>
+                            <p class="text-sm text-gray-600">Colleges</p>
+                            <p class="font-semibold text-purple-700" id="collegeCount">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
+                        <div>
+                            <p class="text-sm text-gray-600">Last Backup</p>
+                            <p class="font-semibold text-orange-700" id="lastBackup">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Actions -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Data Management -->
+            <div class="bg-white rounded-lg card-shadow p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Data Management</h2>
+                <div class="space-y-4">
+                    <button onclick="createBackup()" class="w-full bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Create Backup
+                    </button>
+                    <button onclick="restoreLatestBackup()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Restore Latest Backup
+                    </button>
+                    <button onclick="refreshData()" class="w-full bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="bg-white rounded-lg card-shadow p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">System Information</h2>
+                <div class="space-y-3">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Environment:</span>
+                        <span class="font-semibold" id="environment">Loading...</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Data Protection:</span>
+                        <span class="font-semibold text-green-600">Active</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Auto-Restore:</span>
+                        <span class="font-semibold text-green-600">Enabled</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Backup Retention:</span>
+                        <span class="font-semibold">5 backups</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Backups -->
+        <div class="bg-white rounded-lg card-shadow p-6 mt-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Backups</h2>
+            <div id="backupsList" class="space-y-4">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                    <p class="text-gray-500 mt-2">Loading backups...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemData();
+            loadBackups();
+        });
+
+        async function loadSystemData() {
+            try {
+                // Load college count
+                const collegesResponse = await fetch('/api/colleges');
+                const collegesData = await collegesResponse.json();
+                document.getElementById('collegeCount').textContent = collegesData.length || 0;
+
+                // Load environment info
+                document.getElementById('environment').textContent = window.location.hostname.includes('railway') ? 'Production' : 'Development';
+
+                // Load backup info
+                const backupResponse = await fetch('/api/backup/list');
+                const backupData = await backupResponse.json();
+                
+                if (backupData.success) {
+                    document.getElementById('backupCount').textContent = backupData.backups.length;
+                    if (backupData.backups.length > 0) {
+                        const latest = backupData.backups[0];
+                        document.getElementById('lastBackup').textContent = new Date(latest.timestamp).toLocaleDateString();
+                    } else {
+                        document.getElementById('lastBackup').textContent = 'Never';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading system data:', error);
+            }
+        }
+
+        async function loadBackups() {
+            try {
+                const response = await fetch('/api/backup/list');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayBackups(data.backups);
+                } else {
+                    showToast('Failed to load backups', 'error');
+                }
+            } catch (error) {
+                console.error('Error loading backups:', error);
+                showToast('Error loading backups', 'error');
+            }
+        }
+
+        function displayBackups(backups) {
+            const container = document.getElementById('backupsList');
+            
+            if (backups.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                        </svg>
+                        <p class="text-gray-500">No backups found</p>
+                        <p class="text-sm text-gray-400 mt-1">Create your first backup to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = backups.map(backup => `
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="font-semibold text-gray-800">Backup ${backup.timestamp}</h3>
+                            <p class="text-sm text-gray-600 mt-1">Files: ${backup.files}</p>
+                            <p class="text-xs text-gray-500 mt-1">Created: ${new Date(backup.timestamp).toLocaleString()}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="restoreBackup('${backup.timestamp}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                                Restore
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function createBackup() {
+            try {
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = `
+                    <svg class="animate-spin w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Creating...
+                `;
+                button.disabled = true;
+
+                const response = await fetch('/api/backup/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Backup created successfully!');
+                    loadBackups();
+                    loadSystemData();
+                } else {
+                    showToast('Failed to create backup', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating backup:', error);
+                showToast('Error creating backup', 'error');
+            } finally {
+                const button = event.target;
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        async function restoreLatestBackup() {
+            if (!confirm('Are you sure you want to restore the latest backup? This will overwrite current data.')) {
+                return;
+            }
+
+            try {
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = `
+                    <svg class="animate-spin w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Restoring...
+                `;
+                button.disabled = true;
+
+                const response = await fetch('/api/backup/restore', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Backup restored successfully!');
+                    setTimeout(() => {
+                        window.location.href = '/college-dashboard';
+                    }, 2000);
+                } else {
+                    showToast('Failed to restore backup', 'error');
+                }
+            } catch (error) {
+                console.error('Error restoring backup:', error);
+                showToast('Error restoring backup', 'error');
+            } finally {
+                const button = event.target;
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        function refreshData() {
+            loadSystemData();
+            loadBackups();
+            showToast('Data refreshed');
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toastMessage.textContent = message;
+            
+            if (type === 'error') {
+                toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+            } else {
+                toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+            }
+            
+            // Show toast
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Hide toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+            }, 3000);
+        }
+    </script>
+</body>
+</html> 

@@ -192,6 +192,10 @@ app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
 });
 
+app.get('/admin-dashboard', authService.requireAuth(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
+});
+
 app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/simple-backup-dashboard.html'));
 });
