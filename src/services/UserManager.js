@@ -137,20 +137,58 @@ class UserManager {
 
   async addCollege(collegeData) {
     const colleges = await this.getColleges();
+    
+    // Ensure consistent data structure
+    const processedData = { ...collegeData };
+    
+    // Handle keyStakeholders vs keyStakeholder field name mismatch
+    if (processedData.keyStakeholders !== undefined) {
+      // Use keyStakeholders array
+      processedData.keyStakeholders = Array.isArray(processedData.keyStakeholders) ? processedData.keyStakeholders : [];
+    } else if (processedData.keyStakeholder !== undefined) {
+      // Convert keyStakeholder string to keyStakeholders array
+      processedData.keyStakeholders = processedData.keyStakeholder ? [{
+        name: processedData.keyStakeholder,
+        position: '',
+        email: ''
+      }] : [];
+      delete processedData.keyStakeholder;
+    } else {
+      processedData.keyStakeholders = [];
+    }
+    
+    // Handle superUsers data structure consistency
+    if (processedData.superUsers !== undefined) {
+      if (Array.isArray(processedData.superUsers)) {
+        processedData.superUsers = processedData.superUsers;
+      } else if (typeof processedData.superUsers === 'string' && processedData.superUsers.trim()) {
+        // Convert string to array if it's a comma-separated list
+        processedData.superUsers = processedData.superUsers.split(',').map(s => s.trim()).filter(s => s).map(name => ({
+          name,
+          position: '',
+          email: ''
+        }));
+      } else {
+        processedData.superUsers = [];
+      }
+    } else {
+      processedData.superUsers = [];
+    }
+    
     const newCollege = {
       id: Date.now(),
-      name: collegeData.name,
-      numberOfProviders: collegeData.numberOfProviders,
-      accountManagerId: collegeData.accountManagerId || null,
-      keyStakeholder: collegeData.keyStakeholder,
-      superUsers: collegeData.superUsers,
-      misContact: collegeData.misContact,
-      dataTransferMethod: collegeData.dataTransferMethod,
-      status: collegeData.status,
-      ofstedRating: collegeData.ofstedRating,
-      reportFrequency: collegeData.reportFrequency,
-      template: collegeData.template,
-      initialConcerns: collegeData.initialConcerns,
+      name: processedData.name,
+      numberOfProviders: processedData.numberOfProviders,
+      accountManagerId: processedData.accountManagerId || null,
+      keyStakeholders: processedData.keyStakeholders,
+      superUsers: processedData.superUsers,
+      misContact: processedData.misContact,
+      dataTransferMethod: processedData.dataTransferMethod,
+      status: processedData.status,
+      ofstedRating: processedData.ofstedRating,
+      reportFrequency: processedData.reportFrequency,
+      template: processedData.template,
+      initialConcerns: processedData.initialConcerns,
       lastReportDate: null,
       createdAt: new Date().toISOString()
     };
@@ -176,7 +214,56 @@ class UserManager {
     
     if (index !== -1) {
       console.log('📝 Original college data:', colleges[index]);
-      colleges[index] = { ...colleges[index], ...updates };
+      
+      // Handle field name mismatches and ensure consistent data structure
+      const processedUpdates = { ...updates };
+      
+      // Handle keyStakeholders vs keyStakeholder field name mismatch
+      if (processedUpdates.keyStakeholders !== undefined) {
+        processedUpdates.keyStakeholders = processedUpdates.keyStakeholders;
+        // Remove the old field if it exists
+        delete processedUpdates.keyStakeholder;
+      }
+      
+      // Handle superUsers data structure consistency
+      if (processedUpdates.superUsers !== undefined) {
+        // Ensure superUsers is always an array
+        if (Array.isArray(processedUpdates.superUsers)) {
+          processedUpdates.superUsers = processedUpdates.superUsers;
+        } else if (typeof processedUpdates.superUsers === 'string') {
+          // Convert string to array if it's a comma-separated list
+          processedUpdates.superUsers = processedUpdates.superUsers.split(',').map(s => s.trim()).filter(s => s);
+        } else {
+          processedUpdates.superUsers = [];
+        }
+      }
+      
+      // Ensure existing data has consistent structure
+      const existingCollege = colleges[index];
+      if (!existingCollege.keyStakeholders && existingCollege.keyStakeholder) {
+        // Migrate old keyStakeholder field to keyStakeholders array
+        existingCollege.keyStakeholders = existingCollege.keyStakeholder ? [{
+          name: existingCollege.keyStakeholder,
+          position: '',
+          email: ''
+        }] : [];
+        delete existingCollege.keyStakeholder;
+      }
+      
+      if (!Array.isArray(existingCollege.superUsers)) {
+        // Ensure superUsers is always an array
+        if (typeof existingCollege.superUsers === 'string' && existingCollege.superUsers.trim()) {
+          existingCollege.superUsers = [{
+            name: existingCollege.superUsers,
+            position: '',
+            email: ''
+          }];
+        } else {
+          existingCollege.superUsers = [];
+        }
+      }
+      
+      colleges[index] = { ...existingCollege, ...processedUpdates };
       console.log('📝 Updated college data:', colleges[index]);
       
       try {

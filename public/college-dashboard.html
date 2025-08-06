@@ -1286,16 +1286,16 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select class="border border-gray-300 rounded-md px-3 py-2 w-full">
+            <select id="status" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
               <option value="A">A - Excellent</option>
-              <option value="B" selected>B - Good</option>
+              <option value="B">B - Good</option>
               <option value="C">C - Needs Improvement</option>
             </select>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">OFSTED Rating</label>
-            <select class="border border-gray-300 rounded-md px-3 py-2 w-full">
-              <option value="O" selected>Outstanding</option>
+            <select id="ofstedRating" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+              <option value="O">Outstanding</option>
               <option value="G">Good</option>
               <option value="R">Requires Improvement</option>
               <option value="I">Inadequate</option>
@@ -1303,8 +1303,8 @@
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Engagement Level</label>
-            <select class="border border-gray-300 rounded-md px-3 py-2 w-full">
-              <option value="Excellent" selected>Excellent</option>
+            <select id="engagementLevel" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+              <option value="Excellent">Excellent</option>
               <option value="Good">Good</option>
               <option value="Fair">Fair</option>
               <option value="Poor">Poor</option>
@@ -1763,6 +1763,9 @@
       // Update MIS contact information
       updateMISContactDisplay();
 
+      // Update performance indicators
+      updatePerformanceIndicatorsDisplay();
+
       // Update SWOT analysis
       updateSWOTDisplay();
 
@@ -1819,8 +1822,8 @@
 
     // Function to update key stakeholders display
     function updateKeyStakeholdersDisplay() {
-      // Don't update if form data has been changed by user
-      if (formDataChanged) return;
+      // Don't update if form data has been changed by user (unless force update)
+      if (formDataChanged && !arguments[0]) return;
       
       const stakeholdersContainer = document.getElementById('key-stakeholders-container');
       stakeholdersContainer.innerHTML = '';
@@ -1858,8 +1861,8 @@
 
     // Function to update super users display
     function updateSuperUsersDisplay() {
-      // Don't update if form data has been changed by user
-      if (formDataChanged) return;
+      // Don't update if form data has been changed by user (unless force update)
+      if (formDataChanged && !arguments[0]) return;
       
       const superUsersContainer = document.getElementById('super-users-container');
       superUsersContainer.innerHTML = '';
@@ -1901,6 +1904,13 @@
       document.getElementById('misContactName').value = collegeData.misContactName || '';
       document.getElementById('misContactEmail').value = collegeData.misContactEmail || '';
       document.getElementById('renewalDate').value = collegeData.renewalDate || '';
+    }
+
+    // Function to update performance indicators display
+    function updatePerformanceIndicatorsDisplay() {
+      document.getElementById('status').value = collegeData.status || 'B';
+      document.getElementById('ofstedRating').value = collegeData.ofstedRating || 'O';
+      document.getElementById('engagementLevel').value = collegeData.engagementLevel || 'Excellent';
     }
 
     // Function to update SWOT analysis display
@@ -5290,7 +5300,10 @@
           misContactName: document.getElementById('misContactName').value,
           misContactEmail: document.getElementById('misContactEmail').value,
           renewalDate: document.getElementById('renewalDate').value,
-          accountManagerId: document.getElementById('accountManager').value || null
+          accountManagerId: document.getElementById('accountManager').value || null,
+          status: document.getElementById('status').value,
+          ofstedRating: document.getElementById('ofstedRating').value,
+          engagementLevel: document.getElementById('engagementLevel').value
         };
 
         // Collect modules data
@@ -5344,6 +5357,12 @@
         });
         updatedData.superUsers = superUsers;
 
+        // Collect SWOT analysis data
+        updatedData.swotStrengths = document.getElementById('swotStrengths').value;
+        updatedData.swotWeaknesses = document.getElementById('swotWeaknesses').value;
+        updatedData.swotOpportunities = document.getElementById('swotOpportunities').value;
+        updatedData.swotThreats = document.getElementById('swotThreats').value;
+
         console.log('Saving college data:', updatedData);
 
         // Save to backend
@@ -5363,6 +5382,9 @@
           formDataChanged = false;
           // Reload college data from server to ensure consistency
           await loadCollegeData();
+          // Force refresh the displays
+          updateKeyStakeholdersDisplay(true);
+          updateSuperUsersDisplay(true);
           // Trigger global event for dashboards to refresh
           window.dispatchEvent(new Event('collegeDataUpdated'));
         } else {
