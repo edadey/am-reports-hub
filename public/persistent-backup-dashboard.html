@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Persistent Backup Management - AM Reports Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">Persistent Backup Management</h1>
+                    <span class="ml-3 bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Update-Safe</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button onclick="window.location.href='/college-dashboard'" class="text-gray-600 hover:text-gray-900">
+                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Storage Overview -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Persistent Storage Overview</h2>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="text-center">
+                    <div class="text-3xl font-bold text-blue-600" id="totalBackups">-</div>
+                    <div class="text-sm text-gray-600">Total Backups</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-bold text-green-600" id="totalSize">-</div>
+                    <div class="text-sm text-gray-600">Total Size</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-bold text-purple-600" id="availableSpace">-</div>
+                    <div class="text-sm text-gray-600">Available Space</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-bold text-orange-600" id="usagePercentage">-</div>
+                    <div class="text-sm text-gray-600">Usage %</div>
+                </div>
+            </div>
+            
+            <!-- Storage Progress Bar -->
+            <div class="mt-6">
+                <div class="flex justify-between text-sm text-gray-600 mb-2">
+                    <span>Storage Usage</span>
+                    <span id="storageDetails">-</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3">
+                    <div class="bg-gradient-to-r from-green-500 to-blue-500 h-3 rounded-full transition-all duration-300" id="storageBar" style="width: 0%"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    <span class="font-medium">9GB</span> total capacity (1GB reserved for system) | Up to <span class="font-medium">1,000 backups</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Persistent Storage Features</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-3">
+                    <div class="flex items-center">
+                        <i class="fas fa-shield-alt text-green-500 mr-3"></i>
+                        <span class="text-sm">Update-Safe: Data stored outside app directory</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-database text-blue-500 mr-3"></i>
+                        <span class="text-sm">High Capacity: Up to 9GB storage</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-layer-group text-purple-500 mr-3"></i>
+                        <span class="text-sm">Thousands of Backups: Up to 1,000 backups</span>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex items-center">
+                        <i class="fas fa-sync-alt text-orange-500 mr-3"></i>
+                        <span class="text-sm">Automatic Migration: Moves data on first run</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-broom text-red-500 mr-3"></i>
+                        <span class="text-sm">Smart Cleanup: Removes old backups when needed</span>
+                    </div>
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                        <span class="text-sm">Data Validation: Checks integrity on startup</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
+            <div class="flex flex-wrap gap-4">
+                <button onclick="createBackup()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <i class="fas fa-plus mr-2"></i>
+                    Create New Backup
+                </button>
+                <button onclick="refreshBackups()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    Refresh
+                </button>
+                <button onclick="showStorageInfo()" class="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    Storage Info
+                </button>
+            </div>
+        </div>
+
+        <!-- Backups List -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Available Backups</h2>
+            <div id="backupsList" class="space-y-4">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                    <p class="text-gray-500 mt-2">Loading backups...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50">
+        <div class="flex items-center">
+            <i class="fas fa-check mr-2"></i>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let currentBackups = [];
+        let backupStats = {};
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadBackupData();
+        });
+
+        // Load backup data
+        async function loadBackupData() {
+            try {
+                const response = await fetch('/api/backup/list', {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load backup data');
+                }
+                
+                const data = await response.json();
+                currentBackups = data.backups || [];
+                backupStats = data.statistics || {};
+                
+                updateDashboard();
+                renderBackupsList();
+                
+            } catch (error) {
+                console.error('Error loading backup data:', error);
+                showNotification('Error loading backup data', 'error');
+            }
+        }
+
+        // Update dashboard statistics
+        function updateDashboard() {
+            document.getElementById('totalBackups').textContent = backupStats.totalBackups || 0;
+            document.getElementById('totalSize').textContent = backupStats.totalSizeFormatted || '0 B';
+            document.getElementById('availableSpace').textContent = backupStats.availableSpaceFormatted || '0 B';
+            document.getElementById('usagePercentage').textContent = `${backupStats.usagePercentage || 0}%`;
+            
+            // Update storage bar
+            const usagePercent = backupStats.usagePercentage || 0;
+            const storageBar = document.getElementById('storageBar');
+            storageBar.style.width = `${usagePercent}%`;
+            
+            // Update storage details
+            document.getElementById('storageDetails').textContent = 
+                `${backupStats.totalSizeFormatted || '0 B'} / ${backupStats.maxStorageGB || 9}GB`;
+        }
+
+        // Render backups list
+        function renderBackupsList() {
+            const container = document.getElementById('backupsList');
+            
+            if (currentBackups.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <i class="fas fa-database text-4xl text-gray-300 mb-4"></i>
+                        <p class="text-gray-500">No backups found</p>
+                        <p class="text-sm text-gray-400 mt-1">Create your first backup to get started</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = currentBackups.map(backup => `
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center mb-2">
+                                <h3 class="font-semibold text-gray-800">${backup.description || 'Backup'}</h3>
+                                <span class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">${backup.backupId}</span>
+                            </div>
+                            <p class="text-sm text-gray-600">Created: ${formatDate(backup.timestamp)}</p>
+                            <p class="text-sm text-gray-600">Files: ${backup.files} | Size: ${formatBytes(backup.totalSize)}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="showBackupDetails('${backup.backupId}')" class="text-blue-600 hover:text-blue-800 text-sm">
+                                <i class="fas fa-info-circle mr-1"></i>Details
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Create backup
+        async function createBackup() {
+            try {
+                const description = prompt('Enter backup description (optional):') || 'Manual backup';
+                const button = event.target;
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+                button.disabled = true;
+                
+                const response = await fetch('/api/backup/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ description })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to create backup');
+                }
+                
+                const result = await response.json();
+                showNotification(`Persistent backup created: ${result.backup.description}`, 'success');
+                loadBackupData();
+                
+            } catch (error) {
+                console.error('Error creating backup:', error);
+                showNotification('Error creating backup', 'error');
+            } finally {
+                const button = event.target;
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // Show backup details
+        function showBackupDetails(backupId) {
+            const backup = currentBackups.find(b => b.backupId === backupId);
+            if (!backup) return;
+            
+            alert(`Backup Details:\n\nID: ${backup.backupId}\nDescription: ${backup.description || 'No description'}\nCreated: ${formatDate(backup.timestamp)}\nFiles: ${backup.files}\nSize: ${formatBytes(backup.totalSize)}`);
+        }
+
+        // Show storage info
+        function showStorageInfo() {
+            const info = `Persistent Storage Information:
+
+Storage Path: ~/.am-reports-data/
+Total Backups: ${backupStats.totalBackups || 0}
+Max Backups: ${backupStats.maxBackups || 1000}
+Total Size: ${backupStats.totalSizeFormatted || '0 B'}
+Available Space: ${backupStats.availableSpaceFormatted || '0 B'}
+Usage: ${backupStats.usagePercentage || 0}% of ${backupStats.maxStorageGB || 9}GB
+
+Features:
+• Update-Safe: Data survives app updates
+• High Capacity: 9GB storage (1GB reserved)
+• Thousands of Backups: Up to 1,000 backups
+• Automatic Migration: Moves data on first run
+• Smart Cleanup: Removes old backups when needed
+• Data Validation: Checks integrity on startup`;
+            
+            alert(info);
+        }
+
+        // Refresh backups
+        function refreshBackups() {
+            loadBackupData();
+        }
+
+        // Show notification
+        function showNotification(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            
+            toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 ${
+                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+            }`;
+            
+            toastMessage.textContent = message;
+            
+            // Show toast
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full');
+            }, 100);
+            
+            // Hide toast after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+            }, 3000);
+        }
+
+        // Format date
+        function formatDate(timestamp) {
+            return new Date(timestamp).toLocaleString();
+        }
+
+        // Format bytes
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+    </script>
+</body>
+</html> 

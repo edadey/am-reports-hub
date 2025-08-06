@@ -12,6 +12,11 @@ class SimpleBackupService {
       'accountManagers.json',
       'users.json'
     ];
+    
+    // Backup protection settings
+    this.maxBackups = 10; // Keep 10 backups instead of 5
+    this.autoBackupOnDataChange = true;
+    this.backupBeforeRestore = true;
   }
 
   async initialize() {
@@ -20,10 +25,45 @@ class SimpleBackupService {
     try {
       // Create backup directory
       await fs.ensureDir(this.backupPath);
+      
+      // Validate existing data
+      await this.validateExistingData();
+      
+      // Create initial backup if no backups exist
+      const existingBackups = await this.listBackups();
+      if (existingBackups.length === 0) {
+        console.log('🔄 No backups found, creating initial backup...');
+        await this.createBackup();
+      }
+      
       console.log('✅ Simple Backup Service ready');
     } catch (error) {
       console.error('❌ Error initializing Simple Backup Service:', error);
       // Don't throw - just log the error
+    }
+  }
+
+  async validateExistingData() {
+    console.log('🔍 Validating existing data...');
+    
+    for (const filename of this.essentialFiles) {
+      const filePath = path.join(this.dataPath, filename);
+      
+      if (await fs.pathExists(filePath)) {
+        try {
+          const data = await fs.readJson(filePath);
+          if (filename === 'colleges.json' && (!Array.isArray(data) || data.length === 0)) {
+            console.log(`⚠️ ${filename} is empty or invalid, attempting restoration...`);
+            await this.restoreLatestBackup();
+            break;
+          }
+          console.log(`✅ ${filename} validated (${Array.isArray(data) ? data.length : 'object'} items)`);
+        } catch (error) {
+          console.error(`❌ Error validating ${filename}:`, error.message);
+        }
+      } else {
+        console.log(`⚠️ ${filename} not found`);
+      }
     }
   }
 
@@ -38,6 +78,7 @@ class SimpleBackupService {
       await fs.ensureDir(backupDir);
       
       let backedUpFiles = 0;
+      const backupDetails = [];
       
       // Backup only essential files
       for (const filename of this.essentialFiles) {
@@ -50,7 +91,18 @@ class SimpleBackupService {
           if (stats.size > 0) {
             await fs.copy(sourcePath, destPath);
             backedUpFiles++;
-            console.log(`   ✅ ${filename} (${this.formatBytes(stats.size)})`);
+            
+            // Read and validate the backed up data
+            const data = await fs.readJson(destPath);
+            const itemCount = Array.isArray(data) ? data.length : 'object';
+            
+            backupDetails.push({
+              file: filename,
+              size: stats.size,
+              items: itemCount
+            });
+            
+            console.log(`   ✅ ${filename} (${this.formatBytes(stats.size)}, ${itemCount} items)`);
           }
         }
       }
@@ -59,14 +111,20 @@ class SimpleBackupService {
       const backupInfo = {
         timestamp: new Date().toISOString(),
         files: backedUpFiles,
-        backupDir: backupDir
+        backupDir: backupDir,
+        details: backupDetails,
+        protection: {
+          autoBackupOnDataChange: this.autoBackupOnDataChange,
+          backupBeforeRestore: this.backupBeforeRestore,
+          maxBackups: this.maxBackups
+        }
       };
       
       await fs.writeJson(path.join(backupDir, 'backup-info.json'), backupInfo, { spaces: 2 });
       
       console.log(`✅ Simple backup created: ${backedUpFiles} files`);
       
-      // Keep only last 5 backups
+      // Keep only last N backups
       await this.cleanupOldBackups();
       
       return backupInfo;
@@ -94,6 +152,12 @@ class SimpleBackupService {
       const backupDir = latestBackup.backupDir;
       
       console.log(`📦 Restoring from: ${latestBackup.timestamp}`);
+      
+      // Create backup before restore if enabled
+      if (this.backupBeforeRestore) {
+        console.log('🔄 Creating backup before restore...');
+        await this.createBackup();
+      }
       
       let restoredFiles = 0;
       
@@ -142,7 +206,9 @@ class SimpleBackupService {
             backups.push({
               timestamp: info.timestamp,
               files: info.files,
-              backupDir: backupDir
+              backupDir: backupDir,
+              details: info.details || [],
+              protection: info.protection || {}
             });
           }
         }
@@ -162,9 +228,9 @@ class SimpleBackupService {
     try {
       const backups = await this.listBackups();
       
-      // Keep only the last 5 backups
-      if (backups.length > 5) {
-        const toRemove = backups.slice(5);
+      // Keep only the last N backups
+      if (backups.length > this.maxBackups) {
+        const toRemove = backups.slice(this.maxBackups);
         
         for (const backup of toRemove) {
           await fs.remove(backup.backupDir);
@@ -184,7 +250,7 @@ class SimpleBackupService {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  // Simple method to check if we need to restore data
+  // Enhanced method to check if we need to restore data
   async checkAndRestoreIfNeeded() {
     try {
       const collegesPath = path.join(this.dataPath, 'colleges.json');
@@ -204,6 +270,28 @@ class SimpleBackupService {
     } catch (error) {
       console.error('❌ Error checking data:', error);
       return false;
+    }
+  }
+
+  // New method to get backup statistics
+  async getBackupStats() {
+    try {
+      const backups = await this.listBackups();
+      const totalSize = backups.reduce((sum, backup) => {
+        return sum + backup.details.reduce((fileSum, file) => fileSum + (file.size || 0), 0);
+      }, 0);
+      
+      return {
+        totalBackups: backups.length,
+        totalSize: totalSize,
+        totalSizeFormatted: this.formatBytes(totalSize),
+        oldestBackup: backups.length > 0 ? backups[backups.length - 1].timestamp : null,
+        newestBackup: backups.length > 0 ? backups[0].timestamp : null,
+        averageBackupSize: backups.length > 0 ? Math.round(totalSize / backups.length / 1024) : 0
+      };
+    } catch (error) {
+      console.error('❌ Error getting backup stats:', error);
+      return null;
     }
   }
 }

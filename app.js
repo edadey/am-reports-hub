@@ -108,21 +108,18 @@ console.log('AI_ANALYSIS_ENABLED:', process.env.AI_ANALYSIS_ENABLED);
 // Import services
 const UserManager = require('./src/services/UserManager');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
-const BackupService = require('./src/services/BackupService');
+const DataPersistenceService = require('./src/services/DataPersistenceService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
-// Simple backup service - reliable and lightweight
-const SimpleBackupService = require('./src/services/SimpleBackupService');
-// const CloudBackupService = require('./src/services/CloudBackupService');
-// const BackupAPIService = require('./src/services/BackupAPIService');
+const CloudBackupService = require('./src/services/CloudBackupService');
+const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
-const backupService = new BackupService();
+const dataPersistenceService = new DataPersistenceService();
 const dataPreservationService = new DataPreservationService(volumeService);
-const simpleBackupService = new SimpleBackupService();
-// const cloudBackupService = new CloudBackupService();
+const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
@@ -141,8 +138,8 @@ const dataImporter = new DataImporter();
 const authService = new AuthService();
 const analyticsService = new AnalyticsService();
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
-// Temporarily disable backup API service to fix deployment
-// const backupAPIService = new BackupAPIService(app, authService);
+// Enable cloud backup API service
+const backupAPIService = new BackupAPIService(app, authService);
 
 // Middleware
 app.use(cors({
@@ -196,50 +193,77 @@ app.get('/admin-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
 
+app.get('/persistent-backup-dashboard', authService.requireAuth(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/persistent-backup-dashboard.html'));
+});
+
 app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/simple-backup-dashboard.html'));
 });
 
-// Simple backup API endpoints
+// Persistent backup API endpoints
 app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
   try {
-    console.log('🔄 Creating backup...');
-    const result = await simpleBackupService.createBackup();
-    console.log('📦 Backup result:', result);
-    if (result) {
-      res.json({ success: true, message: 'Backup created successfully', backup: result });
-    } else {
-      res.status(500).json({ success: false, message: 'Failed to create backup' });
-    }
+    const { description } = req.body;
+    console.log('🔄 Creating persistent backup...');
+    
+    const result = await dataPersistenceService.createBackup(description || 'Manual backup');
+    
+    res.json({ 
+      success: true, 
+      message: 'Persistent backup created successfully',
+      backup: result
+    });
   } catch (error) {
-    console.error('❌ Backup creation error:', error);
-    res.status(500).json({ success: false, message: 'Backup creation failed: ' + error.message });
+    console.error('Backup creation error:', error);
+    res.status(500).json({ error: 'Failed to create backup' });
   }
 });
 
 app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
   try {
-    console.log('🔄 Listing backups...');
-    const backups = await simpleBackupService.listBackups();
-    console.log('📦 Found backups:', backups.length);
-    res.json({ success: true, backups });
+    const backups = await dataPersistenceService.listBackups();
+    const stats = await dataPersistenceService.getStorageStats();
+    
+    res.json({
+      success: true,
+      backups,
+      statistics: stats
+    });
   } catch (error) {
-    console.error('❌ Backup list error:', error);
-    res.status(500).json({ success: false, message: 'Failed to list backups: ' + error.message });
+    console.error('Backup list error:', error);
+    res.status(500).json({ error: 'Failed to list backups' });
   }
 });
 
-app.post('/api/backup/restore', authService.requireAuth(), async (req, res) => {
+app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req, res) => {
   try {
-    const success = await simpleBackupService.restoreLatestBackup();
-    if (success) {
-      res.json({ success: true, message: 'Backup restored successfully' });
-    } else {
-      res.status(404).json({ success: false, message: 'No backup found to restore' });
-    }
+    const { backupId } = req.params;
+    console.log(`🔄 Restoring persistent backup: ${backupId}`);
+    
+    const result = await dataPersistenceService.restoreBackup(backupId);
+    
+    res.json({
+      success: true,
+      message: 'Backup restored successfully',
+      result
+    });
   } catch (error) {
     console.error('Backup restore error:', error);
-    res.status(500).json({ success: false, message: 'Backup restore failed' });
+    res.status(500).json({ error: 'Failed to restore backup' });
+  }
+});
+
+app.get('/api/backup/stats', authService.requireAuth(), async (req, res) => {
+  try {
+    const stats = await dataPersistenceService.getStorageStats();
+    res.json({
+      success: true,
+      stats
+    });
+  } catch (error) {
+    console.error('Backup stats error:', error);
+    res.status(500).json({ error: 'Failed to get backup stats' });
   }
 });
 
@@ -2220,7 +2244,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     // Create backup after successful save
     try {
       console.log('💾 Creating backup...');
-      await backupService.createBackup(`manual-template-${Date.now()}`);
+      await dataPersistenceService.createBackup(`Manual template backup - ${Date.now()}`);
       console.log('✅ Backup created after template save');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after template save:', backupError);
@@ -2271,7 +2295,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     
     // Create backup after deletion
     try {
-      await backupService.createBackup(`manual-template-deletion-${Date.now()}`);
+      await dataPersistenceService.createBackup(`Manual template deletion backup - ${Date.now()}`);
       console.log('✅ Backup created after template deletion');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after template deletion:', backupError);
@@ -2284,74 +2308,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
   }
 });
 
-// Backup management endpoints
-app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
-  try {
-    const { backupName } = req.body;
-    console.log('🔄 Creating manual backup...');
-    
-    const result = await backupService.createBackup(backupName);
-    
-    if (result.success) {
-      res.json({ 
-        success: true, 
-        message: 'Backup created successfully',
-        backupId: result.backupId,
-        manifest: result.manifest
-      });
-    } else {
-      res.status(500).json({ 
-        success: false, 
-        error: result.error 
-      });
-    }
-  } catch (error) {
-    console.error('Backup creation error:', error);
-    res.status(500).json({ error: 'Failed to create backup' });
-  }
-});
-
-app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
-  try {
-    const backups = await backupService.listBackups();
-    const stats = await backupService.getBackupStats();
-    
-    res.json({
-      success: true,
-      backups,
-      stats
-    });
-  } catch (error) {
-    console.error('Backup list error:', error);
-    res.status(500).json({ error: 'Failed to list backups' });
-  }
-});
-
-app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req, res) => {
-  try {
-    const { backupId } = req.params;
-    console.log(`🔄 Restoring from backup: ${backupId}`);
-    
-    const result = await backupService.restoreFromBackup(backupId);
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        message: 'Backup restored successfully',
-        restorePath: result.restorePath,
-        manifest: result.manifest
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: result.error
-      });
-    }
-  } catch (error) {
-    console.error('Backup restore error:', error);
-    res.status(500).json({ error: 'Failed to restore backup' });
-  }
-});
+// Backup management endpoints - Using SimpleBackupService for college data
 
 // Data validation endpoints
 app.post('/api/validate/report', authService.requireAuth(), async (req, res) => {
@@ -2513,7 +2470,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     
     // Create backup after successful save
     try {
-      await backupService.createBackup(`manual-report-${collegeId}-${Date.now()}`);
+      await dataPersistenceService.createBackup(`Manual report backup - ${collegeId} - ${Date.now()}`);
       console.log('✅ Backup created after report save');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after report save:', backupError);
@@ -3637,17 +3594,11 @@ async function initializeServices() {
     console.log('🔄 Initializing data preservation service...');
     await dataPreservationService.initializeDataPreservation();
     
-    console.log('🔄 Initializing simple backup service...');
-    await simpleBackupService.initialize();
+    console.log('🔄 Initializing data persistence service...');
+    await dataPersistenceService.initialize();
     
-    console.log('🔄 Initializing backup service...');
-    await backupService.initialize();
-    
-    // Start scheduled backups
-    await backupService.startScheduledBackups();
-    
-    // Check and restore data if needed
-    await simpleBackupService.checkAndRestoreIfNeeded();
+    console.log('🔄 Initializing cloud backup service...');
+    await cloudBackupService.initialize();
     
     console.log('✅ Core services initialized successfully');
   } catch (error) {

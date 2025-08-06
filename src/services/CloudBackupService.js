@@ -316,9 +316,13 @@ class CloudBackupService {
     try {
       if (await fs.pathExists(categoryPath)) {
         const backups = await fs.readdir(categoryPath);
-        const backupDirs = backups.filter(dir => 
-          await fs.stat(path.join(categoryPath, dir)).then(stats => stats.isDirectory())
-        );
+        const backupDirs = [];
+        for (const dir of backups) {
+          const stats = await fs.stat(path.join(categoryPath, dir));
+          if (stats.isDirectory()) {
+            backupDirs.push(dir);
+          }
+        }
         
         if (backupDirs.length > maxBackups) {
           // Sort by creation time (oldest first)
