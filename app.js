@@ -3607,7 +3607,7 @@ app.get('/api/railway-cloud-data', async (req, res) => {
     
     // Check if we're on Railway
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const dataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
     // Check if data exists
     const collegesPath = path.join(dataPath, 'colleges.json');
@@ -3641,7 +3641,7 @@ app.get('/api/check-simple-backups', async (req, res) => {
     const path = require('path');
     
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const dataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
     // Check simple-backups directory inside data-backup-simulation
     const simpleBackupsPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups');
@@ -3708,7 +3708,7 @@ app.post('/api/restore-simple-backup/:backupId', async (req, res) => {
     
     const { backupId } = req.params;
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const dataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
     // Path to the specific backup
     const backupPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups', backupId);
@@ -3739,7 +3739,7 @@ app.post('/api/restore-simple-backup/:backupId', async (req, res) => {
     const colleges = await fs.readJson(collegesPath);
     
     // Copy the backup data to the main data directory
-    const mainDataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const mainDataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
     // Copy all files from the backup to the main data directory
     await fs.copy(backupPath, mainDataPath);
@@ -3765,23 +3765,18 @@ app.get('/api/search-all-backups', async (req, res) => {
     const path = require('path');
     
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const dataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
     // List of all possible backup locations to check
     const possibleLocations = [
-      '/app/simple-backups',
-      '/app/backups', 
-      '/app/data/simple-backups',
-      '/app/data/backups',
-      '/app/data/data-backup-simulation/simple-backups',
-      '/app/data/data-backup-simulation/backups',
-      '/app/data/old-backups',
-      '/app/data/backup-simulation',
-      '/app/backup-simulation',
-      '/app/data/colleges-backup',
-      '/app/colleges-backup',
-      '/app/data/backup-data',
-      '/app/backup-data'
+      '/data/simple-backups',
+      '/data/backups', 
+      '/data/data-backup-simulation/simple-backups',
+      '/data/data-backup-simulation/backups',
+      '/data/old-backups',
+      '/data/backup-simulation',
+      '/data/colleges-backup',
+      '/data/backup-data'
     ];
     
     const searchResults = [];
@@ -3858,9 +3853,9 @@ app.get('/api/check-backup-files', async (req, res) => {
     const path = require('path');
     
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
-    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    const dataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
-    // Check backup files in /app/data/backups
+    // Check backup files in /data/backups
     const backupFilesPath = path.join(dataPath, 'backups');
     const backupFilesExist = await fs.pathExists(backupFilesPath);
     

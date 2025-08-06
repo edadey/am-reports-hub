@@ -9,5 +9,12 @@
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
-  }
+  },
+  "volumes": [
+    {
+      "name": "data-volume",
+      "mountPath": "/data",
+      "size": "10GB"
+    }
+  ]
 }

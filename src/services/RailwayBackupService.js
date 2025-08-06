@@ -7,7 +7,7 @@ class RailwayBackupService {
     // Use Railway cloud storage in production, local storage in development
     if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
       // Railway persistent volume - this survives deployments
-      this.railwayDataPath = '/app/data';
+      this.railwayDataPath = '/data';
       console.log('☁️ Using Railway persistent volume:', this.railwayDataPath);
     } else {
       // Local development storage
@@ -92,9 +92,9 @@ class RailwayBackupService {
       
       // Check if we need to migrate from old data locations
       const oldDataPaths = [
-        '/app/data/colleges.json',
-        '/app/data/users.json',
-        '/app/data/accountManagers.json'
+        '/data/colleges.json',
+        '/data/users.json',
+        '/data/accountManagers.json'
       ];
       
       const railwayDataPaths = [

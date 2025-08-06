@@ -4,7 +4,7 @@ const path = require("path");
 class VolumeService {
   constructor() {
     // Use environment variable for volume path, fallback to Railway default
-    this.volumePath = process.env.VOLUME_PATH || "/app/data";
+    this.volumePath = process.env.VOLUME_PATH || "/data";
     this.localDataPath = path.join(__dirname, "../../data");
     this.isVolumeMounted = false;
   }
