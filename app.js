@@ -3645,25 +3645,45 @@ app.get('/api/simple-backups', async (req, res) => {
       simulationBackups = await fs.readdir(simulationPath);
     }
     
+    if (!simpleBackupsExist) {
+      return res.json({ success: false, error: 'No simple-backups directory found' });
+    }
+    
+    // Find the latest backup
+    const backupDirs = simpleBackups.filter(dir => dir.startsWith('backup-'));
+    if (backupDirs.length === 0) {
+      return res.json({ success: false, error: 'No backup directories found' });
+    }
+    
+    // Sort by timestamp (newest first)
+    backupDirs.sort().reverse();
+    
+    // Check the latest backup for colleges data
+    const latestBackupDir = backupDirs[0];
+    const latestBackupPath = path.join(simpleBackupsPath, latestBackupDir);
+    const collegesPath = path.join(latestBackupPath, 'colleges.json');
+    
+    let collegesData = null;
+    if (await fs.pathExists(collegesPath)) {
+      try {
+        collegesData = await fs.readJson(collegesPath);
+      } catch (error) {
+        console.error('Error reading colleges.json:', error);
+      }
+    }
+    
     res.json({
       success: true,
       isRailway,
-      dataPath,
-      simpleBackups: {
-        exists: simpleBackupsExist,
-        path: simpleBackupsPath,
-        backups: simpleBackups
-      },
-      oldBackups: {
-        exists: oldBackupsExist,
-        path: oldBackupsPath,
-        backups: oldBackups
-      },
-      simulationBackups: {
-        exists: simulationExist,
-        path: simulationPath,
-        backups: simulationBackups
-      }
+      simpleBackupsPath,
+      simpleBackupsExist,
+      totalBackups: simpleBackups.length,
+      backupDirs: simpleBackups,
+      latestBackup: latestBackupDir,
+      collegesData: collegesData ? {
+        count: collegesData.length,
+        colleges: collegesData.map(c => ({ id: c.id, name: c.name }))
+      } : null
     });
   } catch (error) {
     console.error('Check old backups error:', error);
