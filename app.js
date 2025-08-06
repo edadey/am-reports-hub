@@ -112,14 +112,15 @@ const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
-const CloudBackupService = require('./src/services/CloudBackupService');
-const BackupAPIService = require('./src/services/BackupAPIService');
+// Temporarily disable new services to fix deployment
+// const CloudBackupService = require('./src/services/CloudBackupService');
+// const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
 const backupService = new BackupService();
 const dataPreservationService = new DataPreservationService(volumeService);
-const cloudBackupService = new CloudBackupService();
+// const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
@@ -138,7 +139,8 @@ const dataImporter = new DataImporter();
 const authService = new AuthService();
 const analyticsService = new AnalyticsService();
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
-const backupAPIService = new BackupAPIService(app, authService);
+// Temporarily disable backup API service to fix deployment
+// const backupAPIService = new BackupAPIService(app, authService);
 
 // Middleware
 app.use(cors({
@@ -3579,11 +3581,12 @@ async function initializeServices() {
     console.log('🔄 Initializing volume service...');
     await volumeService.initialize();
     
-    console.log('🔄 Initializing data preservation service...');
-    await dataPreservationService.initializeDataPreservation();
+    // Temporarily disable all new services to fix deployment
+    console.log('🔄 Skipping data preservation service (temporarily disabled)...');
+    // await dataPreservationService.initializeDataPreservation();
     
-    console.log('🔄 Initializing cloud backup service...');
-    await cloudBackupService.initialize();
+    console.log('🔄 Skipping cloud backup service (temporarily disabled)...');
+    // await cloudBackupService.initialize();
     
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
@@ -3591,10 +3594,10 @@ async function initializeServices() {
     // Start scheduled backups
     await backupService.startScheduledBackups();
     
-    // Start cloud backup schedule
-    cloudBackupService.scheduleBackups();
+    console.log('🔄 Skipping cloud backup scheduling (temporarily disabled)...');
+    // cloudBackupService.scheduleBackups();
     
-    console.log('✅ All services initialized successfully');
+    console.log('✅ Core services initialized successfully');
   } catch (error) {
     console.error('❌ Failed to initialize services:', error);
     // Don't throw error - allow app to continue running
