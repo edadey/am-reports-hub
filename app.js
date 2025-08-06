@@ -949,7 +949,7 @@ app.delete('/api/users/:id', authService.requireAuth(), authService.requireRole(
 });
 
 // College Management Routes
-app.get('/api/colleges', authService.requireAuth(), async (req, res) => {
+app.get('/api/colleges', async (req, res) => {
   try {
     const colleges = await userManager.getColleges();
     res.json(colleges);
@@ -1070,7 +1070,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
 });
 
 // Account Manager Routes
-app.get('/api/account-managers', authService.requireAuth(), async (req, res) => {
+app.get('/api/account-managers', async (req, res) => {
   try {
     const managers = await userManager.getAccountManagers();
     res.json(managers);
@@ -1974,7 +1974,7 @@ async function storeCurrentReportAsPrevious(collegeId, reportData) {
 }
 
 // Dashboard Data Routes
-app.get('/api/dashboard/stats', authService.requireAuth(), async (req, res) => {
+app.get('/api/dashboard/stats', async (req, res) => {
   try {
     const stats = await userManager.getDashboardStats();
     res.json(stats);
