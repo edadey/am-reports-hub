@@ -112,7 +112,8 @@ const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
-// Temporarily disable cloud backup service - still causing issues
+// Simple backup service - reliable and lightweight
+const SimpleBackupService = require('./src/services/SimpleBackupService');
 // const CloudBackupService = require('./src/services/CloudBackupService');
 // const BackupAPIService = require('./src/services/BackupAPIService');
 
@@ -120,6 +121,7 @@ const DataPreservationService = require('./src/services/DataPreservationService'
 const volumeService = new VolumeService();
 const backupService = new BackupService();
 const dataPreservationService = new DataPreservationService(volumeService);
+const simpleBackupService = new SimpleBackupService();
 // const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
@@ -188,6 +190,49 @@ app.get('/college-dashboard', authService.requireAuth(), (req, res) => {
 
 app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
+});
+
+app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/simple-backup-dashboard.html'));
+});
+
+// Simple backup API endpoints
+app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
+  try {
+    const result = await simpleBackupService.createBackup();
+    if (result) {
+      res.json({ success: true, message: 'Backup created successfully', backup: result });
+    } else {
+      res.status(500).json({ success: false, message: 'Failed to create backup' });
+    }
+  } catch (error) {
+    console.error('Backup creation error:', error);
+    res.status(500).json({ success: false, message: 'Backup creation failed' });
+  }
+});
+
+app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
+  try {
+    const backups = await simpleBackupService.listBackups();
+    res.json({ success: true, backups });
+  } catch (error) {
+    console.error('Backup list error:', error);
+    res.status(500).json({ success: false, message: 'Failed to list backups' });
+  }
+});
+
+app.post('/api/backup/restore', authService.requireAuth(), async (req, res) => {
+  try {
+    const success = await simpleBackupService.restoreLatestBackup();
+    if (success) {
+      res.json({ success: true, message: 'Backup restored successfully' });
+    } else {
+      res.status(404).json({ success: false, message: 'No backup found to restore' });
+    }
+  } catch (error) {
+    console.error('Backup restore error:', error);
+    res.status(500).json({ success: false, message: 'Backup restore failed' });
+  }
 });
 
 // Authentication Routes
@@ -3584,8 +3629,8 @@ async function initializeServices() {
     console.log('🔄 Initializing data preservation service...');
     await dataPreservationService.initializeDataPreservation();
     
-    console.log('🔄 Skipping cloud backup service (still causing issues)...');
-    // await cloudBackupService.initialize();
+    console.log('🔄 Initializing simple backup service...');
+    await simpleBackupService.initialize();
     
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
@@ -3593,8 +3638,8 @@ async function initializeServices() {
     // Start scheduled backups
     await backupService.startScheduledBackups();
     
-    console.log('🔄 Skipping cloud backup scheduling (still causing issues)...');
-    // cloudBackupService.scheduleBackups();
+    // Check and restore data if needed
+    await simpleBackupService.checkAndRestoreIfNeeded();
     
     console.log('✅ Core services initialized successfully');
   } catch (error) {
