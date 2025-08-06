@@ -6,9 +6,9 @@ class RailwayBackupService {
   constructor() {
     // Use Railway cloud storage in production, local storage in development
     if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
-      // Railway cloud storage
+      // Railway persistent volume - this survives deployments
       this.railwayDataPath = '/app/data';
-      console.log('☁️ Using Railway cloud storage:', this.railwayDataPath);
+      console.log('☁️ Using Railway persistent volume:', this.railwayDataPath);
     } else {
       // Local development storage
       this.railwayDataPath = path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data');
@@ -63,12 +63,18 @@ class RailwayBackupService {
       // Validate Railway storage
       await this.validateRailwayStorage();
       
-      // Create initial backup if none exist
-      const existingBackups = await this.listBackups();
-      if (existingBackups.length === 0) {
-        console.log('🔄 No Railway backups found, creating initial cloud backup...');
-        await this.createBackup('Initial Railway cloud backup');
-      }
+      // Migrate data from old locations if needed
+      await this.migrateDataIfNeeded();
+      
+          // Create initial backup if none exist
+    const existingBackups = await this.listBackups();
+    if (existingBackups.length === 0) {
+      console.log('🔄 No Railway backups found, creating initial cloud backup...');
+      const backup = await this.createBackup('Initial Railway cloud backup');
+      console.log(`✅ Initial backup created: ${backup.backupId}`);
+    } else {
+      console.log(`✅ Found ${existingBackups.length} existing Railway backups`);
+    }
       
       console.log('✅ Railway Cloud Backup Service initialized');
       console.log(`💾 Cloud storage capacity: ${this.maxStorageGB}GB available`);
@@ -77,6 +83,42 @@ class RailwayBackupService {
     } catch (error) {
       console.error('❌ Error initializing Railway Cloud Backup Service:', error);
       throw error;
+    }
+  }
+
+  async migrateDataIfNeeded() {
+    try {
+      console.log('🔄 Checking for data migration needs...');
+      
+      // Check if we need to migrate from old data locations
+      const oldDataPaths = [
+        '/app/data/colleges.json',
+        '/app/data/users.json',
+        '/app/data/accountManagers.json'
+      ];
+      
+      const railwayDataPaths = [
+        path.join(this.dataPath, 'colleges.json'),
+        path.join(this.dataPath, 'users.json'),
+        path.join(this.dataPath, 'accountManagers.json')
+      ];
+      
+      for (let i = 0; i < oldDataPaths.length; i++) {
+        const oldPath = oldDataPaths[i];
+        const newPath = railwayDataPaths[i];
+        
+        const oldExists = await fs.pathExists(oldPath);
+        const newExists = await fs.pathExists(newPath);
+        
+        if (oldExists && !newExists) {
+          console.log(`📦 Migrating data from ${oldPath} to ${newPath}`);
+          await fs.copy(oldPath, newPath);
+        }
+      }
+      
+      console.log('✅ Data migration completed');
+    } catch (error) {
+      console.error('❌ Error during data migration:', error);
     }
   }
 
@@ -91,12 +133,18 @@ class RailwayBackupService {
       // Check if Railway volume is accessible
       const volumeExists = await fs.pathExists(this.railwayDataPath);
       if (!volumeExists) {
-        throw new Error('Railway volume not accessible');
+        console.log('⚠️ Railway volume not found, creating directory...');
+        await fs.ensureDir(this.railwayDataPath);
       }
+      
+      // Check if we can write to the volume
+      const testFile = path.join(this.railwayDataPath, '.test-write');
+      await fs.writeFile(testFile, 'test');
+      await fs.remove(testFile);
       
       // Check available space
       const stats = await fs.stat(this.railwayDataPath);
-      console.log(`✅ Railway volume accessible: ${this.formatBytes(stats.size)}`);
+      console.log(`✅ Railway persistent volume accessible and writable: ${this.formatBytes(stats.size)}`);
       
     } catch (error) {
       console.error('❌ Railway storage validation failed:', error);
