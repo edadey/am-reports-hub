@@ -53,7 +53,7 @@
                         <div>
                             <p class="text-sm text-gray-600">Backup Files</p>
                             <p class="font-semibold text-blue-700" id="backupCount">Loading...</p>
-                            <p class="text-xs text-gray-500">Local backup files</p>
+                            <p class="text-xs text-gray-500" id="backupStorageType">Loading...</p>
                         </div>
                     </div>
                 </div>
@@ -165,8 +165,13 @@
                 const collegesData = await collegesResponse.json();
                 document.getElementById('collegeCount').textContent = collegesData.length || 0;
 
-                // Load environment info
-                document.getElementById('environment').textContent = window.location.hostname.includes('railway') ? 'Production' : 'Development';
+                // Load environment info and set storage type
+                const isRailway = window.location.hostname.includes('railway');
+                document.getElementById('environment').textContent = isRailway ? 'Production' : 'Development';
+                
+                // Set storage type based on environment
+                const storageType = isRailway ? 'Railway cloud storage' : 'Local backup files';
+                document.getElementById('backupStorageType').textContent = storageType;
 
                 // Load backup info
                 const backupResponse = await fetch('/api/backup/list');
