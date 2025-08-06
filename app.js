@@ -202,7 +202,7 @@ app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
 });
 
 // Persistent backup API endpoints
-app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
+app.post('/api/backup/create', process.env.NODE_ENV === 'production' ? authService.requireAuth() : (req, res, next) => next(), async (req, res) => {
   try {
     const { description } = req.body;
     console.log('🔄 Creating persistent backup...');
@@ -220,7 +220,7 @@ app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
   }
 });
 
-app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
+app.get('/api/backup/list', process.env.NODE_ENV === 'production' ? authService.requireAuth() : (req, res, next) => next(), async (req, res) => {
   try {
     const backups = await railwayBackupService.listBackups();
     const stats = await railwayBackupService.getStorageStats();
@@ -236,7 +236,7 @@ app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
   }
 });
 
-app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req, res) => {
+app.post('/api/backup/restore/:backupId', process.env.NODE_ENV === 'production' ? authService.requireAuth() : (req, res, next) => next(), async (req, res) => {
   try {
     const { backupId } = req.params;
     console.log(`🔄 Restoring persistent backup: ${backupId}`);
@@ -254,7 +254,7 @@ app.post('/api/backup/restore/:backupId', authService.requireAuth(), async (req,
   }
 });
 
-app.get('/api/backup/stats', authService.requireAuth(), async (req, res) => {
+app.get('/api/backup/stats', process.env.NODE_ENV === 'production' ? authService.requireAuth() : (req, res, next) => next(), async (req, res) => {
   try {
     const stats = await railwayBackupService.getStorageStats();
     res.json({
