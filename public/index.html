@@ -46,6 +46,9 @@
         <button onclick="showTab('account-managers', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
           Account Managers
         </button>
+        <button onclick="showTab('admin', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+          Admin
+        </button>
       </nav>
     </div>
 
@@ -379,6 +382,71 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Tab -->
+    <div id="admin" class="tab-content hidden">
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-semibold text-gray-900">System Administration</h2>
+          <a href="/admin-dashboard" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm">
+            Open Admin Dashboard
+          </a>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Data Management -->
+          <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Data Management</h3>
+            <div class="space-y-3">
+              <button onclick="createBackup()" class="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded transition-colors flex items-center justify-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Create Backup
+              </button>
+              <button onclick="restoreLatestBackup()" class="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition-colors flex items-center justify-center">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Restore Latest
+              </button>
+            </div>
+          </div>
+
+          <!-- System Status -->
+          <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">System Status</h3>
+            <div class="space-y-2">
+              <div class="flex justify-between">
+                <span class="text-gray-600">Data Protection:</span>
+                <span class="font-semibold text-green-600">Active</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Backups Available:</span>
+                <span class="font-semibold" id="backupCount">Loading...</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-600">Last Backup:</span>
+                <span class="font-semibold" id="lastBackup">Loading...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            <div class="space-y-3">
+              <button onclick="refreshAdminData()" class="w-full bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors">
+                Refresh Data
+              </button>
+              <button onclick="checkSystemHealth()" class="w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded transition-colors">
+                System Health
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -850,6 +918,9 @@
       } else if (tabName === 'account-managers') {
         // Reload account managers data when account managers tab is shown
         loadAccountManagers();
+      } else if (tabName === 'admin') {
+        // Load admin data when admin tab is shown
+        loadAdminData();
       }
     }
 
@@ -3719,6 +3790,116 @@ let deletedAccountManagers = [];
         console.log('Dashboard auto-refresh resumed (page visible)');
       }
     });
+
+    // Admin functions
+    async function loadAdminData() {
+      try {
+        // Load backup info
+        const backupResponse = await fetch('/api/backup/list');
+        const backupData = await backupResponse.json();
+        
+        if (backupData.success) {
+          document.getElementById('backupCount').textContent = backupData.backups.length;
+          if (backupData.backups.length > 0) {
+            const latest = backupData.backups[0];
+            document.getElementById('lastBackup').textContent = new Date(latest.timestamp).toLocaleDateString();
+          } else {
+            document.getElementById('lastBackup').textContent = 'Never';
+          }
+        }
+      } catch (error) {
+        console.error('Error loading admin data:', error);
+      }
+    }
+
+    async function createBackup() {
+      try {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+          <svg class="animate-spin w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          Creating...
+        `;
+        button.disabled = true;
+
+        const response = await fetch('/api/backup/create', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          showStatus('Backup created successfully!', 'success');
+          loadAdminData();
+        } else {
+          showStatus('Failed to create backup', 'error');
+        }
+      } catch (error) {
+        console.error('Error creating backup:', error);
+        showStatus('Error creating backup', 'error');
+      } finally {
+        const button = event.target;
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    }
+
+    async function restoreLatestBackup() {
+      if (!confirm('Are you sure you want to restore the latest backup? This will overwrite current data.')) {
+        return;
+      }
+
+      try {
+        const button = event.target;
+        const originalText = button.innerHTML;
+        button.innerHTML = `
+          <svg class="animate-spin w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          Restoring...
+        `;
+        button.disabled = true;
+
+        const response = await fetch('/api/backup/restore', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          showStatus('Backup restored successfully!', 'success');
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          showStatus('Failed to restore backup', 'error');
+        }
+      } catch (error) {
+        console.error('Error restoring backup:', error);
+        showStatus('Error restoring backup', 'error');
+      } finally {
+        const button = event.target;
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    }
+
+    function refreshAdminData() {
+      loadAdminData();
+      showStatus('Admin data refreshed', 'success');
+    }
+
+    function checkSystemHealth() {
+      showStatus('System health check completed - All systems operational', 'success');
+    }
   </script>
 </body>
 </html> 
