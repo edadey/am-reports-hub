@@ -3609,8 +3609,8 @@ app.get('/api/railway-cloud-data', async (req, res) => {
   }
 });
 
-// Check old backup directories
-app.get('/api/check-old-backups', async (req, res) => {
+// Check simple-backups directory
+app.get('/api/simple-backups', async (req, res) => {
   try {
     const fs = require('fs-extra');
     const path = require('path');
