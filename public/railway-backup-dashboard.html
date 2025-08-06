@@ -598,8 +598,15 @@
 
         async function confirmCreateBackup() {
             const description = document.getElementById('backupDescription').value || 'Manual Railway cloud backup';
+            const createButton = document.querySelector('#createBackupModal .btn-primary');
+            const originalText = createButton.textContent;
             
             try {
+                // Disable button and show loading state
+                createButton.disabled = true;
+                createButton.textContent = 'Creating...';
+                createButton.style.opacity = '0.7';
+                
                 showMessage('Creating Railway cloud backup...', 'success');
                 
                 const response = await fetch('/api/backup/create', {
@@ -627,6 +634,11 @@
             } catch (error) {
                 console.error('Error creating backup:', error);
                 showMessage('Error creating backup: ' + error.message, 'error');
+            } finally {
+                // Reset button state
+                createButton.disabled = false;
+                createButton.textContent = originalText;
+                createButton.style.opacity = '1';
             }
         }
 
@@ -657,7 +669,15 @@
         async function confirmRestore() {
             if (!selectedBackupId) return;
             
+            const restoreButton = document.querySelector('#restoreModal .btn-warning');
+            const originalText = restoreButton.textContent;
+            
             try {
+                // Disable button and show loading state
+                restoreButton.disabled = true;
+                restoreButton.textContent = 'Restoring...';
+                restoreButton.style.opacity = '0.7';
+                
                 showMessage('Restoring Railway cloud backup...', 'success');
                 
                 const response = await fetch(`/api/backup/restore/${selectedBackupId}`, {
@@ -681,6 +701,11 @@
             } catch (error) {
                 console.error('Error restoring backup:', error);
                 showMessage('Error restoring backup: ' + error.message, 'error');
+            } finally {
+                // Reset button state
+                restoreButton.disabled = false;
+                restoreButton.textContent = originalText;
+                restoreButton.style.opacity = '1';
             }
         }
 
