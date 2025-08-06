@@ -3675,6 +3675,64 @@ app.get('/api/check-simple-backups', async (req, res) => {
   }
 });
 
+// Restore from specific simple-backup
+app.post('/api/restore-simple-backup/:backupId', async (req, res) => {
+  try {
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    const { backupId } = req.params;
+    const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // Path to the specific backup
+    const backupPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups', backupId);
+    const backupExists = await fs.pathExists(backupPath);
+    
+    if (!backupExists) {
+      return res.json({ 
+        success: false, 
+        error: 'Backup not found',
+        backupId,
+        checkedPath: backupPath
+      });
+    }
+    
+    // Check if colleges.json exists in the backup
+    const collegesPath = path.join(backupPath, 'colleges.json');
+    const collegesExist = await fs.pathExists(collegesPath);
+    
+    if (!collegesExist) {
+      return res.json({ 
+        success: false, 
+        error: 'No colleges.json found in backup',
+        backupId
+      });
+    }
+    
+    // Read the colleges data from the backup
+    const colleges = await fs.readJson(collegesPath);
+    
+    // Copy the backup data to the main data directory
+    const mainDataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // Copy all files from the backup to the main data directory
+    await fs.copy(backupPath, mainDataPath);
+    
+    res.json({
+      success: true,
+      message: 'Restored from simple-backup successfully',
+      backupId,
+      collegesCount: colleges.length,
+      colleges: colleges.map(c => ({ id: c.id, name: c.name })),
+      restoredPath: mainDataPath
+    });
+  } catch (error) {
+    console.error('Restore simple-backup error:', error);
+    res.status(500).json({ error: 'Failed to restore from simple-backup' });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
