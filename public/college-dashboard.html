@@ -875,13 +875,6 @@
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-4">
         <div class="flex items-center gap-4">
           <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-800">College Dashboard</h1>
-          <a href="/admin-dashboard" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center text-sm">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-            </svg>
-            Admin
-          </a>
         </div>
         <div class="bg-white rounded-lg shadow p-3 sm:p-4 lg:p-6 w-full sm:w-auto">
           <h3 class="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-2">Total Students</h3>
@@ -7165,73 +7158,7 @@
       // testPasteFunctionality();
     });
 
-    // Backup functionality
-    async function createBackup(event) {
-      try {
-        const button = event ? event.target : document.querySelector('button[onclick*="createBackup"]');
-        const originalText = button.innerHTML;
-        button.innerHTML = `
-          <svg class="animate-spin w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-          </svg>
-          Creating...
-        `;
-        button.disabled = true;
 
-        const response = await fetch('/api/backup/create', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        });
-
-        const data = await response.json();
-        
-        if (data.success) {
-          showNotification('Backup created successfully!', 'success');
-        } else {
-          showNotification('Failed to create backup', 'error');
-        }
-      } catch (error) {
-        console.error('Error creating backup:', error);
-        showNotification('Error creating backup', 'error');
-      } finally {
-        const button = event.target;
-        button.innerHTML = originalText;
-        button.disabled = false;
-      }
-    }
-
-    function showNotification(message, type = 'success') {
-      // Create notification element
-      const notification = document.createElement('div');
-      notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full ${
-        type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-      }`;
-      notification.innerHTML = `
-        <div class="flex items-center">
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-          </svg>
-          <span>${message}</span>
-        </div>
-      `;
-      
-      document.body.appendChild(notification);
-      
-      // Show notification
-      setTimeout(() => {
-        notification.classList.remove('translate-x-full');
-      }, 100);
-      
-      // Hide notification after 3 seconds
-      setTimeout(() => {
-        notification.classList.add('translate-x-full');
-        setTimeout(() => {
-          notification.remove();
-        }, 300);
-      }, 3000);
-    }
   </script>
 </body>
 </html> 
