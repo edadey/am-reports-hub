@@ -112,15 +112,15 @@ const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
-// Re-enable cloud backup service
-const CloudBackupService = require('./src/services/CloudBackupService');
+// Temporarily disable cloud backup service - causing deployment hangs
+// const CloudBackupService = require('./src/services/CloudBackupService');
 // const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
 const backupService = new BackupService();
 const dataPreservationService = new DataPreservationService(volumeService);
-const cloudBackupService = new CloudBackupService();
+// const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
@@ -3584,8 +3584,8 @@ async function initializeServices() {
     console.log('🔄 Initializing data preservation service...');
     await dataPreservationService.initializeDataPreservation();
     
-    console.log('🔄 Initializing cloud backup service...');
-    await cloudBackupService.initialize();
+    console.log('🔄 Skipping cloud backup service (causing deployment hangs)...');
+    // await cloudBackupService.initialize();
     
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
@@ -3593,8 +3593,8 @@ async function initializeServices() {
     // Start scheduled backups
     await backupService.startScheduledBackups();
     
-    // Start cloud backup schedule
-    cloudBackupService.scheduleBackups();
+    console.log('🔄 Skipping cloud backup scheduling (causing deployment hangs)...');
+    // cloudBackupService.scheduleBackups();
     
     console.log('✅ Core services initialized successfully');
   } catch (error) {
