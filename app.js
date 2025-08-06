@@ -3618,9 +3618,15 @@ app.get('/api/simple-backups', async (req, res) => {
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
     const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
-    // Check simple-backups directory
-    const simpleBackupsPath = path.join(dataPath, '..', 'simple-backups');
-    const simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
+    // Check simple-backups directory (try multiple locations)
+    let simpleBackupsPath = path.join(dataPath, '..', 'simple-backups');
+    let simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
+    
+    // If not found, try inside data-backup-simulation
+    if (!simpleBackupsExist) {
+      simpleBackupsPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups');
+      simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
+    }
     
     let simpleBackups = [];
     if (simpleBackupsExist) {
