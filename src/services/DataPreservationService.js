@@ -57,6 +57,9 @@ class DataPreservationService {
     await this.preserveDirectory('reports');
     await this.preserveDirectory('analytics');
     await this.preserveDirectory('ai-cache');
+    
+    // Check for restoration data and restore if needed
+    await this.checkAndRestoreData();
   }
 
   async preserveFile(filename) {
@@ -286,6 +289,52 @@ class DataPreservationService {
     } catch (error) {
       console.error('❌ Error creating backup:', error);
       throw error;
+    }
+  }
+
+  async checkAndRestoreData() {
+    console.log('🔄 Checking for data restoration...');
+    
+    const restorationPath = path.join(__dirname, '../../data-restoration');
+    
+    try {
+      if (await fs.pathExists(restorationPath)) {
+        console.log('📦 Found restoration data directory');
+        
+        const restorationFiles = await fs.readdir(restorationPath);
+        
+        for (const file of restorationFiles) {
+          if (file.endsWith('.json')) {
+            const sourcePath = path.join(restorationPath, file);
+            const targetPath = path.join(this.dataPath, file);
+            
+            // Check if target file is empty or doesn't exist
+            let shouldRestore = false;
+            
+            if (await fs.pathExists(targetPath)) {
+              const stats = await fs.stat(targetPath);
+              shouldRestore = stats.size === 0;
+            } else {
+              shouldRestore = true;
+            }
+            
+            if (shouldRestore) {
+              await fs.copy(sourcePath, targetPath);
+              console.log(`   ✅ Restored ${file} from restoration data`);
+            } else {
+              console.log(`   ℹ️  ${file} already has data - keeping current version`);
+            }
+          }
+        }
+        
+        // Remove restoration directory after use
+        await fs.remove(restorationPath);
+        console.log('   🗑️  Removed restoration data directory');
+      } else {
+        console.log('ℹ️  No restoration data found');
+      }
+    } catch (error) {
+      console.log(`   ❌ Error during restoration: ${error.message}`);
     }
   }
 }
