@@ -236,7 +236,7 @@
             `).join('');
         }
 
-        async function createBackup() {
+        async function createBackup(event) {
             try {
                 const button = event.target;
                 const originalText = button.innerHTML;
@@ -274,7 +274,7 @@
             }
         }
 
-        async function restoreLatestBackup() {
+        async function restoreLatestBackup(event) {
             if (!confirm('Are you sure you want to restore the latest backup? This will overwrite current data.')) {
                 return;
             }
