@@ -452,31 +452,39 @@ class CloudBackupService {
   async scheduleBackups() {
     console.log('⏰ Setting up backup schedule...');
     
-    // Daily backup at 2 AM
-    setInterval(async () => {
+    // Single interval that handles all backup schedules
+    this.backupInterval = setInterval(async () => {
       const now = new Date();
+      
+      // Daily backup at 2 AM
       if (now.getHours() === 2 && now.getMinutes() === 0) {
-        await this.createBackup('full', 'daily');
+        try {
+          await this.createBackup('full', 'daily');
+        } catch (error) {
+          console.error('❌ Daily backup failed:', error);
+        }
+      }
+      
+      // Weekly backup on Sunday at 3 AM
+      if (now.getDay() === 0 && now.getHours() === 3 && now.getMinutes() === 0) {
+        try {
+          await this.createBackup('full', 'weekly');
+        } catch (error) {
+          console.error('❌ Weekly backup failed:', error);
+        }
+      }
+      
+      // Monthly backup on 1st of month at 4 AM
+      if (now.getDate() === 1 && now.getHours() === 4 && now.getMinutes() === 0) {
+        try {
+          await this.createBackup('full', 'monthly');
+        } catch (error) {
+          console.error('❌ Monthly backup failed:', error);
+        }
       }
     }, 60000); // Check every minute
     
-    // Weekly backup on Sunday at 3 AM
-    setInterval(async () => {
-      const now = new Date();
-      if (now.getDay() === 0 && now.getHours() === 3 && now.getMinutes() === 0) {
-        await this.createBackup('full', 'weekly');
-      }
-    }, 60000);
-    
-    // Monthly backup on 1st of month at 4 AM
-    setInterval(async () => {
-      const now = new Date();
-      if (now.getDate() === 1 && now.getHours() === 4 && now.getMinutes() === 0) {
-        await this.createBackup('full', 'monthly');
-      }
-    }, 60000);
-    
-    console.log('✅ Backup schedule configured');
+    console.log('✅ Backup schedule configured (single interval)');
   }
 
   generateBackupId() {
@@ -498,6 +506,14 @@ class CloudBackupService {
       categories: this.backupConfig.retention,
       backupTypes: this.backupConfig.backupTypes
     };
+  }
+
+  stopScheduling() {
+    if (this.backupInterval) {
+      clearInterval(this.backupInterval);
+      this.backupInterval = null;
+      console.log('⏰ Backup scheduling stopped');
+    }
   }
 }
 
