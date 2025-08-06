@@ -3826,6 +3826,108 @@ app.get('/api/search-all-backups', async (req, res) => {
   }
 });
 
+// Check backup files in /app/data/backups
+app.get('/api/check-backup-files', async (req, res) => {
+  try {
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // Check backup files in /app/data/backups
+    const backupFilesPath = path.join(dataPath, 'backups');
+    const backupFilesExist = await fs.pathExists(backupFilesPath);
+    
+    if (!backupFilesExist) {
+      return res.json({ 
+        success: false, 
+        error: 'No backup files directory found',
+        checkedPath: backupFilesPath
+      });
+    }
+    
+    // List all backup files
+    const backupFiles = await fs.readdir(backupFilesPath);
+    
+    // Check each backup file for colleges data
+    const backupFileDetails = [];
+    for (const backupFile of backupFiles) {
+      const backupFilePath = path.join(backupFilesPath, backupFile);
+      const stats = await fs.stat(backupFilePath);
+      
+      if (stats.isFile() && backupFile.endsWith('.json')) {
+        try {
+          const data = await fs.readJson(backupFilePath);
+          if (Array.isArray(data)) {
+            backupFileDetails.push({
+              file: backupFile,
+              type: 'colleges-array',
+              collegesCount: data.length,
+              colleges: data.map(c => ({ id: c.id, name: c.name }))
+            });
+          } else if (data.colleges) {
+            backupFileDetails.push({
+              file: backupFile,
+              type: 'colleges-object',
+              collegesCount: data.colleges.length,
+              colleges: data.colleges.map(c => ({ id: c.id, name: c.name }))
+            });
+          } else {
+            backupFileDetails.push({
+              file: backupFile,
+              type: 'other-json',
+              dataKeys: Object.keys(data)
+            });
+          }
+        } catch (error) {
+          backupFileDetails.push({
+            file: backupFile,
+            error: 'Could not read JSON file'
+          });
+        }
+      } else if (stats.isDirectory()) {
+        const collegesPath = path.join(backupFilePath, 'colleges.json');
+        if (await fs.pathExists(collegesPath)) {
+          try {
+            const colleges = await fs.readJson(collegesPath);
+            backupFileDetails.push({
+              file: backupFile,
+              type: 'backup-directory',
+              collegesCount: colleges.length,
+              colleges: colleges.map(c => ({ id: c.id, name: c.name }))
+            });
+          } catch (error) {
+            backupFileDetails.push({
+              file: backupFile,
+              type: 'backup-directory',
+              error: 'Could not read colleges.json'
+            });
+          }
+        } else {
+          backupFileDetails.push({
+            file: backupFile,
+            type: 'backup-directory',
+            error: 'No colleges.json found'
+          });
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      isRailway,
+      backupFilesPath,
+      totalBackupFiles: backupFiles.length,
+      backupFiles,
+      backupFileDetails
+    });
+  } catch (error) {
+    console.error('Check backup files error:', error);
+    res.status(500).json({ error: 'Failed to check backup files' });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
