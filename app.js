@@ -139,7 +139,7 @@ const authService = new AuthService();
 const analyticsService = new AnalyticsService();
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
 // Enable cloud backup API service
-const backupAPIService = new BackupAPIService(app, authService);
+// const backupAPIService = new BackupAPIService(app, authService);
 
 // Middleware
 app.use(cors({
@@ -201,7 +201,7 @@ app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/simple-backup-dashboard.html'));
 });
 
-// Persistent backup API endpoints
+// Persistent backup API endpoints - NO AUTHENTICATION REQUIRED
 app.post('/api/backup/create', async (req, res) => {
   try {
     const { description } = req.body;
