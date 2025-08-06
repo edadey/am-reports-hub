@@ -3609,6 +3609,68 @@ app.get('/api/railway-cloud-data', async (req, res) => {
   }
 });
 
+// Check old backup directories
+app.get('/api/check-old-backups', async (req, res) => {
+  try {
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+    const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
+    
+    // Check simple-backups directory
+    const simpleBackupsPath = path.join(dataPath, '..', 'simple-backups');
+    const simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
+    
+    let simpleBackups = [];
+    if (simpleBackupsExist) {
+      simpleBackups = await fs.readdir(simpleBackupsPath);
+    }
+    
+    // Check old backups directory
+    const oldBackupsPath = path.join(dataPath, '..', 'backups');
+    const oldBackupsExist = await fs.pathExists(oldBackupsPath);
+    
+    let oldBackups = [];
+    if (oldBackupsExist) {
+      oldBackups = await fs.readdir(oldBackupsPath);
+    }
+    
+    // Check data-backup-simulation directory
+    const simulationPath = path.join(dataPath, 'data-backup-simulation');
+    const simulationExist = await fs.pathExists(simulationPath);
+    
+    let simulationBackups = [];
+    if (simulationExist) {
+      simulationBackups = await fs.readdir(simulationPath);
+    }
+    
+    res.json({
+      success: true,
+      isRailway,
+      dataPath,
+      simpleBackups: {
+        exists: simpleBackupsExist,
+        path: simpleBackupsPath,
+        backups: simpleBackups
+      },
+      oldBackups: {
+        exists: oldBackupsExist,
+        path: oldBackupsPath,
+        backups: oldBackups
+      },
+      simulationBackups: {
+        exists: simulationExist,
+        path: simulationPath,
+        backups: simulationBackups
+      }
+    });
+  } catch (error) {
+    console.error('Check old backups error:', error);
+    res.status(500).json({ error: 'Failed to check old backups' });
+  }
+});
+
 // Debug endpoint to check environment variables
 app.get('/debug-env', (req, res) => {
   const hasValidApiKey = process.env.OPENAI_API_KEY && 
