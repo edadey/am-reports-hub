@@ -241,6 +241,9 @@
             const button = event.target.closest('button') || event.target;
             const originalText = button.innerHTML;
             
+            // Store button reference to ensure it's available in finally block
+            let buttonRestored = false;
+            
             try {
                 button.innerHTML = `
                     <svg class="animate-spin w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,8 +264,10 @@
                 
                 if (data.success) {
                     showToast('Backup created successfully!');
-                    loadBackups();
-                    loadSystemData();
+                    // Refresh the page after a short delay to show updated data
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
                 } else {
                     showToast('Failed to create backup', 'error');
                 }
@@ -270,9 +275,17 @@
                 console.error('Error creating backup:', error);
                 showToast('Error creating backup', 'error');
             } finally {
-                // Restore the button state
-                button.innerHTML = originalText;
-                button.disabled = false;
+                // Restore the button state with error handling
+                try {
+                    if (button && !buttonRestored) {
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                        buttonRestored = true;
+                        console.log('Button restored successfully');
+                    }
+                } catch (restoreError) {
+                    console.error('Error restoring button:', restoreError);
+                }
             }
         }
 
