@@ -112,11 +112,14 @@ const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
+const CloudBackupService = require('./src/services/CloudBackupService');
+const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
 const backupService = new BackupService();
 const dataPreservationService = new DataPreservationService(volumeService);
+const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
@@ -135,6 +138,7 @@ const dataImporter = new DataImporter();
 const authService = new AuthService();
 const analyticsService = new AnalyticsService();
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
+const backupAPIService = new BackupAPIService(app, authService);
 
 // Middleware
 app.use(cors({
@@ -178,6 +182,10 @@ app.get('/login', (req, res) => {
 
 app.get('/college-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/college-dashboard.html'));
+});
+
+app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
 });
 
 // Authentication Routes
@@ -3552,11 +3560,17 @@ async function initializeServices() {
     console.log('🔄 Initializing data preservation service...');
     await dataPreservationService.initializeDataPreservation();
     
+    console.log('🔄 Initializing cloud backup service...');
+    await cloudBackupService.initialize();
+    
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
     
     // Start scheduled backups
     await backupService.startScheduledBackups();
+    
+    // Start cloud backup schedule
+    cloudBackupService.scheduleBackups();
     
     console.log('✅ All services initialized successfully');
   } catch (error) {
