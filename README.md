@@ -235,4 +235,4 @@ For support and questions:
 - **v1.0.0** - Initial release with core functionality
 - **v1.1.0** - Added college dashboards and analytics
 - **v1.2.0** - Enhanced template system and bulk operations
-- **v1.3.0** - Added edit/delete functionality with undo capability # Railway deployment trigger - Wed Aug  6 09:55:18 BST 2025
+- **v1.3.0** - Added edit/delete functionality with undo capability 

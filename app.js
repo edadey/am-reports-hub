@@ -111,10 +111,12 @@ const AIAnalyzer = require('./src/services/AIAnalyzer');
 const BackupService = require('./src/services/BackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
+const DataPreservationService = require('./src/services/DataPreservationService');
 
 // Initialize services
 const volumeService = new VolumeService();
 const backupService = new BackupService();
+const dataPreservationService = new DataPreservationService(volumeService);
 const dataValidationService = new EnhancedDataValidationService();
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
@@ -3546,6 +3548,9 @@ async function initializeServices() {
   try {
     console.log('🔄 Initializing volume service...');
     await volumeService.initialize();
+    
+    console.log('🔄 Initializing data preservation service...');
+    await dataPreservationService.initializeDataPreservation();
     
     console.log('🔄 Initializing backup service...');
     await backupService.initialize();
