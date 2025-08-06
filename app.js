@@ -3609,8 +3609,8 @@ app.get('/api/railway-cloud-data', async (req, res) => {
   }
 });
 
-// List all directories in Railway data
-app.get('/api/list-railway-data', async (req, res) => {
+// Check simple-backups in data-backup-simulation
+app.get('/api/check-simple-backups', async (req, res) => {
   try {
     const fs = require('fs-extra');
     const path = require('path');
@@ -3618,45 +3618,60 @@ app.get('/api/list-railway-data', async (req, res) => {
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
     const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
-    // List all directories and files in the Railway data path
-    const allItems = await fs.readdir(dataPath);
+    // Check simple-backups directory inside data-backup-simulation
+    const simpleBackupsPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups');
+    const simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
     
-    // Check each directory for backup-related content
-    const backupDirectories = [];
+    if (!simpleBackupsExist) {
+      return res.json({ 
+        success: false, 
+        error: 'No simple-backups directory found',
+        checkedPath: simpleBackupsPath
+      });
+    }
     
-    for (const item of allItems) {
-      const itemPath = path.join(dataPath, item);
-      const stats = await fs.stat(itemPath);
+    // List all backup directories
+    const backupDirs = await fs.readdir(simpleBackupsPath);
+    
+    // Check each backup directory for colleges.json
+    const backupDetails = [];
+    for (const backupDir of backupDirs) {
+      const backupPath = path.join(simpleBackupsPath, backupDir);
+      const collegesPath = path.join(backupPath, 'colleges.json');
       
-      if (stats.isDirectory()) {
+      if (await fs.pathExists(collegesPath)) {
         try {
-          const subItems = await fs.readdir(itemPath);
-          backupDirectories.push({
-            name: item,
-            path: itemPath,
-            items: subItems,
-            isBackupRelated: item.includes('backup') || item.includes('Backup')
+          const colleges = await fs.readJson(collegesPath);
+          backupDetails.push({
+            directory: backupDir,
+            collegesCount: colleges.length,
+            colleges: colleges.map(c => ({ id: c.id, name: c.name }))
           });
         } catch (error) {
-          backupDirectories.push({
-            name: item,
-            path: itemPath,
-            error: error.message
+          backupDetails.push({
+            directory: backupDir,
+            error: 'Could not read colleges.json'
           });
         }
+      } else {
+        backupDetails.push({
+          directory: backupDir,
+          error: 'No colleges.json found'
+        });
       }
     }
     
     res.json({
       success: true,
       isRailway,
-      dataPath,
-      allItems,
-      backupDirectories
+      simpleBackupsPath,
+      totalBackups: backupDirs.length,
+      backupDirs,
+      backupDetails
     });
   } catch (error) {
-    console.error('List Railway data error:', error);
-    res.status(500).json({ error: 'Failed to list Railway data' });
+    console.error('Check simple-backups error:', error);
+    res.status(500).json({ error: 'Failed to check simple-backups' });
   }
 });
 
