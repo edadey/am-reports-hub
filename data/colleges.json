@@ -4,6 +4,7 @@
     "name": "Croydon",
     "numberOfProviders": "5",
     "accountManagerId": "1752605613330",
+    "keyContact": "Sam",
     "keyStakeholder": "",
     "superUsers": [
       {
@@ -109,6 +110,7 @@
     "name": "Saracens",
     "numberOfProviders": "1",
     "accountManagerId": "1752605613330",
+    "keyContact": "Suz",
     "superUsers": [],
     "misContact": "",
     "dataTransferMethod": "",
