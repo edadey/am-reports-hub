@@ -3,9 +3,19 @@ const path = require("path");
 
 class VolumeService {
   constructor() {
-    // Use Railway's built-in persistent storage environment variable
-    // Railway automatically provides PERSISTENT_STORAGE_PATH
-    this.volumePath = process.env.PERSISTENT_STORAGE_PATH || process.env.VOLUME_PATH || "/data";
+    // Enhanced Railway detection
+    const isRailway = this.isRailwayEnvironment();
+    
+    if (isRailway) {
+      // Use Railway's built-in persistent storage environment variable
+      this.volumePath = process.env.PERSISTENT_STORAGE_PATH || "/data";
+      console.log('☁️ Using Railway persistent storage:', this.volumePath);
+    } else {
+      // Local development storage
+      this.volumePath = process.env.VOLUME_PATH || "/data";
+      console.log('💻 Using local storage:', this.volumePath);
+    }
+    
     this.localDataPath = path.join(__dirname, "../../data");
     this.isVolumeMounted = false;
   }
@@ -158,6 +168,24 @@ class VolumeService {
       localDataPath: this.localDataPath,
       currentDataPath: this.getDataPath()
     };
+  }
+
+  isRailwayEnvironment() {
+    // Check multiple indicators for Railway environment
+    const indicators = [
+      process.env.NODE_ENV === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'true',
+      process.env.RAILWAY_ENVIRONMENT === '1',
+      process.env.RAILWAY_SERVICE_NAME,
+      process.env.RAILWAY_PROJECT_ID,
+      process.env.RAILWAY_DEPLOYMENT_ID,
+      process.env.PERSISTENT_STORAGE_PATH,
+      process.env.HOSTNAME && process.env.HOSTNAME.includes('railway'),
+      process.env.HOST && process.env.HOST.includes('railway')
+    ];
+    
+    return indicators.some(indicator => !!indicator);
   }
 }
 

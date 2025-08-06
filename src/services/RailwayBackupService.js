@@ -4,8 +4,10 @@ const crypto = require('crypto');
 
 class RailwayBackupService {
   constructor() {
-    // Use Railway cloud storage in production, local storage in development
-    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+    // Enhanced Railway detection - check multiple indicators
+    const isRailway = this.isRailwayEnvironment();
+    
+    if (isRailway) {
       // Railway persistent volume - use Railway's built-in persistent storage
       // Railway automatically provides PERSISTENT_STORAGE_PATH environment variable
       this.railwayDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
@@ -467,6 +469,34 @@ class RailwayBackupService {
 
   getBackupPath() {
     return this.backupPath;
+  }
+
+  isRailwayEnvironment() {
+    // Check multiple indicators for Railway environment
+    const indicators = [
+      process.env.NODE_ENV === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'true',
+      process.env.RAILWAY_ENVIRONMENT === '1',
+      process.env.RAILWAY_SERVICE_NAME,
+      process.env.RAILWAY_PROJECT_ID,
+      process.env.RAILWAY_DEPLOYMENT_ID,
+      process.env.PERSISTENT_STORAGE_PATH,
+      process.env.HOSTNAME && process.env.HOSTNAME.includes('railway'),
+      process.env.HOST && process.env.HOST.includes('railway')
+    ];
+    
+    const isRailway = indicators.some(indicator => !!indicator);
+    
+    console.log('🔍 Railway Environment Detection:');
+    console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT}`);
+    console.log(`   RAILWAY_SERVICE_NAME: ${process.env.RAILWAY_SERVICE_NAME}`);
+    console.log(`   PERSISTENT_STORAGE_PATH: ${process.env.PERSISTENT_STORAGE_PATH}`);
+    console.log(`   HOSTNAME: ${process.env.HOSTNAME}`);
+    console.log(`   Is Railway: ${isRailway}`);
+    
+    return isRailway;
   }
 }
 

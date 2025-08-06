@@ -4,8 +4,10 @@ const crypto = require('crypto');
 
 class DataPersistenceService {
   constructor() {
-    // Use Railway's persistent volume storage in production
-    if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
+    // Enhanced Railway detection
+    const isRailway = this.isRailwayEnvironment();
+    
+    if (isRailway) {
       // Railway cloud storage - use Railway's built-in persistent storage
       this.persistentDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
       this.backupPath = path.join(this.persistentDataPath, 'backups');
@@ -488,6 +490,24 @@ class DataPersistenceService {
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  isRailwayEnvironment() {
+    // Check multiple indicators for Railway environment
+    const indicators = [
+      process.env.NODE_ENV === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'production',
+      process.env.RAILWAY_ENVIRONMENT === 'true',
+      process.env.RAILWAY_ENVIRONMENT === '1',
+      process.env.RAILWAY_SERVICE_NAME,
+      process.env.RAILWAY_PROJECT_ID,
+      process.env.RAILWAY_DEPLOYMENT_ID,
+      process.env.PERSISTENT_STORAGE_PATH,
+      process.env.HOSTNAME && process.env.HOSTNAME.includes('railway'),
+      process.env.HOST && process.env.HOST.includes('railway')
+    ];
+    
+    return indicators.some(indicator => !!indicator);
   }
 }
 
