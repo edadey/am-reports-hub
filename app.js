@@ -107,6 +107,8 @@ console.log('AI_ANALYSIS_ENABLED:', process.env.AI_ANALYSIS_ENABLED);
 
 // Import services
 const UserManager = require('./src/services/UserManager');
+const DatabaseUserManager = require('./src/services/DatabaseUserManager');
+const DatabaseService = require('./src/services/DatabaseService');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
 const RailwayBackupService = require('./src/services/RailwayBackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
@@ -130,8 +132,14 @@ const AnalyticsService = require('./src/services/AnalyticsService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Helper function to get the appropriate user manager
+function getUserManager() {
+  return process.env.DATABASE_URL ? databaseUserManager : userManager;
+}
+
 // Initialize services
 const userManager = new UserManager(volumeService);
+const databaseUserManager = DatabaseUserManager;
 const aiAnalyzer = new AIAnalyzer();
 const reportScheduler = new ReportScheduler();
 const dataImporter = new DataImporter();
@@ -289,6 +297,67 @@ app.get('/api/backup/stats', async (req, res) => {
   } catch (error) {
     console.error('Backup stats error:', error);
     res.status(500).json({ error: 'Failed to get backup stats' });
+  }
+});
+
+// Database Migration Route
+app.post('/api/migrate-to-database', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.status(400).json({ 
+        error: 'DATABASE_URL not configured',
+        message: 'Please set up PostgreSQL database first'
+      });
+    }
+
+    console.log('🔄 Starting data migration to PostgreSQL...');
+    
+    // Import and run migration
+    const DataMigration = require('./src/database/migrate-data');
+    const migration = new DataMigration();
+    
+    await migration.run();
+    
+    res.json({
+      success: true,
+      message: 'Data migration completed successfully!',
+      stats: await databaseUserManager.getStats()
+    });
+    
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    res.status(500).json({ 
+      error: 'Migration failed',
+      message: error.message
+    });
+  }
+});
+
+// Database Statistics Route
+app.get('/api/database/stats', async (req, res) => {
+  try {
+    if (!process.env.DATABASE_URL) {
+      return res.status(400).json({ 
+        error: 'DATABASE_URL not configured' 
+      });
+    }
+
+    const stats = await databaseUserManager.getStats();
+    const healthCheck = await DatabaseService.healthCheck();
+    
+    res.json({
+      success: true,
+      stats,
+      health: healthCheck,
+      usingDatabase: true
+    });
+    
+  } catch (error) {
+    console.error('Error getting database stats:', error);
+    res.status(500).json({ 
+      error: 'Failed to get database stats',
+      message: error.message
+    });
   }
 });
 
@@ -3985,17 +4054,30 @@ app.use((req, res) => {
 // Initialize services
 async function initializeServices() {
   try {
-    console.log('🔄 Initializing volume service...');
-    await volumeService.initialize();
-    
-    console.log('🔄 Initializing data preservation service...');
-    await dataPreservationService.initializeDataPreservation();
-    
-    console.log('🔄 Initializing Railway cloud backup service...');
-    await railwayBackupService.initialize();
-    
-    console.log('🔄 Initializing cloud backup service...');
-    await cloudBackupService.initialize();
+    // Check if DATABASE_URL is available for PostgreSQL
+    if (process.env.DATABASE_URL) {
+      console.log('🐘 PostgreSQL DATABASE_URL detected - using database mode');
+      console.log('🔄 Initializing database service...');
+      await DatabaseService.initialize();
+      
+      console.log('🔄 Initializing database user manager...');
+      await databaseUserManager.initialize();
+      
+      console.log('✅ Database services initialized successfully');
+    } else {
+      console.log('📁 No DATABASE_URL found - using file-based storage');
+      console.log('🔄 Initializing volume service...');
+      await volumeService.initialize();
+      
+      console.log('🔄 Initializing data preservation service...');
+      await dataPreservationService.initializeDataPreservation();
+      
+      console.log('🔄 Initializing Railway cloud backup service...');
+      await railwayBackupService.initialize();
+      
+      console.log('🔄 Initializing cloud backup service...');
+      await cloudBackupService.initialize();
+    }
     
     console.log('✅ Core services initialized successfully');
   } catch (error) {
