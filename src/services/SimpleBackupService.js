@@ -32,6 +32,7 @@ class SimpleBackupService {
     const backupDir = path.join(this.backupPath, `backup-${timestamp}`);
     
     console.log(`📦 Creating simple backup: ${timestamp}`);
+    console.log(`📁 Backup directory: ${backupDir}`);
     
     try {
       await fs.ensureDir(backupDir);
@@ -119,11 +120,14 @@ class SimpleBackupService {
 
   async listBackups() {
     try {
+      console.log(`📁 Checking backup path: ${this.backupPath}`);
       if (!await fs.pathExists(this.backupPath)) {
+        console.log('⚠️  Backup path does not exist');
         return [];
       }
       
       const backupDirs = await fs.readdir(this.backupPath);
+      console.log(`📦 Found backup directories: ${backupDirs.length}`);
       const backups = [];
       
       for (const dir of backupDirs) {

@@ -199,25 +199,29 @@ app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
 // Simple backup API endpoints
 app.post('/api/backup/create', authService.requireAuth(), async (req, res) => {
   try {
+    console.log('🔄 Creating backup...');
     const result = await simpleBackupService.createBackup();
+    console.log('📦 Backup result:', result);
     if (result) {
       res.json({ success: true, message: 'Backup created successfully', backup: result });
     } else {
       res.status(500).json({ success: false, message: 'Failed to create backup' });
     }
   } catch (error) {
-    console.error('Backup creation error:', error);
-    res.status(500).json({ success: false, message: 'Backup creation failed' });
+    console.error('❌ Backup creation error:', error);
+    res.status(500).json({ success: false, message: 'Backup creation failed: ' + error.message });
   }
 });
 
 app.get('/api/backup/list', authService.requireAuth(), async (req, res) => {
   try {
+    console.log('🔄 Listing backups...');
     const backups = await simpleBackupService.listBackups();
+    console.log('📦 Found backups:', backups.length);
     res.json({ success: true, backups });
   } catch (error) {
-    console.error('Backup list error:', error);
-    res.status(500).json({ success: false, message: 'Failed to list backups' });
+    console.error('❌ Backup list error:', error);
+    res.status(500).json({ success: false, message: 'Failed to list backups: ' + error.message });
   }
 });
 
