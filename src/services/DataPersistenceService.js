@@ -6,8 +6,8 @@ class DataPersistenceService {
   constructor() {
     // Use Railway's persistent volume storage in production
     if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
-      // Railway cloud storage
-      this.persistentDataPath = '/data';
+      // Railway cloud storage - use Railway's built-in persistent storage
+      this.persistentDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
       this.backupPath = path.join(this.persistentDataPath, 'backups');
       this.dataPath = path.join(this.persistentDataPath, 'data');
       console.log('☁️ Using Railway cloud storage:', this.persistentDataPath);

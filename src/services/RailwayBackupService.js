@@ -6,8 +6,9 @@ class RailwayBackupService {
   constructor() {
     // Use Railway cloud storage in production, local storage in development
     if (process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production') {
-      // Railway persistent volume - this survives deployments
-      this.railwayDataPath = '/data';
+      // Railway persistent volume - use Railway's built-in persistent storage
+      // Railway automatically provides PERSISTENT_STORAGE_PATH environment variable
+      this.railwayDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
       console.log('☁️ Using Railway persistent volume:', this.railwayDataPath);
     } else {
       // Local development storage

@@ -4,7 +4,7 @@ const path = require('path');
 class DataPreservationService {
   constructor(volumeService = null) {
     this.volumeService = volumeService;
-    this.dataPath = volumeService ? '/data' : path.join(__dirname, '../../data');
+    this.dataPath = volumeService ? (process.env.PERSISTENT_STORAGE_PATH || '/data') : path.join(__dirname, '../../data');
     this.backupPath = path.join(this.dataPath, 'backups');
   }
 

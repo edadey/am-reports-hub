@@ -3,8 +3,9 @@ const path = require("path");
 
 class VolumeService {
   constructor() {
-    // Use environment variable for volume path, fallback to Railway default
-    this.volumePath = process.env.VOLUME_PATH || "/data";
+    // Use Railway's built-in persistent storage environment variable
+    // Railway automatically provides PERSISTENT_STORAGE_PATH
+    this.volumePath = process.env.PERSISTENT_STORAGE_PATH || process.env.VOLUME_PATH || "/data";
     this.localDataPath = path.join(__dirname, "../../data");
     this.isVolumeMounted = false;
   }

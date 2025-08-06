@@ -13,7 +13,7 @@ console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'undef
 console.log(`   Is Railway: ${isRailway}\n`);
 
 // Test volume paths
-const railwayDataPath = isRailway ? '/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data');
+const railwayDataPath = isRailway ? (process.env.PERSISTENT_STORAGE_PATH || '/data') : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data');
 const backupPath = path.join(railwayDataPath, 'backups');
 const dataPath = path.join(railwayDataPath, 'data');
 
