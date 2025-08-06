@@ -3609,8 +3609,8 @@ app.get('/api/railway-cloud-data', async (req, res) => {
   }
 });
 
-// Check simple-backups directory
-app.get('/api/simple-backups', async (req, res) => {
+// List all directories in Railway data
+app.get('/api/list-railway-data', async (req, res) => {
   try {
     const fs = require('fs-extra');
     const path = require('path');
@@ -3618,82 +3618,45 @@ app.get('/api/simple-backups', async (req, res) => {
     const isRailway = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
     const dataPath = isRailway ? '/app/data' : path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data/data');
     
-    // Check simple-backups directory (try multiple locations)
-    let simpleBackupsPath = path.join(dataPath, '..', 'simple-backups');
-    let simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
+    // List all directories and files in the Railway data path
+    const allItems = await fs.readdir(dataPath);
     
-    // If not found, try inside data-backup-simulation
-    if (!simpleBackupsExist) {
-      simpleBackupsPath = path.join(dataPath, 'data-backup-simulation', 'simple-backups');
-      simpleBackupsExist = await fs.pathExists(simpleBackupsPath);
-    }
+    // Check each directory for backup-related content
+    const backupDirectories = [];
     
-    let simpleBackups = [];
-    if (simpleBackupsExist) {
-      simpleBackups = await fs.readdir(simpleBackupsPath);
-    }
-    
-    // Check old backups directory
-    const oldBackupsPath = path.join(dataPath, '..', 'backups');
-    const oldBackupsExist = await fs.pathExists(oldBackupsPath);
-    
-    let oldBackups = [];
-    if (oldBackupsExist) {
-      oldBackups = await fs.readdir(oldBackupsPath);
-    }
-    
-    // Check data-backup-simulation directory
-    const simulationPath = path.join(dataPath, 'data-backup-simulation');
-    const simulationExist = await fs.pathExists(simulationPath);
-    
-    let simulationBackups = [];
-    if (simulationExist) {
-      simulationBackups = await fs.readdir(simulationPath);
-    }
-    
-    if (!simpleBackupsExist) {
-      return res.json({ success: false, error: 'No simple-backups directory found' });
-    }
-    
-    // Find the latest backup
-    const backupDirs = simpleBackups.filter(dir => dir.startsWith('backup-'));
-    if (backupDirs.length === 0) {
-      return res.json({ success: false, error: 'No backup directories found' });
-    }
-    
-    // Sort by timestamp (newest first)
-    backupDirs.sort().reverse();
-    
-    // Check the latest backup for colleges data
-    const latestBackupDir = backupDirs[0];
-    const latestBackupPath = path.join(simpleBackupsPath, latestBackupDir);
-    const collegesPath = path.join(latestBackupPath, 'colleges.json');
-    
-    let collegesData = null;
-    if (await fs.pathExists(collegesPath)) {
-      try {
-        collegesData = await fs.readJson(collegesPath);
-      } catch (error) {
-        console.error('Error reading colleges.json:', error);
+    for (const item of allItems) {
+      const itemPath = path.join(dataPath, item);
+      const stats = await fs.stat(itemPath);
+      
+      if (stats.isDirectory()) {
+        try {
+          const subItems = await fs.readdir(itemPath);
+          backupDirectories.push({
+            name: item,
+            path: itemPath,
+            items: subItems,
+            isBackupRelated: item.includes('backup') || item.includes('Backup')
+          });
+        } catch (error) {
+          backupDirectories.push({
+            name: item,
+            path: itemPath,
+            error: error.message
+          });
+        }
       }
     }
     
     res.json({
       success: true,
       isRailway,
-      simpleBackupsPath,
-      simpleBackupsExist,
-      totalBackups: simpleBackups.length,
-      backupDirs: simpleBackups,
-      latestBackup: latestBackupDir,
-      collegesData: collegesData ? {
-        count: collegesData.length,
-        colleges: collegesData.map(c => ({ id: c.id, name: c.name }))
-      } : null
+      dataPath,
+      allItems,
+      backupDirectories
     });
   } catch (error) {
-    console.error('Check old backups error:', error);
-    res.status(500).json({ error: 'Failed to check old backups' });
+    console.error('List Railway data error:', error);
+    res.status(500).json({ error: 'Failed to list Railway data' });
   }
 });
 
