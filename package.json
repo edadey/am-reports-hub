@@ -8,7 +8,9 @@
     "dev": "nodemon app.js",
     "test": "jest",
     "build": "echo 'No build step required for Node.js app'",
-    "postinstall": "echo 'AM Reports Hub installed successfully'"
+    "postinstall": "echo 'AM Reports Hub installed successfully'",
+    "db:migrate": "node src/database/migrate-data.js",
+    "db:setup": "node -e \"require('./src/services/DatabaseService').initialize().then(() => console.log('Database setup complete')).catch(console.error)\""
   },
   "engines": {
     "node": "18.x",
@@ -37,6 +39,9 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.5",
     "openai": "^5.10.2",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
