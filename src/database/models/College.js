@@ -44,6 +44,86 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: [],
     },
+    // Additional fields from file-based data
+    misContact: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    dataTransferMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    status: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'A',
+    },
+    ofstedRating: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'G',
+    },
+    reportFrequency: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'weekly',
+    },
+    template: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'standard',
+    },
+    initialConcerns: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    lastReportDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    misContactName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    misContactEmail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    renewalDate: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    modules: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: [],
+    },
+    keyStakeholders: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: [],
+    },
+    engagementLevel: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'Good',
+    },
+    swotStrengths: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    swotWeaknesses: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    swotOpportunities: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    swotThreats: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
   }, {
     tableName: 'colleges',
     timestamps: true,

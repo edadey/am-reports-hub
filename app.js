@@ -1081,8 +1081,8 @@ app.delete('/api/users/:id', authService.requireAuth(), authService.requireRole(
 // College Management Routes
 app.get('/api/colleges', async (req, res) => {
   try {
-    const colleges = await userManager.getColleges();
-    res.json(colleges);
+    const colleges = await getUserManager().getColleges();
+    res.json({ colleges });
   } catch (error) {
     console.error('Get colleges error:', error);
     res.status(500).json({ error: 'Failed to get colleges' });
@@ -1092,7 +1092,7 @@ app.get('/api/colleges', async (req, res) => {
 app.get('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const colleges = await userManager.getColleges();
+    const colleges = await getUserManager().getColleges();
     const college = colleges.find(c => c.id === parseInt(id));
     
     if (!college) {
@@ -1133,7 +1133,7 @@ app.post('/api/colleges', authService.requireAuth(), async (req, res) => {
       return res.status(400).json({ error: 'College name is required' });
     }
     
-    const result = await userManager.addCollege({
+    console.log('🔄 Creating college with data:', {
       name,
       location: location || '',
       contactPerson: contactPerson || '',
@@ -1154,7 +1154,30 @@ app.post('/api/colleges', authService.requireAuth(), async (req, res) => {
       modules: modules || []
     });
     
-    // UserManager.addCollege returns the college directly, not a success object
+    const result = await getUserManager().createCollege({
+      name,
+      location: location || '',
+      contactPerson: contactPerson || '',
+      email: email || '',
+      phone: phone || '',
+      accountManagerId: accountManagerId || null,
+      numberOfProviders: numberOfProviders || '',
+      keyStakeholder: keyStakeholder || '',
+      keyStakeholders: keyStakeholders || [],
+      superUsers: superUsers || '',
+      misContact: misContact || '',
+      dataTransferMethod: dataTransferMethod || '',
+      status: status || 'A',
+      ofstedRating: ofstedRating || 'G',
+      reportFrequency: reportFrequency || 'weekly',
+      template: template || 'standard',
+      initialConcerns: initialConcerns || '',
+      modules: modules || []
+    });
+    
+    console.log('✅ College created successfully:', result);
+    
+    // DatabaseUserManager.createCollege returns the college directly, not a success object
     res.status(201).json({ success: true, college: result });
   } catch (error) {
     console.error('Add college error:', error);
@@ -1173,7 +1196,7 @@ app.put('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     
     console.log('Update data:', updateData);
     
-    const result = await userManager.updateCollege(parseInt(id), updateData);
+    const result = await getUserManager().updateCollege(parseInt(id), updateData);
     console.log('Update result:', result);
     
     res.json({ success: true, college: result });
@@ -1188,8 +1211,21 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     console.log('DELETE /api/colleges/:id - College ID:', id);
+    console.log('DELETE /api/colleges/:id - College ID type:', typeof id);
+    console.log('DELETE /api/colleges/:id - Parsed ID:', parseInt(id));
     
-    await userManager.deleteCollege(parseInt(id));
+    // First check if the college exists
+    const colleges = await getUserManager().getColleges();
+    console.log('DELETE /api/colleges/:id - Available colleges:', colleges.map(c => ({ id: c.id, name: c.name })));
+    
+    const collegeExists = colleges.find(c => c.id === parseInt(id));
+    console.log('DELETE /api/colleges/:id - College exists:', !!collegeExists);
+    
+    if (!collegeExists) {
+      return res.status(404).json({ error: 'College not found' });
+    }
+    
+    await getUserManager().deleteCollege(parseInt(id));
     
     res.json({ success: true, message: 'College deleted successfully' });
   } catch (error) {
@@ -1202,7 +1238,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
 // Account Manager Routes
 app.get('/api/account-managers', async (req, res) => {
   try {
-    const managers = await userManager.getAccountManagers();
+    const managers = await getUserManager().getAccountManagers();
     res.json(managers);
   } catch (error) {
     console.error('Get account managers error:', error);
@@ -1218,18 +1254,19 @@ app.post('/api/account-managers', authService.requireAuth(), async (req, res) =>
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
-    const result = await userManager.addAccountManager({
+    console.log('🔄 Creating account manager with data:', { name, email, phone: phone || '', region: region || '' });
+    
+    const result = await getUserManager().createAccountManager({
       name,
       email,
       phone: phone || '',
       region: region || ''
     });
     
-    if (result.success) {
-      res.status(201).json({ success: true, manager: result.manager });
-    } else {
-      res.status(400).json({ error: result.message });
-    }
+    console.log('✅ Account manager created successfully:', result);
+    
+    // DatabaseUserManager.createAccountManager returns the manager directly
+    res.status(201).json({ success: true, manager: result });
   } catch (error) {
     console.error('Add account manager error:', error);
     res.status(500).json({ error: 'Failed to add account manager' });
@@ -1245,18 +1282,15 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
-    const result = await userManager.updateAccountManager(id, {
+    const result = await getUserManager().updateAccountManager(id, {
       name,
       email,
       phone: phone || '',
       region: region || ''
     });
     
-    if (result.success) {
-      res.json({ success: true, manager: result.manager });
-    } else {
-      res.status(400).json({ error: result.message });
-    }
+    // DatabaseUserManager.updateAccountManager returns the manager directly
+    res.json({ success: true, manager: result });
   } catch (error) {
     console.error('Update account manager error:', error);
     res.status(500).json({ error: 'Failed to update account manager' });
@@ -1266,7 +1300,7 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
 app.get('/api/account-managers/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const managers = await userManager.getAccountManagers();
+    const managers = await getUserManager().getAccountManagers();
     const manager = managers.find(m => m.id === parseInt(id));
     
     if (!manager) {
@@ -1349,7 +1383,7 @@ app.delete('/api/colleges/:collegeId/reports/:reportId', authService.requireAuth
 app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const colleges = await userManager.getColleges();
+    const colleges = await getUserManager().getColleges();
     // Handle both string and number IDs
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
@@ -1368,7 +1402,7 @@ app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) 
 app.get('/api/account-managers/:accountManagerId', authService.requireAuth(), async (req, res) => {
   try {
     const { accountManagerId } = req.params;
-    const accountManagers = await userManager.getAccountManagers();
+    const accountManagers = await getUserManager().getAccountManagers();
     // Handle both string and number IDs
     const accountManager = accountManagers.find(am => 
       am.id === parseInt(accountManagerId) || am.id === accountManagerId || am.id.toString() === accountManagerId
@@ -1394,7 +1428,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     }
 
     // Get college data for filename
-    const colleges = await userManager.getColleges();
+    const colleges = await getUserManager().getColleges();
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
     );
@@ -3711,21 +3745,70 @@ app.get('/api/debug/railway-backup-status', async (req, res) => {
   try {
     const backupStats = await railwayBackupService.getStorageStats();
     const backups = await railwayBackupService.listBackups();
-    const dataPath = railwayBackupService.getDataPath();
-    const backupPath = railwayBackupService.getBackupPath();
     
     res.json({
       success: true,
       backupStats,
-      backups: backups, // Show all backups (unlimited)
-      dataPath,
-      backupPath,
-      environment: process.env.NODE_ENV,
-      railwayEnvironment: process.env.RAILWAY_ENVIRONMENT
+      backups,
+      environment: {
+        NODE_ENV: process.env.NODE_ENV,
+        RAILWAY_ENVIRONMENT: process.env.RAILWAY_ENVIRONMENT,
+        PERSISTENT_STORAGE_PATH: process.env.PERSISTENT_STORAGE_PATH,
+        DATABASE_URL: process.env.DATABASE_URL ? 'Set' : 'Not set'
+      }
     });
   } catch (error) {
-    console.error('Railway backup status error:', error);
+    console.error('Debug Railway backup status error:', error);
     res.status(500).json({ error: 'Failed to get Railway backup status' });
+  }
+});
+
+// Temporary debug endpoint to restore college data
+app.post('/api/debug/restore-colleges', async (req, res) => {
+  try {
+    console.log('🔄 Restoring college data via debug endpoint...');
+    
+    // Add colleges to database
+    const { College } = require('./src/database/models');
+    console.log('📋 College model loaded:', College ? 'Yes' : 'No');
+    
+    // Test with a simple college first
+    const testCollege = {
+      id: 999999999,
+      name: "Test College",
+      numberOfProviders: "1",
+      accountManagerId: "1752605613330",
+      keyContact: "Test Contact",
+      keyStakeholder: "",
+      superUsers: [],
+      courses: [],
+      placements: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    console.log('🔄 Attempting to create test college...');
+    
+    try {
+      const result = await College.create(testCollege);
+      console.log('✅ Test college created successfully:', result.name);
+      
+      res.json({
+        success: true,
+        message: `Test college created successfully: ${result.name}`,
+        college: result
+      });
+    } catch (error) {
+      console.error('❌ Error creating test college:', error);
+      res.status(500).json({ 
+        error: 'Failed to create test college: ' + error.message,
+        details: error
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Error in restore colleges endpoint:', error);
+    res.status(500).json({ error: 'Failed to restore colleges: ' + error.message });
   }
 });
 
@@ -4152,12 +4235,18 @@ async function initializeServices() {
       
       console.log('🔄 Initializing data preservation service...');
       await dataPreservationService.initializeDataPreservation();
-      
-      console.log('🔄 Initializing Railway cloud backup service...');
-      await railwayBackupService.initialize();
-      
+    }
+    
+    // Always initialize Railway backup service for persistent storage
+    console.log('🔄 Initializing Railway cloud backup service...');
+    await railwayBackupService.initialize();
+    
+    // Only initialize cloud backup service if not in Railway environment
+    if (!process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
       console.log('🔄 Initializing cloud backup service...');
       await cloudBackupService.initialize();
+    } else {
+      console.log('ℹ️ Skipping cloud backup service in Railway environment - using Railway persistent storage');
     }
     
     console.log('✅ Core services initialized successfully');
@@ -4167,6 +4256,33 @@ async function initializeServices() {
     // Don't throw error - allow app to continue running
   }
 }
+
+// Database migration endpoint (protected, only for admin use)
+app.post('/api/admin/migrate-database', authService.requireAuth(), async (req, res) => {
+  try {
+    // Only allow system administrators to run migrations
+    if (req.user.role !== 'system_administrator') {
+      return res.status(403).json({ error: 'Unauthorized. System administrator access required.' });
+    }
+    
+    console.log('🚀 Running database migration from admin endpoint...');
+    
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({ error: 'DATABASE_URL not configured' });
+    }
+    
+    const runMigration = require('./migrate-database-on-railway');
+    await runMigration();
+    
+    res.json({ 
+      success: true, 
+      message: 'Database migration completed successfully!' 
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Migration failed: ' + error.message });
+  }
+});
 
 // Start server immediately
 app.listen(PORT, () => {

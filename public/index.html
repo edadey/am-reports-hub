@@ -1192,6 +1192,20 @@
           colleges = [];
         }
         
+        // Ensure all colleges have required properties with defaults
+        colleges = colleges.map(college => ({
+          id: college.id,
+          name: college.name || 'Unnamed College',
+          numberOfProviders: college.numberOfProviders || '',
+          accountManagerId: college.accountManagerId || null,
+          reportFrequency: college.reportFrequency || 'weekly',
+          lastReportDate: college.lastReportDate || null,
+          status: college.status || 'A',
+          ofstedRating: college.ofstedRating || 'G',
+          template: college.template || 'standard',
+          ...college // Keep any additional properties
+        }));
+        
         // Set allColleges to the same data for search functionality
         allColleges = [...colleges];
         

@@ -1,0 +1,171 @@
+{
+  "collegeId": "1753881066289",
+  "lastUpdated": "2025-08-01T10:14:02.102Z",
+  "version": "1.0",
+  "timeSeries": {
+    "placements": [
+      {
+        "date": "2025-07-30",
+        "value": 110,
+        "reportId": "1753887818398",
+        "timestamp": "2025-07-30T15:03:38.398Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 108,
+        "reportId": "1754034681783",
+        "timestamp": "2025-08-01T07:51:21.783Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 108,
+        "reportId": "1754041848464",
+        "timestamp": "2025-08-01T09:50:48.464Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 108,
+        "reportId": "1754043160599",
+        "timestamp": "2025-08-01T10:12:40.599Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 108,
+        "reportId": "1754043242097",
+        "timestamp": "2025-08-01T10:14:02.097Z"
+      }
+    ],
+    "activities": [
+      {
+        "date": "2025-07-30",
+        "value": 3,
+        "reportId": "1753887818398",
+        "timestamp": "2025-07-30T15:03:38.398Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 3,
+        "reportId": "1754034681783",
+        "timestamp": "2025-08-01T07:51:21.783Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 3,
+        "reportId": "1754041848464",
+        "timestamp": "2025-08-01T09:50:48.464Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 3,
+        "reportId": "1754043160599",
+        "timestamp": "2025-08-01T10:12:40.599Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 3,
+        "reportId": "1754043242097",
+        "timestamp": "2025-08-01T10:14:02.097Z"
+      }
+    ],
+    "assessments": [
+      {
+        "date": "2025-07-30",
+        "completed": 110,
+        "pending": 0,
+        "total": 110,
+        "reportId": "1753887818398",
+        "timestamp": "2025-07-30T15:03:38.398Z"
+      },
+      {
+        "date": "2025-08-01",
+        "completed": 108,
+        "pending": 0,
+        "total": 108,
+        "reportId": "1754034681783",
+        "timestamp": "2025-08-01T07:51:21.783Z"
+      },
+      {
+        "date": "2025-08-01",
+        "completed": 108,
+        "pending": 0,
+        "total": 108,
+        "reportId": "1754041848464",
+        "timestamp": "2025-08-01T09:50:48.464Z"
+      },
+      {
+        "date": "2025-08-01",
+        "completed": 108,
+        "pending": 0,
+        "total": 108,
+        "reportId": "1754043160599",
+        "timestamp": "2025-08-01T10:12:40.599Z"
+      },
+      {
+        "date": "2025-08-01",
+        "completed": 108,
+        "pending": 0,
+        "total": 108,
+        "reportId": "1754043242097",
+        "timestamp": "2025-08-01T10:14:02.097Z"
+      }
+    ],
+    "careers": [
+      {
+        "date": "2025-07-30",
+        "value": 17,
+        "reportId": "1753887818398",
+        "timestamp": "2025-07-30T15:03:38.398Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 16,
+        "reportId": "1754034681783",
+        "timestamp": "2025-08-01T07:51:21.783Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 16,
+        "reportId": "1754041848464",
+        "timestamp": "2025-08-01T09:50:48.464Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 16,
+        "reportId": "1754043160599",
+        "timestamp": "2025-08-01T10:12:40.599Z"
+      },
+      {
+        "date": "2025-08-01",
+        "value": 16,
+        "reportId": "1754043242097",
+        "timestamp": "2025-08-01T10:14:02.097Z"
+      }
+    ]
+  },
+  "summary": {
+    "totalReports": 5,
+    "dateRange": {
+      "firstReport": "2025-07-30T15:03:38.398Z",
+      "lastReport": "2025-08-01T10:14:02.097Z"
+    },
+    "averages": {
+      "placements": 108,
+      "activities": 3,
+      "assessments": 108,
+      "careers": 16
+    },
+    "trends": {
+      "placements": "stable",
+      "activities": "stable",
+      "assessments": "stable",
+      "careers": "stable"
+    }
+  },
+  "metadata": {
+    "lastProcessedReport": "1754043242097",
+    "dataIntegrity": {
+      "checksum": null,
+      "lastValidated": null
+    }
+  }
+}

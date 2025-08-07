@@ -9,7 +9,7 @@ class RailwayBackupService {
     
     if (isRailway) {
       // Railway persistent volume - use Railway's built-in persistent storage
-      // Railway automatically provides PERSISTENT_STORAGE_PATH environment variable
+      // Railway uses /data for persistent storage in production
       this.railwayDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
       console.log('☁️ Using Railway persistent volume:', this.railwayDataPath);
     } else {
@@ -58,9 +58,19 @@ class RailwayBackupService {
       await fs.ensureDir(this.dataPath);
       await fs.ensureDir(this.backupPath);
       
-      // Create subdirectories
+      // Create and migrate subdirectories
+      const appDataPath = path.join(process.cwd(), 'data');
       for (const dir of this.dataDirectories) {
-        await fs.ensureDir(path.join(this.dataPath, dir));
+        const appDirPath = path.join(appDataPath, dir);
+        const railwayDirPath = path.join(this.dataPath, dir);
+        
+        await fs.ensureDir(railwayDirPath);
+        
+        // Migrate directory contents if app directory exists
+        if (await fs.pathExists(appDirPath)) {
+          console.log(`📦 Migrating directory: ${dir}`);
+          await fs.copy(appDirPath, railwayDirPath);
+        }
       }
       
       // Validate Railway storage
@@ -69,15 +79,18 @@ class RailwayBackupService {
       // Migrate data from old locations if needed
       await this.migrateDataIfNeeded();
       
-          // Create initial backup if none exist
-    const existingBackups = await this.listBackups();
-    if (existingBackups.length === 0) {
-      console.log('🔄 No Railway backups found, creating initial cloud backup...');
-      const backup = await this.createBackup('Initial Railway cloud backup');
-      console.log(`✅ Initial backup created: ${backup.backupId}`);
-    } else {
-      console.log(`✅ Found ${existingBackups.length} existing Railway backups`);
-    }
+          // Check for existing backups and restore if needed
+      const existingBackups = await this.listBackups();
+      if (existingBackups.length === 0) {
+        console.log('🔄 No Railway backups found, creating initial cloud backup...');
+        const backup = await this.createBackup('Initial Railway cloud backup');
+        console.log(`✅ Initial backup created: ${backup.backupId}`);
+      } else {
+        console.log(`✅ Found ${existingBackups.length} existing Railway backups`);
+        
+        // Check if database is empty and restore from latest backup
+        await this.restoreFromLatestBackupIfNeeded();
+      }
       
       console.log('✅ Railway Cloud Backup Service initialized');
       console.log(`💾 Cloud storage capacity: ${this.maxStorageGB}GB available`);
@@ -93,19 +106,33 @@ class RailwayBackupService {
     try {
       console.log('🔄 Checking for data migration needs...');
       
-      // Check if we need to migrate from old data locations
+      // Check if we need to migrate from app data locations
+      const appDataPath = path.join(process.cwd(), 'data');
       const oldDataPaths = [
-        '/data/colleges.json',
-        '/data/users.json',
-        '/data/accountManagers.json'
+        path.join(appDataPath, 'colleges.json'),
+        path.join(appDataPath, 'users.json'),
+        path.join(appDataPath, 'accountManagers.json'),
+        path.join(appDataPath, 'templates.json'),
+        path.join(appDataPath, 'kpis.json'),
+        path.join(appDataPath, 'sessions.json'),
+        path.join(appDataPath, 'security-logs.json'),
+        path.join(appDataPath, 'login-attempts.json'),
+        path.join(appDataPath, 'previous-reports.json')
       ];
       
       const railwayDataPaths = [
         path.join(this.dataPath, 'colleges.json'),
         path.join(this.dataPath, 'users.json'),
-        path.join(this.dataPath, 'accountManagers.json')
+        path.join(this.dataPath, 'accountManagers.json'),
+        path.join(this.dataPath, 'templates.json'),
+        path.join(this.dataPath, 'kpis.json'),
+        path.join(this.dataPath, 'sessions.json'),
+        path.join(this.dataPath, 'security-logs.json'),
+        path.join(this.dataPath, 'login-attempts.json'),
+        path.join(this.dataPath, 'previous-reports.json')
       ];
       
+      let migratedCount = 0;
       for (let i = 0; i < oldDataPaths.length; i++) {
         const oldPath = oldDataPaths[i];
         const newPath = railwayDataPaths[i];
@@ -116,10 +143,11 @@ class RailwayBackupService {
         if (oldExists && !newExists) {
           console.log(`📦 Migrating data from ${oldPath} to ${newPath}`);
           await fs.copy(oldPath, newPath);
+          migratedCount++;
         }
       }
       
-      console.log('✅ Data migration completed');
+      console.log(`✅ Data migration completed: ${migratedCount} files migrated`);
     } catch (error) {
       console.error('❌ Error during data migration:', error);
     }
@@ -178,6 +206,12 @@ class RailwayBackupService {
           directoryCount: 0
         }
       };
+      
+      // Backup database data if DATABASE_URL is available
+      if (process.env.DATABASE_URL) {
+        console.log('🗄️ Backing up database data...');
+        await this.backupDatabaseData(backupDir, manifest);
+      }
       
       // Backup essential files
       for (const filename of this.essentialFiles) {
@@ -304,9 +338,9 @@ class RailwayBackupService {
         throw new Error(`Railway backup ${backupId} not found`);
       }
       
-      // Create backup before restore
-      console.log('📦 Creating pre-restore Railway backup...');
-      await this.createBackup(`Pre-restore backup for ${backupId}`);
+      // Optional: Create backup before restore (commented out to prevent multiple backups)
+      // console.log('📦 Creating pre-restore Railway backup...');
+      // await this.createBackup(`Pre-restore backup for ${backupId}`);
       
       const backupPath = path.join(this.backupPath, backup.directory);
       const manifestPath = path.join(backupPath, 'backup-info.json');
@@ -314,14 +348,21 @@ class RailwayBackupService {
       
       console.log(`   📁 Restoring to: ${this.dataPath}`);
       
-      // Restore files
+      // Restore files and database data
       for (const file of manifest.files) {
         const sourcePath = path.join(backupPath, file.name);
-        const destPath = path.join(this.dataPath, file.name);
         
         if (await fs.pathExists(sourcePath)) {
-          await fs.copy(sourcePath, destPath);
-          console.log(`   ✅ Restored ${file.name}`);
+          if (file.type === 'database') {
+            // Restore database data
+            await this.restoreDatabaseData(file.name, sourcePath);
+            console.log(`   ✅ Restored database: ${file.name} (${file.recordCount} records)`);
+          } else {
+            // Restore regular files
+            const destPath = path.join(this.dataPath, file.name);
+            await fs.copy(sourcePath, destPath);
+            console.log(`   ✅ Restored ${file.name}`);
+          }
         }
       }
       
@@ -401,6 +442,146 @@ class RailwayBackupService {
   // Utility methods
   generateBackupId() {
     return crypto.randomBytes(8).toString('hex');
+  }
+
+  async restoreDatabaseData(filename, sourcePath) {
+    try {
+      const dbManager = require('./DatabaseUserManager');
+      await dbManager.initialize();
+      
+      const data = await fs.readJson(sourcePath);
+      
+      if (filename === 'colleges.json') {
+        // Clear existing colleges and restore from backup
+        const existingColleges = await dbManager.getColleges();
+        for (const college of existingColleges) {
+          await dbManager.deleteCollege(college.id);
+        }
+        
+        // Restore colleges from backup
+        for (const college of data) {
+          await dbManager.createCollege(college);
+        }
+      } else if (filename === 'accountManagers.json') {
+        // Clear existing account managers and restore from backup
+        const existingManagers = await dbManager.getAccountManagers();
+        for (const manager of existingManagers) {
+          await dbManager.deleteAccountManager(manager.id);
+        }
+        
+        // Restore account managers from backup
+        for (const manager of data) {
+          await dbManager.createAccountManager(manager);
+        }
+      } else if (filename === 'users.json') {
+        // Note: We don't restore users to avoid overwriting admin accounts
+        console.log(`   ⚠️ Skipping user restore to preserve admin accounts`);
+      }
+      
+    } catch (error) {
+      console.error(`❌ Error restoring database data from ${filename}:`, error);
+      throw error;
+    }
+  }
+
+  async restoreFromLatestBackupIfNeeded() {
+    try {
+      console.log('🔄 Checking if database restoration is needed...');
+      
+      const dbManager = require('./DatabaseUserManager');
+      await dbManager.initialize();
+      
+      // Check if database has data
+      const colleges = await dbManager.getColleges();
+      const accountManagers = await dbManager.getAccountManagers();
+      
+      // If database has data, no restoration needed
+      if (colleges.length > 0 || accountManagers.length > 0) {
+        console.log(`✅ Database has data (${colleges.length} colleges, ${accountManagers.length} managers) - no restoration needed`);
+        return;
+      }
+      
+      // Database is empty, restore from latest backup
+      const existingBackups = await this.listBackups();
+      if (existingBackups.length === 0) {
+        console.log('ℹ️ No backups available for restoration');
+        return;
+      }
+      
+      // Get the most recent backup
+      const latestBackup = existingBackups[0]; // Backups are sorted by timestamp desc
+      console.log(`🔄 Database is empty, restoring from latest backup: ${latestBackup.backupId}`);
+      
+      // Restore the backup
+      await this.restoreBackup(latestBackup.backupId);
+      console.log('✅ Database restored from latest backup');
+      
+    } catch (error) {
+      console.error('❌ Error during automatic backup restoration:', error);
+      // Don't throw error - this is a recovery mechanism, shouldn't break the app
+    }
+  }
+
+  async backupDatabaseData(backupDir, manifest) {
+    try {
+      const dbManager = require('./DatabaseUserManager');
+      await dbManager.initialize();
+      
+      // Backup colleges
+      const colleges = await dbManager.getColleges();
+      const collegesPath = path.join(backupDir, 'colleges.json');
+      await fs.writeJson(collegesPath, colleges, { spaces: 2 });
+      const collegesStats = await fs.stat(collegesPath);
+      
+      manifest.files.push({
+        name: 'colleges.json',
+        size: collegesStats.size,
+        type: 'database',
+        recordCount: colleges.length
+      });
+      manifest.metadata.totalSize += collegesStats.size;
+      manifest.metadata.fileCount++;
+      
+      console.log(`   ✅ colleges.json (${this.formatBytes(collegesStats.size)}, ${colleges.length} colleges)`);
+      
+      // Backup account managers
+      const accountManagers = await dbManager.getAccountManagers();
+      const accountManagersPath = path.join(backupDir, 'accountManagers.json');
+      await fs.writeJson(accountManagersPath, accountManagers, { spaces: 2 });
+      const accountManagersStats = await fs.stat(accountManagersPath);
+      
+      manifest.files.push({
+        name: 'accountManagers.json',
+        size: accountManagersStats.size,
+        type: 'database',
+        recordCount: accountManagers.length
+      });
+      manifest.metadata.totalSize += accountManagersStats.size;
+      manifest.metadata.fileCount++;
+      
+      console.log(`   ✅ accountManagers.json (${this.formatBytes(accountManagersStats.size)}, ${accountManagers.length} managers)`);
+      
+      // Backup users
+      const users = await dbManager.getUsers();
+      const usersPath = path.join(backupDir, 'users.json');
+      await fs.writeJson(usersPath, users, { spaces: 2 });
+      const usersStats = await fs.stat(usersPath);
+      
+      manifest.files.push({
+        name: 'users.json',
+        size: usersStats.size,
+        type: 'database',
+        recordCount: users.length
+      });
+      manifest.metadata.totalSize += usersStats.size;
+      manifest.metadata.fileCount++;
+      
+      console.log(`   ✅ users.json (${this.formatBytes(usersStats.size)}, ${users.length} users)`);
+      
+    } catch (error) {
+      console.error('❌ Error backing up database data:', error);
+      throw error;
+    }
   }
 
   async calculateChecksum(filePath) {

@@ -102,6 +102,12 @@
                         </svg>
                         Refresh Data
                     </button>
+                    <button onclick="runDatabaseMigration()" class="w-full bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
+                        </svg>
+                        Run Database Migration
+                    </button>
                 </div>
             </div>
 
@@ -232,7 +238,7 @@
                             <p class="text-xs text-gray-500 mt-1">Created: ${new Date(backup.timestamp).toLocaleString()}</p>
                         </div>
                         <div class="flex space-x-2">
-                            <button onclick="restoreBackup('${backup.timestamp}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors">
+                            <button onclick="restoreBackup('${backup.backupId}')" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors">
                                 Restore
                             </button>
                         </div>
@@ -282,15 +288,43 @@
             } finally {
                 // Restore the button state with error handling
                 try {
-                    if (button && !buttonRestored) {
+                    if (button) {
                         button.innerHTML = originalText;
                         button.disabled = false;
-                        buttonRestored = true;
                         console.log('Button restored successfully');
                     }
                 } catch (restoreError) {
                     console.error('Error restoring button:', restoreError);
                 }
+            }
+        }
+
+        async function restoreBackup(backupId) {
+            if (!confirm('Are you sure you want to restore this backup? This will overwrite current data.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/backup/restore/${backupId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Backup restored successfully!');
+                    setTimeout(() => {
+                        window.location.href = '/college-dashboard';
+                    }, 2000);
+                } else {
+                    showToast('Failed to restore backup', 'error');
+                }
+            } catch (error) {
+                console.error('Error restoring backup:', error);
+                showToast('Error restoring backup', 'error');
             }
         }
 
@@ -345,6 +379,38 @@
             showToast('Data refreshed');
         }
 
+        async function runDatabaseMigration() {
+            if (!confirm('Are you sure you want to run the database migration? This will add missing fields to the colleges table.')) {
+                return;
+            }
+
+            try {
+                showToast('Running database migration...', 'info');
+                
+                const response = await fetch('/api/admin/migrate-database', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast('Database migration completed successfully!', 'success');
+                    // Refresh page after successful migration
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    throw new Error(result.error || 'Migration failed');
+                }
+            } catch (error) {
+                console.error('Migration error:', error);
+                showToast('Migration failed: ' + error.message, 'error');
+            }
+        }
+
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
@@ -353,6 +419,8 @@
             
             if (type === 'error') {
                 toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+            } else if (type === 'info') {
+                toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
             } else {
                 toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
             }

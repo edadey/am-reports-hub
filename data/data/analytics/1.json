@@ -1,0 +1,67 @@
+{
+  "collegeId": "1",
+  "lastUpdated": "2025-08-05T11:04:08.892Z",
+  "version": "1.0",
+  "timeSeries": {
+    "placements": [
+      {
+        "date": "2025-08-05",
+        "value": 105,
+        "reportId": "1754391848877",
+        "timestamp": "2025-08-05T11:04:08.877Z"
+      }
+    ],
+    "activities": [
+      {
+        "date": "2025-08-05",
+        "value": 0,
+        "reportId": "1754391848877",
+        "timestamp": "2025-08-05T11:04:08.877Z"
+      }
+    ],
+    "assessments": [
+      {
+        "date": "2025-08-05",
+        "completed": 0,
+        "pending": 0,
+        "total": 0,
+        "reportId": "1754391848877",
+        "timestamp": "2025-08-05T11:04:08.877Z"
+      }
+    ],
+    "careers": [
+      {
+        "date": "2025-08-05",
+        "value": 0,
+        "reportId": "1754391848877",
+        "timestamp": "2025-08-05T11:04:08.877Z"
+      }
+    ]
+  },
+  "summary": {
+    "totalReports": 1,
+    "dateRange": {
+      "firstReport": "2025-08-05T11:04:08.877Z",
+      "lastReport": "2025-08-05T11:04:08.877Z"
+    },
+    "averages": {
+      "placements": 105,
+      "activities": 0,
+      "assessments": 0,
+      "careers": 0
+    },
+    "trends": {
+      "placements": "stable",
+      "activities": "stable",
+      "assessments": "stable",
+      "careers": "stable"
+    }
+  },
+  "metadata": {
+    "lastProcessedReport": "1754391848877",
+    "dataIntegrity": {
+      "checksum": null,
+      "lastValidated": null
+    }
+  }
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "id": 1753451320020,
+    "collegeId": 1753277599076,
+    "name": "Increase the percentage of recorded activities to at least 25% within the next six months.",
+    "status": "on_target",
+    "notes": "",
+    "order": 1,
+    "createdAt": "2025-07-25T13:48:40.020Z",
+    "updatedAt": "2025-07-25T13:48:40.020Z"
+  },
+  {
+    "id": 1753451320021,
+    "collegeId": 1753277599076,
+    "name": "Improve placement rate to a target of 45% over the next year.",
+    "status": "on_target",
+    "notes": "",
+    "order": 2,
+    "createdAt": "2025-07-25T13:48:40.020Z",
+    "updatedAt": "2025-07-25T13:48:40.020Z"
+  },
+  {
+    "id": 1753451320022,
+    "collegeId": 1753277599076,
+    "name": "Aim for 80% of staff involved in activity recording to be confident in using Navigate effectively.",
+    "status": "on_target",
+    "notes": "",
+    "order": 3,
+    "createdAt": "2025-07-25T13:48:40.020Z",
+    "updatedAt": "2025-07-25T13:48:40.020Z"
+  },
+  {
+    "id": 1753451320023,
+    "collegeId": 1753277599076,
+    "name": "Aim for 80% of staff involved in activity recording to be confident in using Navigate effectively.",
+    "status": "on_target",
+    "notes": "",
+    "order": 4,
+    "createdAt": "2025-07-25T13:48:40.020Z",
+    "updatedAt": "2025-07-25T13:48:40.020Z"
+  },
+  {
+    "id": 1754045008401,
+    "collegeId": 1753881066289,
+    "name": "Test",
+    "status": "on_target",
+    "notes": "",
+    "order": 1,
+    "createdAt": "2025-08-01T10:43:28.401Z",
+    "updatedAt": "2025-08-01T10:43:28.401Z"
+  },
+  {
+    "id": 1754045008402,
+    "collegeId": 1753881066289,
+    "name": "Test2",
+    "status": "on_target",
+    "notes": "",
+    "order": 2,
+    "createdAt": "2025-08-01T10:43:28.401Z",
+    "updatedAt": "2025-08-01T10:43:28.401Z"
+  },
+  {
+    "id": 1754045008403,
+    "collegeId": 1753881066289,
+    "name": "Raise activity participation from 7% to 20% within 6 months by promoting extracurricular opportunities and tracking student involvement via Navigate's activity management tools.",
+    "status": "on_target",
+    "notes": "",
+    "order": 3,
+    "createdAt": "2025-08-01T10:43:28.401Z",
+    "updatedAt": "2025-08-01T10:43:28.401Z"
+  }
+]

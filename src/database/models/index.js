@@ -2,8 +2,24 @@ const { Sequelize } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
 
+// Build database URL from individual components if DATABASE_URL is not working
+function buildDatabaseUrl() {
+  if (process.env.DATABASE_URL) {
+    return process.env.DATABASE_URL;
+  }
+  
+  // Fallback to individual PostgreSQL environment variables
+  const host = process.env.PGHOST || 'localhost';
+  const port = process.env.PGPORT || '5432';
+  const database = process.env.PGDATABASE || 'am_reports_hub';
+  const username = process.env.PGUSER || 'postgres';
+  const password = process.env.PGPASSWORD || '';
+  
+  return `postgresql://${username}:${password}@${host}:${port}/${database}`;
+}
+
 // Database connection with Railway-specific configuration
-const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://localhost:5432/am_reports_hub', {
+const sequelize = new Sequelize(buildDatabaseUrl(), {
   dialect: 'postgres',
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
   pool: {

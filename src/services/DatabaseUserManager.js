@@ -217,7 +217,45 @@ class DatabaseUserManager {
         }],
         order: [['name', 'ASC']],
       });
-      return colleges.map(college => college.toJSON());
+      
+      // Map colleges and ensure all expected fields exist with defaults
+      return colleges.map(college => {
+        const collegeData = college.toJSON();
+        
+        // Ensure all expected fields exist with defaults
+        return {
+          id: collegeData.id,
+          name: collegeData.name || 'Unnamed College',
+          numberOfProviders: collegeData.numberOfProviders || '',
+          accountManagerId: collegeData.accountManagerId || null,
+          keyContact: collegeData.keyContact || '',
+          keyStakeholder: collegeData.keyStakeholder || '',
+          superUsers: collegeData.superUsers || [],
+          courses: collegeData.courses || [],
+          placements: collegeData.placements || [],
+          // Additional fields with defaults
+          misContact: collegeData.misContact || '',
+          dataTransferMethod: collegeData.dataTransferMethod || '',
+          status: collegeData.status || 'A',
+          ofstedRating: collegeData.ofstedRating || 'G',
+          reportFrequency: collegeData.reportFrequency || 'weekly',
+          template: collegeData.template || 'standard',
+          initialConcerns: collegeData.initialConcerns || '',
+          lastReportDate: collegeData.lastReportDate || null,
+          misContactName: collegeData.misContactName || '',
+          misContactEmail: collegeData.misContactEmail || '',
+          renewalDate: collegeData.renewalDate || '',
+          modules: collegeData.modules || [],
+          keyStakeholders: collegeData.keyStakeholders || [],
+          engagementLevel: collegeData.engagementLevel || 'Good',
+          swotStrengths: collegeData.swotStrengths || '',
+          swotWeaknesses: collegeData.swotWeaknesses || '',
+          swotOpportunities: collegeData.swotOpportunities || '',
+          swotThreats: collegeData.swotThreats || '',
+          createdAt: collegeData.createdAt || new Date(),
+          updatedAt: collegeData.updatedAt || new Date(),
+        };
+      });
     } catch (error) {
       console.error('Error getting colleges:', error);
       throw error;
