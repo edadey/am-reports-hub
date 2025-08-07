@@ -361,6 +361,27 @@ app.get('/api/backup/stats', async (req, res) => {
   }
 });
 
+// Debug endpoint to inspect backup data
+app.get('/api/backup/debug/:backupId', async (req, res) => {
+  try {
+    const { backupId } = req.params;
+    console.log(`🔍 Debugging backup: ${backupId}`);
+    
+    if (!railwayBackupService || !railwayBackupService.getBackupDetails) {
+      return res.status(500).json({ error: 'Backup service not available' });
+    }
+    
+    const backupDetails = await railwayBackupService.getBackupDetails(backupId);
+    res.json({
+      success: true,
+      backupDetails
+    });
+  } catch (error) {
+    console.error('Backup debug error:', error);
+    res.status(500).json({ error: 'Failed to debug backup: ' + error.message });
+  }
+});
+
 // Database Migration Route
 app.post('/api/migrate-to-database', async (req, res) => {
   try {

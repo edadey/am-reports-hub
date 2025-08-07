@@ -389,6 +389,37 @@ class PostgreSQLBackupService {
     }
   }
 
+  async getBackupDetails(backupId) {
+    try {
+      const backup = await this.BackupModel.findOne({
+        where: { backupId }
+      });
+
+      if (!backup) {
+        throw new Error(`Backup ${backupId} not found`);
+      }
+
+      return {
+        backupId: backup.backupId,
+        description: backup.description,
+        backupType: backup.backupType,
+        timestamp: backup.createdAt.toISOString(),
+        size: backup.size,
+        metadata: backup.metadata,
+        collegesCount: backup.backupData.colleges ? backup.backupData.colleges.length : 0,
+        accountManagersCount: backup.backupData.accountManagers ? backup.backupData.accountManagers.length : 0,
+        collegeNames: backup.backupData.colleges ? backup.backupData.colleges.map(c => c.name || 'Unnamed') : [],
+        accountManagerNames: backup.backupData.accountManagers ? backup.backupData.accountManagers.map(a => a.name || 'Unnamed') : [],
+        createdAt: backup.createdAt,
+        updatedAt: backup.updatedAt,
+      };
+
+    } catch (error) {
+      console.error('❌ Error getting backup details:', error);
+      throw error;
+    }
+  }
+
   // Utility methods
   generateBackupId() {
     return crypto.randomBytes(8).toString('hex');
