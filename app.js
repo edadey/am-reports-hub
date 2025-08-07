@@ -288,8 +288,16 @@ app.post('/api/backup/restore/:backupId', async (req, res) => {
   try {
     const { backupId } = req.params;
     console.log(`🔄 Restoring persistent backup: ${backupId}`);
+    console.log(`🔄 Backup service type:`, typeof railwayBackupService);
+    console.log(`🔄 Backup service methods:`, Object.getOwnPropertyNames(railwayBackupService));
+    
+    if (!railwayBackupService || !railwayBackupService.restoreBackup) {
+      console.error('❌ Backup service not properly initialized');
+      return res.status(500).json({ error: 'Backup service not available' });
+    }
     
     const result = await railwayBackupService.restoreBackup(backupId);
+    console.log(`✅ Restore result:`, result);
     
     res.json({
       success: true,
@@ -298,7 +306,8 @@ app.post('/api/backup/restore/:backupId', async (req, res) => {
     });
   } catch (error) {
     console.error('Backup restore error:', error);
-    res.status(500).json({ error: 'Failed to restore backup' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to restore backup: ' + error.message });
   }
 });
 
@@ -306,15 +315,26 @@ app.post('/api/backup/restore/:backupId', async (req, res) => {
 app.post('/api/backup/restore', async (req, res) => {
   try {
     console.log('🔄 Restoring latest persistent backup...');
+    console.log(`🔄 Backup service type:`, typeof railwayBackupService);
+    
+    if (!railwayBackupService || !railwayBackupService.listBackups) {
+      console.error('❌ Backup service not properly initialized');
+      return res.status(500).json({ error: 'Backup service not available' });
+    }
     
     const backups = await railwayBackupService.listBackups();
+    console.log(`📋 Available backups:`, backups);
+    
     if (backups.length === 0) {
       return res.status(404).json({ error: 'No backups found' });
     }
     
     // Get the latest backup (first in the list)
     const latestBackup = backups[0];
+    console.log(`🔄 Restoring latest backup:`, latestBackup);
+    
     const result = await railwayBackupService.restoreBackup(latestBackup.backupId);
+    console.log(`✅ Restore result:`, result);
     
     res.json({
       success: true,
@@ -323,7 +343,8 @@ app.post('/api/backup/restore', async (req, res) => {
     });
   } catch (error) {
     console.error('Latest backup restore error:', error);
-    res.status(500).json({ error: 'Failed to restore latest backup' });
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to restore latest backup: ' + error.message });
   }
 });
 
@@ -1133,7 +1154,12 @@ app.get('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
     const colleges = await getUserManager().getColleges();
-    const college = colleges.find(c => c.id === parseInt(id));
+    const college = colleges.find(c => 
+      parseInt(c.id) === parseInt(id) || 
+      String(c.id) === String(id) || 
+      c.id === id || 
+      c.id === parseInt(id)
+    );
     
     if (!college) {
       return res.status(404).json({ error: 'College not found' });
