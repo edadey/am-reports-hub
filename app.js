@@ -792,12 +792,7 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 });
 */
 
-// Root endpoint for Railway health checks - responds immediately
-app.get('/', (req, res) => {
-  console.log('🏥 Root health check requested');
-  // Respond immediately with minimal data
-  res.status(200).send('OK');
-});
+// Root route is defined earlier to serve index.html
 
 // Simple health check endpoint for Railway - always responds (used by Railway healthcheck)
 app.get('/health', (req, res) => {
