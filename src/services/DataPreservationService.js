@@ -273,18 +273,26 @@ class DataPreservationService {
     try {
       await fs.ensureDir(backupDir);
       
-      // Copy all data files to backup
+      // Copy all data files to backup, excluding backups directory
       const dataFiles = await fs.readdir(this.dataPath);
       
       for (const file of dataFiles) {
+        // Skip backups directory to avoid circular reference
+        if (file === 'backups') {
+          console.log('   ⏭️  Skipping backups directory to avoid circular reference');
+          continue;
+        }
+        
         const sourcePath = path.join(this.dataPath, file);
         const destPath = path.join(backupDir, file);
         
         const stats = await fs.stat(sourcePath);
         if (stats.isFile()) {
           await fs.copy(sourcePath, destPath);
+          console.log(`   ✅ Copied file: ${file}`);
         } else if (stats.isDirectory()) {
           await fs.copy(sourcePath, destPath);
+          console.log(`   ✅ Copied directory: ${file}`);
         }
       }
       
@@ -292,7 +300,8 @@ class DataPreservationService {
       return backupDir;
     } catch (error) {
       console.error('❌ Error creating backup:', error);
-      throw error;
+      // Don't throw error - just log it and continue
+      console.log('⚠️  Continuing without backup creation');
     }
   }
 
