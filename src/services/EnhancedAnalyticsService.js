@@ -47,6 +47,14 @@ COLLEGE CONTEXT:
 - Student Population: ${performanceData.totalStudents || 0} students
 - Placement Rate: ${performanceData.percentWithPlacements || 0}%
 - Activity Participation: ${performanceData.percentStudentsWithActivities || 0}%
+- Careers Assessments: ${performanceData.percentCareersAssessments || 0}%
+- Assessment Completion: ${performanceData.assessmentCompletionRate || 0}%
+
+AVAILABLE DATA SECTIONS:
+${performanceData.availableSections ? Object.entries(performanceData.availableSections)
+  .filter(([key, value]) => value)
+  .map(([key, value]) => `- ${key.charAt(0).toUpperCase() + key.slice(1)}: Available`)
+  .join('\n') : '- Basic performance data available'}
 
 NAVIGATE SOFTWARE SCOPE:
 - Non-curricular enrichment activities
@@ -683,6 +691,14 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
     const studentsWithActivitiesIndex = findColumnIndex(['students with activities'], ['enrichment', 'employer']);
     const studentsWithoutAssessmentsIndex = findColumnIndex(['students without assessments']);
     
+    // Find careers-related columns with comprehensive patterns
+    const careersIndex = findColumnIndex(['career']) || 
+                        findColumnIndex(['job profile']) ||
+                        findColumnIndex(['quiz']) ||
+                        findColumnIndex(['mapped job profile']) ||
+                        findColumnIndex(['total mapped job profiles']) ||
+                        findColumnIndex(['mapped'], ['placement']);
+    
     // Find percentage columns for activities
     const percentActivitiesEnrichmentIndex = findColumnIndex(['%', 'students with activities', 'enrichment']);
     const percentActivitiesEmployerIndex = findColumnIndex(['%', 'students with activities', 'employer']);
@@ -713,7 +729,8 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
       studentsWithActivitiesEnrichment: { index: studentsWithActivitiesEnrichmentIndex, found: studentsWithActivitiesEnrichmentIndex >= 0 },
       studentsWithActivitiesEmployer: { index: studentsWithActivitiesEmployerIndex, found: studentsWithActivitiesEmployerIndex >= 0 },
       studentsWithActivitiesGeneral: { index: studentsWithActivitiesIndex, found: studentsWithActivitiesIndex >= 0 },
-      studentsWithoutAssessments: { index: studentsWithoutAssessmentsIndex, found: studentsWithoutAssessmentsIndex >= 0 }
+      studentsWithoutAssessments: { index: studentsWithoutAssessmentsIndex, found: studentsWithoutAssessmentsIndex >= 0 },
+      careers: { index: careersIndex, found: careersIndex >= 0 }
     };
 
     console.log('EnhancedAnalyticsService: Column detection results:', columnDetection);
@@ -725,6 +742,7 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
     const studentsWithActivitiesEmployer = studentsWithActivitiesEmployerIndex >= 0 ? safeParseFloat(totalRow[studentsWithActivitiesEmployerIndex]) : 0;
     const studentsWithActivitiesGeneral = studentsWithActivitiesIndex >= 0 ? safeParseFloat(totalRow[studentsWithActivitiesIndex]) : 0;
     const studentsWithoutAssessments = studentsWithoutAssessmentsIndex >= 0 ? safeParseFloat(totalRow[studentsWithoutAssessmentsIndex]) : 0;
+    const careersAssessments = careersIndex >= 0 ? safeParseFloat(totalRow[careersIndex]) : 0;
     
     // Extract percentage values from Total row
     const percentActivitiesEnrichment = percentActivitiesEnrichmentIndex >= 0 ? safeParseFloat(totalRow[percentActivitiesEnrichmentIndex]) : 0;
@@ -767,7 +785,15 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
       placements: headers.some(h => h.toLowerCase().includes('placement')),
       activities: headers.some(h => h.toLowerCase().includes('activity')),
       assessments: headers.some(h => h.toLowerCase().includes('student') && h.toLowerCase().includes('assessment')),
-      careers: headers.some(h => h.toLowerCase().includes('career'))
+      careers: careersIndex >= 0 || headers.some(h => {
+        const headerLower = h.toLowerCase();
+        return headerLower.includes('career') || 
+               headerLower.includes('job profile') || 
+               headerLower.includes('quiz') || 
+               headerLower.includes('mapped job profile') ||
+               headerLower.includes('total mapped job profiles') || 
+               (headerLower.includes('mapped') && !headerLower.includes('placement'));
+      })
     };
 
     return {
@@ -777,11 +803,13 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
       studentsWithActivitiesEnrichment: finalStudentsWithActivitiesEnrichment,
       studentsWithActivitiesEmployer: finalStudentsWithActivitiesEmployer,
       studentsWithoutAssessments,
+      careersAssessments: careersAssessments,
       percentWithPlacements: availableSections.placements && totalStudents > 0 ? (studentsWithPlacements / totalStudents) * 100 : null,
       percentStudentsWithActivities: availableSections.activities && totalStudents > 0 ? (studentsWithActivities / totalStudents) * 100 : null,
       percentStudentsWithActivitiesEnrichment: availableSections.activities && totalStudents > 0 ? (finalStudentsWithActivitiesEnrichment / totalStudents) * 100 : null,
       percentStudentsWithActivitiesEmployer: availableSections.activities && totalStudents > 0 ? (finalStudentsWithActivitiesEmployer / totalStudents) * 100 : null,
       assessmentCompletionRate: availableSections.assessments && totalStudents > 0 ? ((totalStudents - studentsWithoutAssessments) / totalStudents) * 100 : null,
+      percentCareersAssessments: availableSections.careers && totalStudents > 0 ? (careersAssessments / totalStudents) * 100 : null,
       availableSections: availableSections
     };
   }
