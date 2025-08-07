@@ -156,7 +156,21 @@
     <div id="colleges" class="tab-content hidden">
       <div class="bg-white rounded-lg shadow p-6 mb-6">
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-2xl font-semibold text-gray-900">College Management</h2>
+          <div class="flex items-center gap-4">
+            <h2 class="text-2xl font-semibold text-gray-900">College Management</h2>
+            <div class="flex items-center gap-2 text-sm text-gray-600">
+              <span id="lastRefreshTime">Last updated: Never</span>
+              <button onclick="refreshCollegeData()" class="text-blue-600 hover:text-blue-800 transition-colors" title="Refresh data (Ctrl+R)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+              </button>
+              <div class="flex items-center gap-1">
+                <span id="autoRefreshStatus" class="text-green-600">●</span>
+                <span id="autoRefreshText">Auto-refresh on</span>
+              </div>
+            </div>
+          </div>
           <div class="flex space-x-3">
             <button onclick="showAddCollegeModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
               Add College
@@ -923,12 +937,16 @@
         showCollegesLoading();
         // Reload colleges data when colleges tab is shown
         loadColleges();
-      } else if (tabName === 'dashboard') {
-        // Reload dashboard data when dashboard tab is shown
-        loadDashboardDataFromExisting();
-      } else if (tabName === 'account-managers') {
-        // Reload account managers data when account managers tab is shown
-        loadAccountManagers();
+        // Start auto-refresh for colleges
+        startAutoRefresh();
+              } else if (tabName === 'dashboard') {
+          // Reload dashboard data when dashboard tab is shown
+          stopAutoRefresh(); // Stop auto-refresh when switching to other tabs
+          loadDashboardDataFromExisting();
+        } else if (tabName === 'account-managers') {
+          // Reload account managers data when account managers tab is shown
+          stopAutoRefresh(); // Stop auto-refresh when switching to other tabs
+          loadAccountManagers();
       } else if (tabName === 'admin') {
         // Load admin data when admin tab is shown
         loadAdminData();
@@ -1236,6 +1254,14 @@
         displayColleges();
         updateCollegeSelect();
         displayAccountManagers(); // Refresh account manager display with updated college counts
+        
+        // Update last refresh time
+        updateLastRefreshTime();
+        
+        // Show subtle notification for auto-refresh
+        if (autoRefreshInterval) {
+          showAutoRefreshNotification();
+        }
       } catch (error) {
         console.error('Error loading colleges:', error.response?.status, error.response?.data, error.message);
         colleges = []; // Set empty array on error
@@ -1297,6 +1323,114 @@
         tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-4 text-center text-red-500">${message}</td></tr>`;
       }
     }
+
+    // Auto-refresh functionality
+    let autoRefreshInterval;
+    let lastRefreshTime = new Date();
+
+    function startAutoRefresh() {
+      // Clear any existing interval
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+      }
+      
+      // Set up auto-refresh every 30 seconds
+      autoRefreshInterval = setInterval(async () => {
+        console.log('🔄 Auto-refreshing college data...');
+        await loadColleges();
+      }, 30000); // 30 seconds
+      
+      console.log('✅ Auto-refresh started (30 second interval)');
+      
+      // Update visual indicators
+      const statusIndicator = document.getElementById('autoRefreshStatus');
+      const statusText = document.getElementById('autoRefreshText');
+      if (statusIndicator) statusIndicator.className = 'text-green-600';
+      if (statusText) statusText.textContent = 'Auto-refresh on';
+    }
+
+    function stopAutoRefresh() {
+      if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('⏹️ Auto-refresh stopped');
+      }
+      
+      // Update visual indicators
+      const statusIndicator = document.getElementById('autoRefreshStatus');
+      const statusText = document.getElementById('autoRefreshText');
+      if (statusIndicator) statusIndicator.className = 'text-gray-400';
+      if (statusText) statusText.textContent = 'Auto-refresh off';
+    }
+
+    function updateLastRefreshTime() {
+      lastRefreshTime = new Date();
+      const refreshIndicator = document.getElementById('lastRefreshTime');
+      if (refreshIndicator) {
+        refreshIndicator.textContent = `Last updated: ${lastRefreshTime.toLocaleTimeString()}`;
+      }
+    }
+
+    // Manual refresh function
+    async function refreshCollegeData() {
+      console.log('🔄 Manual refresh triggered');
+      showStatus('Refreshing college data...', 'info');
+      await loadColleges();
+      showStatus('College data refreshed successfully', 'success');
+    }
+
+    // Show subtle auto-refresh notification
+    function showAutoRefreshNotification() {
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-100 border border-green-400 text-green-700 px-3 py-2 rounded text-sm z-50 transition-opacity duration-500';
+      notification.innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          <span>Data updated</span>
+        </div>
+      `;
+      
+      document.body.appendChild(notification);
+      
+      // Auto-remove after 2 seconds
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 500);
+      }, 2000);
+    }
+
+    // Page visibility API to pause/resume auto-refresh
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        console.log('📱 Page hidden, pausing auto-refresh');
+        stopAutoRefresh();
+      } else {
+        console.log('📱 Page visible, resuming auto-refresh');
+        // Only resume if we're on the colleges tab
+        const collegesTab = document.getElementById('colleges');
+        if (collegesTab && !collegesTab.classList.contains('hidden')) {
+          startAutoRefresh();
+        }
+      }
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (event) => {
+      // Ctrl+R to refresh college data (only when on colleges tab)
+      if (event.ctrlKey && event.key === 'r') {
+        const collegesTab = document.getElementById('colleges');
+        if (collegesTab && !collegesTab.classList.contains('hidden')) {
+          event.preventDefault(); // Prevent browser refresh
+          refreshCollegeData();
+        }
+      }
+    });
 
     function getNextReportDate(college) {
       if (!college.lastReportDate) return 'ASAP';
