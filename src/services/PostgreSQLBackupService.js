@@ -278,7 +278,29 @@ class PostgreSQLBackupService {
     
     console.log('🔄 Restoring database data...');
 
-    // Restore colleges
+    // Restore account managers FIRST (so colleges can reference them)
+    if (backupData.accountManagers && Array.isArray(backupData.accountManagers)) {
+      console.log(`   👥 Restoring ${backupData.accountManagers.length} account managers first...`);
+      
+      // Clear existing account managers
+      const existingManagers = await DatabaseUserManager.getAccountManagers();
+      for (const manager of existingManagers) {
+        await DatabaseUserManager.deleteAccountManager(manager.id);
+      }
+      
+      // Restore account managers
+      for (const manager of backupData.accountManagers) {
+        try {
+          await DatabaseUserManager.createAccountManager(manager);
+          console.log(`     ✅ Restored manager: ${manager.name || 'Unnamed'} (ID: ${manager.id})`);
+        } catch (error) {
+          console.log(`     ⚠️ Error restoring manager ${manager.name}: ${error.message}`);
+        }
+      }
+      console.log(`   ✅ Restored ${backupData.accountManagers.length} account managers`);
+    }
+
+    // Restore colleges AFTER account managers are restored
     if (backupData.colleges && Array.isArray(backupData.colleges)) {
       console.log(`   🏫 Restoring ${backupData.colleges.length} colleges...`);
       console.log(`   📋 College names:`, backupData.colleges.map(c => c.name || 'Unnamed'));
@@ -294,7 +316,7 @@ class PostgreSQLBackupService {
       for (const college of backupData.colleges) {
         try {
           const result = await DatabaseUserManager.createCollege(college);
-          console.log(`     ✅ Restored college: ${college.name || 'Unnamed'} (ID: ${result.id})`);
+          console.log(`     ✅ Restored college: ${college.name || 'Unnamed'} (ID: ${result.id}, AM: ${college.accountManagerId || 'None'})`);
         } catch (error) {
           console.log(`     ⚠️ Error restoring college ${college.name}: ${error.message}`);
         }
@@ -302,27 +324,6 @@ class PostgreSQLBackupService {
       console.log(`   ✅ Restored ${backupData.colleges.length} colleges`);
     } else {
       console.log(`   ⚠️ No colleges data found in backup`);
-    }
-
-    // Restore account managers
-    if (backupData.accountManagers && Array.isArray(backupData.accountManagers)) {
-      console.log(`   👥 Restoring ${backupData.accountManagers.length} account managers...`);
-      
-      // Clear existing account managers
-      const existingManagers = await DatabaseUserManager.getAccountManagers();
-      for (const manager of existingManagers) {
-        await DatabaseUserManager.deleteAccountManager(manager.id);
-      }
-      
-      // Restore account managers
-      for (const manager of backupData.accountManagers) {
-        try {
-          await DatabaseUserManager.createAccountManager(manager);
-        } catch (error) {
-          console.log(`     ⚠️ Error restoring manager ${manager.name}: ${error.message}`);
-        }
-      }
-      console.log(`   ✅ Restored account managers`);
     }
 
     // Note: We don't restore users to avoid overwriting admin accounts
