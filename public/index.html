@@ -1421,7 +1421,7 @@
       const numericId = parseInt(collegeId);
       console.log('🔄 Parsed numeric ID:', numericId);
       
-      const college = colleges.find(c => c.id === numericId);
+      const college = colleges.find(c => parseInt(c.id) === numericId || c.id === collegeId || String(c.id) === String(collegeId));
       console.log('🔄 Found college:', college);
       
       if (!college) {

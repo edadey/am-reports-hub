@@ -1258,8 +1258,14 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     const colleges = await getUserManager().getColleges();
     console.log('DELETE /api/colleges/:id - Available colleges:', colleges.map(c => ({ id: c.id, name: c.name })));
     
-    const collegeExists = colleges.find(c => c.id === parseInt(id));
+    const collegeExists = colleges.find(c => 
+      parseInt(c.id) === parseInt(id) || 
+      String(c.id) === String(id) || 
+      c.id === id || 
+      c.id === parseInt(id)
+    );
     console.log('DELETE /api/colleges/:id - College exists:', !!collegeExists);
+    console.log('DELETE /api/colleges/:id - Available IDs and types:', colleges.map(c => ({ id: c.id, type: typeof c.id, parsed: parseInt(c.id) })));
     
     if (!collegeExists) {
       return res.status(404).json({ error: 'College not found' });
