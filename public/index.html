@@ -1413,6 +1413,10 @@
     async function deleteCollege(collegeId) {
       console.log('🔄 deleteCollege called with ID:', collegeId, 'type:', typeof collegeId);
       
+      // Debug: Log all colleges in the array
+      console.log('🔍 Current colleges array:', colleges);
+      console.log('🔍 Colleges IDs:', colleges.map(c => ({ id: c.id, name: c.name, type: typeof c.id })));
+      
       // Convert collegeId to number for consistent comparison
       const numericId = parseInt(collegeId);
       console.log('🔄 Parsed numeric ID:', numericId);
@@ -1422,8 +1426,19 @@
       
       if (!college) {
         console.error('❌ College not found in local array');
-        showStatus('College not found', 'error');
-        return;
+        console.error('❌ Looking for ID:', numericId, 'in array with IDs:', colleges.map(c => c.id));
+        
+        // Try to directly call the API without checking local array
+        console.log('🔄 Attempting direct API call...');
+        try {
+          await axios.delete(`/api/colleges/${collegeId}`);
+          await loadColleges();
+          showStatus('College deleted successfully', 'success');
+          return;
+        } catch (error) {
+          showStatus('Error deleting college: ' + (error.response?.data?.error || error.message), 'error');
+          return;
+        }
       }
 
       showConfirmationModal(
