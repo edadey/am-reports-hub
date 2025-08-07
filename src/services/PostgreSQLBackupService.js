@@ -108,6 +108,14 @@ class PostgreSQLBackupService {
       };
 
       // Store backup in database
+      console.log(`💾 Storing backup data:`, {
+        backupId,
+        description,
+        collegesCount: backupData.colleges ? backupData.colleges.length : 0,
+        accountManagersCount: backupData.accountManagers ? backupData.accountManagers.length : 0,
+        totalRecords: metadata.totalRecords
+      });
+      
       const backup = await this.BackupModel.create({
         backupId,
         description,
@@ -228,6 +236,14 @@ class PostgreSQLBackupService {
         throw new Error(`Backup ${backupId} not found`);
       }
 
+      console.log(`📋 Found backup data:`, {
+        backupId: backup.backupId,
+        description: backup.description,
+        collegesCount: backup.backupData.colleges ? backup.backupData.colleges.length : 0,
+        accountManagersCount: backup.backupData.accountManagers ? backup.backupData.accountManagers.length : 0,
+        totalRecords: backup.metadata.totalRecords
+      });
+
       // Note: Skipping integrity check due to JSONB normalization in PostgreSQL
       // The JSONB data type can reorder keys and normalize formatting
       console.log('ℹ️ Skipping integrity check (JSONB normalization)');
@@ -263,9 +279,11 @@ class PostgreSQLBackupService {
     // Restore colleges
     if (backupData.colleges && Array.isArray(backupData.colleges)) {
       console.log(`   🏫 Restoring ${backupData.colleges.length} colleges...`);
+      console.log(`   📋 College names:`, backupData.colleges.map(c => c.name || 'Unnamed'));
       
       // Clear existing colleges
       const existingColleges = await dbManager.getColleges();
+      console.log(`   🗑️ Clearing ${existingColleges.length} existing colleges...`);
       for (const college of existingColleges) {
         await dbManager.deleteCollege(college.id);
       }
@@ -273,12 +291,15 @@ class PostgreSQLBackupService {
       // Restore colleges
       for (const college of backupData.colleges) {
         try {
-          await dbManager.createCollege(college);
+          const result = await dbManager.createCollege(college);
+          console.log(`     ✅ Restored college: ${college.name || 'Unnamed'} (ID: ${result.id})`);
         } catch (error) {
           console.log(`     ⚠️ Error restoring college ${college.name}: ${error.message}`);
         }
       }
-      console.log(`   ✅ Restored colleges`);
+      console.log(`   ✅ Restored ${backupData.colleges.length} colleges`);
+    } else {
+      console.log(`   ⚠️ No colleges data found in backup`);
     }
 
     // Restore account managers
