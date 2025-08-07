@@ -795,12 +795,8 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 // Root endpoint for Railway health checks - responds immediately
 app.get('/', (req, res) => {
   console.log('🏥 Root health check requested');
-  res.status(200).json({
-    status: 'healthy',
-    message: 'AM Reports Hub is running',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  });
+  // Respond immediately with minimal data
+  res.status(200).send('OK');
 });
 
 // Simple health check endpoint for Railway - always responds (used by Railway healthcheck)
@@ -4439,7 +4435,7 @@ app.listen(PORT, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
   console.log('✅ Server is ready to accept requests');
-  console.log('🏥 Healthcheck endpoint available at /health');
+  console.log('🏥 Healthcheck endpoint available at /');
   
   // Initialize services in background (non-blocking) after server starts
   setTimeout(() => {
@@ -4448,7 +4444,7 @@ app.listen(PORT, () => {
       console.error('❌ Service initialization failed:', error);
       console.log('⚠️ Continuing with basic functionality - some features may be limited');
     });
-  }, 2000); // Wait 2 seconds before starting services to ensure healthcheck is ready
+  }, 5000); // Wait 5 seconds before starting services to ensure healthcheck is ready
 });
 
 module.exports = app; 
