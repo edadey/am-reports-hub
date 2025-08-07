@@ -248,14 +248,35 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
    */
   async loadCollegeData(collegeId) {
     try {
+      // First try to load from database (for Railway/PostgreSQL deployment)
+      try {
+        console.log(`EnhancedAnalyticsService: Trying to load college from database for ID ${collegeId}`);
+        const DatabaseUserManager = require('./DatabaseUserManager');
+        await DatabaseUserManager.initialize();
+        
+        const college = await DatabaseUserManager.getCollege(parseInt(collegeId));
+        if (college) {
+          console.log(`EnhancedAnalyticsService: Loaded college data from database for ${college.name}`);
+          return college;
+        }
+      } catch (dbError) {
+        console.log(`EnhancedAnalyticsService: Database fetch failed for college ${collegeId}, trying file system:`, dbError.message);
+      }
+
+      // Fallback to file system for local development
       const collegesPath = path.join(this.dataDir, 'colleges.json');
       const data = await fs.readFile(collegesPath, 'utf8');
       const colleges = JSON.parse(data);
       
       // Convert collegeId to number for proper comparison
       const numericCollegeId = parseInt(collegeId, 10);
+      const college = colleges.find(college => college.id === numericCollegeId);
       
-      return colleges.find(college => college.id === numericCollegeId);
+      if (college) {
+        console.log(`EnhancedAnalyticsService: Loaded college data from file system for ${college.name}`);
+      }
+      
+      return college;
     } catch (error) {
       console.error('Error loading college data:', error);
       return null;
@@ -267,31 +288,62 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
    */
   async loadPerformanceData(collegeId) {
     try {
-      // Always try to load from reports first (most up-to-date data)
-      const reportsPath = path.join(this.reportsDir, `${collegeId}.json`);
+      // First try to load from database (for Railway/PostgreSQL deployment)
       try {
-      const data = await fs.readFile(reportsPath, 'utf8');
-      const reports = JSON.parse(data);
-      
-        if (reports.length > 0) {
-      // Get latest report
-      const latestReport = reports[0];
-      
-      // Calculate performance metrics
-      const performanceData = this.calculatePerformanceMetrics(latestReport);
-      
-      // Add trend analysis if multiple reports exist
-      if (reports.length > 1) {
-        const previousReport = reports[1];
-        const previousMetrics = this.calculatePerformanceMetrics(previousReport);
-        performanceData.trends = this.calculateTrends(performanceData, previousMetrics);
+        console.log(`EnhancedAnalyticsService: Trying to load from database for college ${collegeId}`);
+        const DatabaseUserManager = require('./DatabaseUserManager');
+        await DatabaseUserManager.initialize();
+        
+        const reports = await DatabaseUserManager.getReports(parseInt(collegeId));
+        console.log(`EnhancedAnalyticsService: Found ${reports.length} reports in database for college ${collegeId}`);
+        
+        if (reports && reports.length > 0) {
+          // Sort reports by creation date (newest first)
+          const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          const latestReport = sortedReports[0];
+          
+          // Calculate performance metrics
+          const performanceData = this.calculatePerformanceMetrics(latestReport);
+          
+          // Add trend analysis if multiple reports exist
+          if (sortedReports.length > 1) {
+            const previousReport = sortedReports[1];
+            const previousMetrics = this.calculatePerformanceMetrics(previousReport);
+            performanceData.trends = this.calculateTrends(performanceData, previousMetrics);
+          }
+
+          console.log(`EnhancedAnalyticsService: Loaded performance data from database for college ${collegeId}`);
+          return performanceData;
+        }
+      } catch (dbError) {
+        console.log(`EnhancedAnalyticsService: Database fetch failed for college ${collegeId}, trying file system:`, dbError.message);
       }
 
-          console.log(`EnhancedAnalyticsService: Loaded performance data from reports for college ${collegeId}`);
-      return performanceData;
+      // Fallback to file system for local development
+      const reportsPath = path.join(this.reportsDir, `${collegeId}.json`);
+      try {
+        const data = await fs.readFile(reportsPath, 'utf8');
+        const reports = JSON.parse(data);
+        
+        if (reports.length > 0) {
+          // Get latest report
+          const latestReport = reports[0];
+          
+          // Calculate performance metrics
+          const performanceData = this.calculatePerformanceMetrics(latestReport);
+          
+          // Add trend analysis if multiple reports exist
+          if (reports.length > 1) {
+            const previousReport = reports[1];
+            const previousMetrics = this.calculatePerformanceMetrics(previousReport);
+            performanceData.trends = this.calculateTrends(performanceData, previousMetrics);
+          }
+
+          console.log(`EnhancedAnalyticsService: Loaded performance data from file system for college ${collegeId}`);
+          return performanceData;
         }
       } catch (reportsError) {
-        console.log(`EnhancedAnalyticsService: No reports data found for college ${collegeId}, trying analytics...`);
+        console.log(`EnhancedAnalyticsService: No reports file found for college ${collegeId}, trying analytics...`);
       }
 
       // Fallback to analytics data if reports not available
