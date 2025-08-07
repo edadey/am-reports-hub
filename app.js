@@ -176,12 +176,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Helper function to get the appropriate user manager
-async function getUserManager() {
-  if (process.env.DATABASE_URL) {
+function getUserManager() {
+  return process.env.DATABASE_URL ? databaseUserManager : userManager;
+}
+
+// Helper function to ensure database is initialized when needed
+async function getInitializedUserManager() {
+  const manager = getUserManager();
+  if (process.env.DATABASE_URL && manager === databaseUserManager) {
     await databaseUserManager.initialize();
-    return databaseUserManager;
   }
-  return userManager;
+  return manager;
 }
 
 // Initialize services
@@ -1173,7 +1178,7 @@ app.delete('/api/users/:id', authService.requireAuth(), authService.requireRole(
 // College Management Routes
 app.get('/api/colleges', async (req, res) => {
   try {
-    const colleges = await (await getUserManager()).getColleges();
+    const colleges = await (await getInitializedUserManager()).getColleges();
     res.json({ colleges });
   } catch (error) {
     console.error('Get colleges error:', error);
@@ -1184,7 +1189,7 @@ app.get('/api/colleges', async (req, res) => {
 app.get('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const colleges = await (await getUserManager()).getColleges();
+    const colleges = await (await getInitializedUserManager()).getColleges();
     const college = colleges.find(c => 
       parseInt(c.id) === parseInt(id) || 
       String(c.id) === String(id) || 
@@ -1251,7 +1256,7 @@ app.post('/api/colleges', authService.requireAuth(), async (req, res) => {
       modules: modules || []
     });
     
-    const result = await (await getUserManager()).createCollege({
+    const result = await (await getInitializedUserManager()).createCollege({
       name,
       location: location || '',
       contactPerson: contactPerson || '',
@@ -1293,7 +1298,7 @@ app.put('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     
     console.log('Update data:', updateData);
     
-    const result = await (await getUserManager()).updateCollege(parseInt(id), updateData);
+    const result = await (await getInitializedUserManager()).updateCollege(parseInt(id), updateData);
     console.log('Update result:', result);
     
     res.json({ success: true, college: result });
@@ -1312,7 +1317,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     console.log('DELETE /api/colleges/:id - Parsed ID:', parseInt(id));
     
     // First check if the college exists
-    const colleges = await (await getUserManager()).getColleges();
+    const colleges = await (await getInitializedUserManager()).getColleges();
     console.log('DELETE /api/colleges/:id - Available colleges:', colleges.map(c => ({ id: c.id, name: c.name })));
     
     const collegeExists = colleges.find(c => 
@@ -1328,7 +1333,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'College not found' });
     }
     
-    await (await getUserManager()).deleteCollege(parseInt(id));
+    await (await getInitializedUserManager()).deleteCollege(parseInt(id));
     
     res.json({ success: true, message: 'College deleted successfully' });
   } catch (error) {
@@ -1341,7 +1346,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
 // Account Manager Routes
 app.get('/api/account-managers', async (req, res) => {
   try {
-    const managers = await (await getUserManager()).getAccountManagers();
+    const managers = await (await getInitializedUserManager()).getAccountManagers();
     res.json(managers);
   } catch (error) {
     console.error('Get account managers error:', error);
@@ -1359,7 +1364,7 @@ app.post('/api/account-managers', authService.requireAuth(), async (req, res) =>
     
     console.log('🔄 Creating account manager with data:', { name, email, phone: phone || '', region: region || '' });
     
-    const result = await (await getUserManager()).createAccountManager({
+    const result = await (await getInitializedUserManager()).createAccountManager({
       name,
       email,
       phone: phone || '',
@@ -1385,7 +1390,7 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
-    const result = await (await getUserManager()).updateAccountManager(id, {
+    const result = await (await getInitializedUserManager()).updateAccountManager(id, {
       name,
       email,
       phone: phone || '',
@@ -1403,7 +1408,7 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
 app.get('/api/account-managers/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const managers = await (await getUserManager()).getAccountManagers();
+    const managers = await (await getInitializedUserManager()).getAccountManagers();
     const manager = managers.find(m => m.id === parseInt(id));
     
     if (!manager) {
@@ -1486,7 +1491,7 @@ app.delete('/api/colleges/:collegeId/reports/:reportId', authService.requireAuth
 app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const colleges = await (await getUserManager()).getColleges();
+    const colleges = await (await getInitializedUserManager()).getColleges();
     // Handle both string and number IDs
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
@@ -1505,7 +1510,7 @@ app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) 
 app.get('/api/account-managers/:accountManagerId', authService.requireAuth(), async (req, res) => {
   try {
     const { accountManagerId } = req.params;
-    const accountManagers = await (await getUserManager()).getAccountManagers();
+    const accountManagers = await (await getInitializedUserManager()).getAccountManagers();
     // Handle both string and number IDs
     const accountManager = accountManagers.find(am => 
       am.id === parseInt(accountManagerId) || am.id === accountManagerId || am.id.toString() === accountManagerId
@@ -1531,7 +1536,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     }
 
     // Get college data for filename
-    const colleges = await (await getUserManager()).getColleges();
+    const colleges = await (await getInitializedUserManager()).getColleges();
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
     );
@@ -2823,7 +2828,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     
     // Update college's lastReportDate using the correct user manager (database-first)
     try {
-      await (await getUserManager()).updateCollege(collegeId, {
+      await (await getInitializedUserManager()).updateCollege(collegeId, {
         lastReportDate: new Date().toISOString()
       });
       console.log(`Updated lastReportDate for college ${collegeId}`);
