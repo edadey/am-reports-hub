@@ -8,10 +8,17 @@ class RailwayBackupService {
     const isRailway = this.isRailwayEnvironment();
     
     if (isRailway) {
-      // Railway persistent volume - use Railway's built-in persistent storage
-      // Railway uses /data for persistent storage in production
-      this.railwayDataPath = process.env.PERSISTENT_STORAGE_PATH || '/data';
+      // Railway persistent volume - try multiple common paths
+      const possiblePaths = [
+        process.env.PERSISTENT_STORAGE_PATH,
+        '/data',
+        '/app/data',
+        './data'
+      ].filter(Boolean);
+      
+      this.railwayDataPath = possiblePaths[0] || '/data';
       console.log('☁️ Using Railway persistent volume:', this.railwayDataPath);
+      console.log('☁️ Available storage paths:', possiblePaths);
     } else {
       // Local development storage
       this.railwayDataPath = path.join(process.env.HOME || process.env.USERPROFILE || '/tmp', '.railway-backup-data');
@@ -155,30 +162,27 @@ class RailwayBackupService {
 
   async validateRailwayStorage() {
     try {
-      // Check if we're running on Railway
-      if (!process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
-        console.log('⚠️ Not running on Railway - using local storage fallback');
-        return;
-      }
+      console.log(`🔍 Validating Railway storage at: ${this.railwayDataPath}`);
       
-      // Check if Railway volume is accessible
-      const volumeExists = await fs.pathExists(this.railwayDataPath);
-      if (!volumeExists) {
-        console.log('⚠️ Railway volume not found, creating directory...');
-        await fs.ensureDir(this.railwayDataPath);
-      }
+      // Ensure Railway data directory exists
+      await fs.ensureDir(this.railwayDataPath);
+      console.log(`✅ Railway data directory ensured: ${this.railwayDataPath}`);
       
       // Check if we can write to the volume
       const testFile = path.join(this.railwayDataPath, '.test-write');
-      await fs.writeFile(testFile, 'test');
+      await fs.writeFile(testFile, `test-${Date.now()}`);
+      const testContent = await fs.readFile(testFile, 'utf8');
       await fs.remove(testFile);
       
-      // Check available space
-      const stats = await fs.stat(this.railwayDataPath);
-      console.log(`✅ Railway persistent volume accessible and writable: ${this.formatBytes(stats.size)}`);
+      if (!testContent.startsWith('test-')) {
+        throw new Error('Write test verification failed');
+      }
+      
+      console.log(`✅ Railway persistent volume accessible and writable`);
       
     } catch (error) {
       console.error('❌ Railway storage validation failed:', error);
+      console.error('   This might be due to insufficient permissions or missing persistent storage');
       throw error;
     }
   }
@@ -446,32 +450,32 @@ class RailwayBackupService {
 
   async restoreDatabaseData(filename, sourcePath) {
     try {
-      const dbManager = require('./DatabaseUserManager');
-      await dbManager.initialize();
+      const DatabaseUserManager = require('./DatabaseUserManager');
+      await DatabaseUserManager.initialize();
       
       const data = await fs.readJson(sourcePath);
       
       if (filename === 'colleges.json') {
         // Clear existing colleges and restore from backup
-        const existingColleges = await dbManager.getColleges();
+        const existingColleges = await DatabaseUserManager.getColleges();
         for (const college of existingColleges) {
-          await dbManager.deleteCollege(college.id);
+          await DatabaseUserManager.deleteCollege(college.id);
         }
         
         // Restore colleges from backup
         for (const college of data) {
-          await dbManager.createCollege(college);
+          await DatabaseUserManager.createCollege(college);
         }
       } else if (filename === 'accountManagers.json') {
         // Clear existing account managers and restore from backup
-        const existingManagers = await dbManager.getAccountManagers();
+        const existingManagers = await DatabaseUserManager.getAccountManagers();
         for (const manager of existingManagers) {
-          await dbManager.deleteAccountManager(manager.id);
+          await DatabaseUserManager.deleteAccountManager(manager.id);
         }
         
         // Restore account managers from backup
         for (const manager of data) {
-          await dbManager.createAccountManager(manager);
+          await DatabaseUserManager.createAccountManager(manager);
         }
       } else if (filename === 'users.json') {
         // Note: We don't restore users to avoid overwriting admin accounts
@@ -488,12 +492,12 @@ class RailwayBackupService {
     try {
       console.log('🔄 Checking if database restoration is needed...');
       
-      const dbManager = require('./DatabaseUserManager');
-      await dbManager.initialize();
+      const DatabaseUserManager = require('./DatabaseUserManager');
+      await DatabaseUserManager.initialize();
       
       // Check if database has data
-      const colleges = await dbManager.getColleges();
-      const accountManagers = await dbManager.getAccountManagers();
+      const colleges = await DatabaseUserManager.getColleges();
+      const accountManagers = await DatabaseUserManager.getAccountManagers();
       
       // If database has data, no restoration needed
       if (colleges.length > 0 || accountManagers.length > 0) {
@@ -524,11 +528,11 @@ class RailwayBackupService {
 
   async backupDatabaseData(backupDir, manifest) {
     try {
-      const dbManager = require('./DatabaseUserManager');
-      await dbManager.initialize();
+      const DatabaseUserManager = require('./DatabaseUserManager');
+      await DatabaseUserManager.initialize();
       
       // Backup colleges
-      const colleges = await dbManager.getColleges();
+      const colleges = await DatabaseUserManager.getColleges();
       const collegesPath = path.join(backupDir, 'colleges.json');
       await fs.writeJson(collegesPath, colleges, { spaces: 2 });
       const collegesStats = await fs.stat(collegesPath);
@@ -545,7 +549,7 @@ class RailwayBackupService {
       console.log(`   ✅ colleges.json (${this.formatBytes(collegesStats.size)}, ${colleges.length} colleges)`);
       
       // Backup account managers
-      const accountManagers = await dbManager.getAccountManagers();
+      const accountManagers = await DatabaseUserManager.getAccountManagers();
       const accountManagersPath = path.join(backupDir, 'accountManagers.json');
       await fs.writeJson(accountManagersPath, accountManagers, { spaces: 2 });
       const accountManagersStats = await fs.stat(accountManagersPath);
@@ -562,7 +566,7 @@ class RailwayBackupService {
       console.log(`   ✅ accountManagers.json (${this.formatBytes(accountManagersStats.size)}, ${accountManagers.length} managers)`);
       
       // Backup users
-      const users = await dbManager.getUsers();
+      const users = await DatabaseUserManager.getUsers();
       const usersPath = path.join(backupDir, 'users.json');
       await fs.writeJson(usersPath, users, { spaces: 2 });
       const usersStats = await fs.stat(usersPath);
@@ -653,28 +657,17 @@ class RailwayBackupService {
   }
 
   isRailwayEnvironment() {
-    // Check multiple indicators for Railway environment
-    const indicators = [
-      process.env.NODE_ENV === 'production',
-      process.env.RAILWAY_ENVIRONMENT === 'production',
-      process.env.RAILWAY_ENVIRONMENT === 'true',
-      process.env.RAILWAY_ENVIRONMENT === '1',
-      process.env.RAILWAY_SERVICE_NAME,
-      process.env.RAILWAY_PROJECT_ID,
-      process.env.RAILWAY_DEPLOYMENT_ID,
-      process.env.PERSISTENT_STORAGE_PATH,
-      process.env.HOSTNAME && process.env.HOSTNAME.includes('railway'),
-      process.env.HOST && process.env.HOST.includes('railway')
-    ];
-    
-    const isRailway = indicators.some(indicator => !!indicator);
+    // Simplified Railway environment detection using key Railway-specific variables
+    const isRailway = !!(
+      process.env.RAILWAY_SERVICE_NAME || 
+      process.env.RAILWAY_PROJECT_ID ||
+      process.env.RAILWAY_ENVIRONMENT
+    );
     
     console.log('🔍 Railway Environment Detection:');
-    console.log(`   NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT}`);
-    console.log(`   RAILWAY_SERVICE_NAME: ${process.env.RAILWAY_SERVICE_NAME}`);
-    console.log(`   PERSISTENT_STORAGE_PATH: ${process.env.PERSISTENT_STORAGE_PATH}`);
-    console.log(`   HOSTNAME: ${process.env.HOSTNAME}`);
+    console.log(`   RAILWAY_SERVICE_NAME: ${process.env.RAILWAY_SERVICE_NAME || 'Not set'}`);
+    console.log(`   RAILWAY_PROJECT_ID: ${process.env.RAILWAY_PROJECT_ID || 'Not set'}`);
+    console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'Not set'}`);
     console.log(`   Is Railway: ${isRailway}`);
     
     return isRailway;

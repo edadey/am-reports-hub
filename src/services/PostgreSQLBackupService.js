@@ -145,7 +145,7 @@ class PostgreSQLBackupService {
 
   async collectDatabaseData() {
     const DatabaseUserManager = require('./DatabaseUserManager');
-    const dbManager = DatabaseUserManager;
+    await DatabaseUserManager.initialize();
     
     console.log('📊 Collecting database data...');
     
@@ -153,15 +153,15 @@ class PostgreSQLBackupService {
     
     try {
       // Collect colleges
-      data.colleges = await dbManager.getColleges();
+      data.colleges = await DatabaseUserManager.getColleges();
       console.log(`   ✅ Collected ${data.colleges.length} colleges`);
       
       // Collect account managers
-      data.accountManagers = await dbManager.getAccountManagers();
+      data.accountManagers = await DatabaseUserManager.getAccountManagers();
       console.log(`   ✅ Collected ${data.accountManagers.length} account managers`);
       
       // Collect users (without sensitive data)
-      const users = await dbManager.getUsers();
+      const users = await DatabaseUserManager.getUsers();
       data.users = users.map(user => ({
         ...user,
         password: '[REDACTED]', // Don't backup passwords
@@ -272,7 +272,7 @@ class PostgreSQLBackupService {
 
   async restoreDatabaseData(backupData) {
     const DatabaseUserManager = require('./DatabaseUserManager');
-    const dbManager = DatabaseUserManager;
+    await DatabaseUserManager.initialize();
     
     console.log('🔄 Restoring database data...');
 
@@ -282,16 +282,16 @@ class PostgreSQLBackupService {
       console.log(`   📋 College names:`, backupData.colleges.map(c => c.name || 'Unnamed'));
       
       // Clear existing colleges
-      const existingColleges = await dbManager.getColleges();
+      const existingColleges = await DatabaseUserManager.getColleges();
       console.log(`   🗑️ Clearing ${existingColleges.length} existing colleges...`);
       for (const college of existingColleges) {
-        await dbManager.deleteCollege(college.id);
+        await DatabaseUserManager.deleteCollege(college.id);
       }
       
       // Restore colleges
       for (const college of backupData.colleges) {
         try {
-          const result = await dbManager.createCollege(college);
+          const result = await DatabaseUserManager.createCollege(college);
           console.log(`     ✅ Restored college: ${college.name || 'Unnamed'} (ID: ${result.id})`);
         } catch (error) {
           console.log(`     ⚠️ Error restoring college ${college.name}: ${error.message}`);
@@ -307,15 +307,15 @@ class PostgreSQLBackupService {
       console.log(`   👥 Restoring ${backupData.accountManagers.length} account managers...`);
       
       // Clear existing account managers
-      const existingManagers = await dbManager.getAccountManagers();
+      const existingManagers = await DatabaseUserManager.getAccountManagers();
       for (const manager of existingManagers) {
-        await dbManager.deleteAccountManager(manager.id);
+        await DatabaseUserManager.deleteAccountManager(manager.id);
       }
       
       // Restore account managers
       for (const manager of backupData.accountManagers) {
         try {
-          await dbManager.createAccountManager(manager);
+          await DatabaseUserManager.createAccountManager(manager);
         } catch (error) {
           console.log(`     ⚠️ Error restoring manager ${manager.name}: ${error.message}`);
         }
