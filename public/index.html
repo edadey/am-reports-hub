@@ -1411,8 +1411,17 @@
     }
 
     async function deleteCollege(collegeId) {
-      const college = colleges.find(c => c.id === collegeId);
+      console.log('🔄 deleteCollege called with ID:', collegeId, 'type:', typeof collegeId);
+      
+      // Convert collegeId to number for consistent comparison
+      const numericId = parseInt(collegeId);
+      console.log('🔄 Parsed numeric ID:', numericId);
+      
+      const college = colleges.find(c => c.id === numericId);
+      console.log('🔄 Found college:', college);
+      
       if (!college) {
+        console.error('❌ College not found in local array');
         showStatus('College not found', 'error');
         return;
       }

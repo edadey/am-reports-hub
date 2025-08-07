@@ -111,6 +111,7 @@ const DatabaseUserManager = require('./src/services/DatabaseUserManager');
 const DatabaseService = require('./src/services/DatabaseService');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
 const RailwayBackupService = require('./src/services/RailwayBackupService');
+const PostgreSQLBackupService = require('./src/services/PostgreSQLBackupService');
 const EnhancedDataValidationService = require('./src/services/EnhancedDataValidationService');
 const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
@@ -119,7 +120,46 @@ const BackupAPIService = require('./src/services/BackupAPIService');
 
 // Initialize services
 const volumeService = new VolumeService();
-const railwayBackupService = new RailwayBackupService();
+
+// Initialize backup service - use PostgreSQL if /data volume not available
+let backupService;
+async function initializeBackupService() {
+  try {
+    // Try Railway backup service first (file-based with /data volume)
+    const railwayService = new RailwayBackupService();
+    await railwayService.initialize();
+    backupService = railwayService;
+    console.log('✅ Using Railway file-based backup service');
+  } catch (error) {
+    console.log('⚠️ Railway volume not available, falling back to PostgreSQL backup service');
+    try {
+      const postgresService = new PostgreSQLBackupService();
+      await postgresService.initialize();
+      backupService = postgresService;
+      console.log('✅ Using PostgreSQL database backup service');
+    } catch (pgError) {
+      console.error('❌ Failed to initialize any backup service:', pgError);
+      // Create a minimal backup service that does nothing
+      backupService = {
+        createBackup: async () => ({ backupId: 'none', message: 'No backup service available' }),
+        listBackups: async () => [],
+        restoreBackup: async () => ({ success: false, error: 'No backup service available' }),
+        getStorageStats: async () => ({ totalBackups: 0, totalSize: 0, formattedSize: '0 B' }),
+      };
+    }
+  }
+}
+
+// For compatibility, create a proxy object
+const railwayBackupService = new Proxy({}, {
+  get(target, prop) {
+    if (backupService && typeof backupService[prop] === 'function') {
+      return backupService[prop].bind(backupService);
+    }
+    return backupService ? backupService[prop] : undefined;
+  }
+});
+
 const dataPreservationService = new DataPreservationService(volumeService);
 const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
@@ -4237,9 +4277,9 @@ async function initializeServices() {
       await dataPreservationService.initializeDataPreservation();
     }
     
-    // Always initialize Railway backup service for persistent storage
-    console.log('🔄 Initializing Railway cloud backup service...');
-    await railwayBackupService.initialize();
+    // Initialize backup service (Railway file-based or PostgreSQL)
+    console.log('🔄 Initializing backup service...');
+    await initializeBackupService();
     
     // Only initialize cloud backup service if not in Railway environment
     if (!process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
