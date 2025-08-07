@@ -273,9 +273,20 @@ class DataPreservationService {
     try {
       await fs.ensureDir(backupDir);
       
-      // Copy all data files to backup, excluding backups directory
+      // Check if data directory exists and has files
+      if (!await fs.pathExists(this.dataPath)) {
+        console.log('   ℹ️  Data directory does not exist, skipping backup');
+        return backupDir;
+      }
+      
       const dataFiles = await fs.readdir(this.dataPath);
       
+      if (dataFiles.length === 0) {
+        console.log('   ℹ️  Data directory is empty, skipping backup');
+        return backupDir;
+      }
+      
+      // Copy all data files to backup, excluding backups directory
       for (const file of dataFiles) {
         // Skip backups directory to avoid circular reference
         if (file === 'backups') {

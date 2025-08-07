@@ -4128,6 +4128,13 @@ async function initializeServices() {
       DATABASE_URL_START: process.env.DATABASE_URL ? process.env.DATABASE_URL.substring(0, 20) : 'none'
     });
     
+    // Check for Railway-specific database variables
+    console.log('🔍 Railway Database Variables:');
+    console.log('RAILWAY_POSTGRESQL_URL:', !!process.env.RAILWAY_POSTGRESQL_URL);
+    console.log('RAILWAY_DATABASE_URL:', !!process.env.RAILWAY_DATABASE_URL);
+    console.log('All environment variables containing "DATABASE":', 
+      Object.keys(process.env).filter(key => key.includes('DATABASE')));
+    
     // Check if DATABASE_URL is available for PostgreSQL
     if (process.env.DATABASE_URL) {
       console.log('🐘 PostgreSQL DATABASE_URL detected - using database mode');
@@ -4171,11 +4178,10 @@ app.listen(PORT, () => {
   // Initialize services in background (non-blocking) after server starts
   setTimeout(() => {
     console.log('🔄 Starting background service initialization...');
-    // Temporarily disable service initialization to fix deployment
-    console.log('⚠️ Service initialization temporarily disabled for deployment');
-    // initializeServices().catch(error => {
-    //   console.error('❌ Service initialization failed:', error);
-    // });
+    initializeServices().catch(error => {
+      console.error('❌ Service initialization failed:', error);
+      console.log('⚠️ Continuing with basic functionality - some features may be limited');
+    });
   }, 1000); // Wait 1 second before starting services
 });
 
