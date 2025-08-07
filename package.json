@@ -4,7 +4,7 @@
   "description": "AM Reports Hub - College Management and Report Generation System",
   "main": "app.js",
   "scripts": {
-    "start": "node --max-old-space-size=4096 app.js",
+    "start": "node server.js",
     "dev": "nodemon app.js",
     "test": "jest",
     "build": "echo 'No build step required for Node.js app'",
