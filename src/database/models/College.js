@@ -44,85 +44,100 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: [],
     },
-    // Additional fields from file-based data
-    misContact: {
+    // Additional fields from file-based data (PostgreSQL converts to lowercase)
+    miscontact: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'miscontact', // explicitly specify the database column name
     },
-    dataTransferMethod: {
+    datatransfermethod: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'datatransfermethod',
     },
     status: {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: 'A',
     },
-    ofstedRating: {
+    ofstedrating: {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: 'G',
+      field: 'ofstedrating',
     },
-    reportFrequency: {
+    reportfrequency: {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: 'weekly',
+      field: 'reportfrequency',
     },
     template: {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: 'standard',
     },
-    initialConcerns: {
+    initialconcerns: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'initialconcerns',
     },
-    lastReportDate: {
+    lastreportdate: {
       type: DataTypes.DATE,
       allowNull: true,
+      field: 'lastreportdate',
     },
-    misContactName: {
+    miscontactname: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'miscontactname',
     },
-    misContactEmail: {
+    miscontactemail: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'miscontactemail',
     },
-    renewalDate: {
+    renewaldate: {
       type: DataTypes.STRING,
       allowNull: true,
+      field: 'renewaldate',
     },
     modules: {
       type: DataTypes.JSONB,
       allowNull: true,
       defaultValue: [],
     },
-    keyStakeholders: {
+    keystakeholders: {
       type: DataTypes.JSONB,
       allowNull: true,
       defaultValue: [],
+      field: 'keystakeholders',
     },
-    engagementLevel: {
+    engagementlevel: {
       type: DataTypes.STRING,
       allowNull: true,
       defaultValue: 'Good',
+      field: 'engagementlevel',
     },
-    swotStrengths: {
+    swotstrengths: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'swotstrengths',
     },
-    swotWeaknesses: {
+    swotweaknesses: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'swotweaknesses',
     },
-    swotOpportunities: {
+    swotopportunities: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'swotopportunities',
     },
-    swotThreats: {
+    swotthreats: {
       type: DataTypes.TEXT,
       allowNull: true,
+      field: 'swotthreats',
     },
   }, {
     tableName: 'colleges',
