@@ -217,6 +217,15 @@
         let currentBackups = [];
         let backupStats = {};
 
+        // Handle authentication errors
+        function handleAuthError(response) {
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return true;
+            }
+            return false;
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             loadBackupData();
@@ -228,6 +237,8 @@
                 const response = await fetch('/api/backup/list', {
                     credentials: 'include'
                 });
+                
+                if (handleAuthError(response)) return;
                 
                 if (!response.ok) {
                     throw new Error('Failed to load backup data');
@@ -325,6 +336,8 @@
                     credentials: 'include'
                 });
                 
+                if (handleAuthError(response)) return;
+                
                 if (!response.ok) {
                     throw new Error('Failed to create backup');
                 }
@@ -363,6 +376,8 @@
                     method: 'POST',
                     credentials: 'include'
                 });
+                
+                if (handleAuthError(response)) return;
                 
                 if (!response.ok) {
                     throw new Error('Failed to restore backup');

@@ -378,7 +378,11 @@ class AuthService {
 
         if (!token) {
           console.log('❌ Auth middleware - No token found');
-          return res.status(401).json({ error: 'Authentication required' });
+          // For HTML pages, redirect to login; for API calls, return JSON
+          if (req.headers.accept && req.headers.accept.includes('text/html')) {
+            return res.redirect('/login');
+          }
+          return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
         }
 
         const sessionValidation = await this.validateSession(token);
@@ -386,7 +390,13 @@ class AuthService {
         
         if (!sessionValidation.success) {
           console.log('❌ Auth middleware - Session validation failed:', sessionValidation.message);
-          return res.status(401).json({ error: sessionValidation.message });
+          // Clear invalid token cookie
+          res.clearCookie('token');
+          // For HTML pages, redirect to login; for API calls, return JSON
+          if (req.headers.accept && req.headers.accept.includes('text/html')) {
+            return res.redirect('/login');
+          }
+          return res.status(401).json({ error: sessionValidation.message, redirect: '/login' });
         }
 
         console.log('✅ Auth middleware - Authentication successful for user:', sessionValidation.user?.username);

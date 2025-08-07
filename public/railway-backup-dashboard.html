@@ -3,485 +3,278 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Railway Cloud Backup Dashboard</title>
+    <title>Railway Cloud Backup - AM Reports Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .card-hover {
+            transition: all 0.3s ease;
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
-        }
-
-        .cloud-status {
-            background: #f8f9fa;
-            padding: 20px;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #28a745;
+        .backup-status {
             animation: pulse 2s infinite;
         }
-
         @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
-
-        .main-content {
-            padding: 30px;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            border-left: 4px solid #667eea;
-        }
-
-        .stat-card h3 {
-            color: #6c757d;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-        }
-
-        .stat-card .value {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2c3e50;
-            margin-bottom: 5px;
-        }
-
-        .stat-card .subtitle {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-
-        .actions {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-            transform: translateY(-2px);
-        }
-
-        .btn-success {
-            background: #28a745;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
-
-        .btn-warning {
-            background: #ffc107;
-            color: #212529;
-        }
-
-        .btn-warning:hover {
-            background: #e0a800;
-            transform: translateY(-2px);
-        }
-
-        .backups-section {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-            overflow: hidden;
-        }
-
-        .section-header {
-            background: #f8f9fa;
-            padding: 20px;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .section-header h2 {
-            color: #2c3e50;
-            font-size: 1.5rem;
-        }
-
-        .backups-list {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .backup-item {
-            padding: 20px;
-            border-bottom: 1px solid #e9ecef;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background-color 0.3s ease;
-        }
-
-        .backup-item:hover {
-            background: #f8f9fa;
-        }
-
-        .backup-item:last-child {
-            border-bottom: none;
-        }
-
-        .backup-info h4 {
-            color: #2c3e50;
-            margin-bottom: 5px;
-            font-size: 1.1rem;
-        }
-
-        .backup-info p {
-            color: #6c757d;
-            font-size: 0.9rem;
-            margin-bottom: 5px;
-        }
-
-        .backup-meta {
-            display: flex;
-            gap: 15px;
-            font-size: 0.8rem;
-            color: #6c757d;
-        }
-
-        .backup-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn-sm {
-            padding: 8px 16px;
-            font-size: 0.9rem;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #6c757d;
-        }
-
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .success {
-            background: #d4edda;
-            color: #155724;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .modal {
-            display: none;
+        .notification {
             position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             z-index: 1000;
-            left: 0;
+            min-width: 320px;
+            max-width: 480px;
+        }
+        .notification-backdrop {
+            position: fixed;
             top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
         }
-
-        .modal-content {
-            background-color: white;
-            margin: 10% auto;
-            padding: 30px;
-            border-radius: 15px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        .success-bg {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
         }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .close {
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #6c757d;
-        }
-
-        .close:hover {
-            color: #2c3e50;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-        }
-
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-group input:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e9ecef;
-            border-radius: 4px;
-            overflow: hidden;
-            margin-top: 10px;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            transition: width 0.3s ease;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                margin: 10px;
-                border-radius: 15px;
-            }
-
-            .header h1 {
-                font-size: 2rem;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .actions {
-                flex-direction: column;
-            }
-
-            .backup-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-
-            .backup-actions {
-                width: 100%;
-                justify-content: flex-end;
-            }
+        .error-bg {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>☁️ Railway Cloud Backup</h1>
-            <p>Manage your cloud backups on Railway's persistent storage</p>
+<body class="bg-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.4 4.4 0 003 15z"/>
+                    </svg>
+                    <h1 class="text-2xl font-bold text-gray-900">Railway Cloud Backup</h1>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="window.location.href='/admin-dashboard'" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
+                        Back to Dashboard
+                    </button>
+                    <button onclick="logout()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Cloud Status Banner -->
+    <div class="bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="h-2 w-2 bg-green-500 rounded-full backup-status"></div>
+                    <span class="text-sm font-medium text-gray-700">Railway Cloud Storage Active</span>
+                </div>
+                <div id="storage-info" class="text-sm text-gray-600">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Status Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Total Backups</p>
+                        <p class="text-2xl font-bold text-gray-900" id="totalBackups">-</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-green-100 text-green-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Storage Used</p>
+                        <p class="text-2xl font-bold text-gray-900" id="totalSize">-</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.4 4.4 0 003 15z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Available Space</p>
+                        <p class="text-2xl font-bold text-gray-900" id="availableSpace">-</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-lg shadow p-6 card-hover">
+                <div class="flex items-center">
+                    <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-600">Latest Backup</p>
+                        <p class="text-2xl font-bold text-gray-900" id="lastBackup">-</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="cloud-status">
-            <div class="status-indicator">
-                <div class="status-dot"></div>
-                <span>Railway Cloud Storage Active</span>
+        <!-- Quick Actions -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
+            <div class="flex flex-wrap gap-4">
+                <button onclick="createBackup()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Create Backup
+                </button>
+                <button onclick="refreshBackups()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Refresh
+                </button>
+                <button onclick="showStorageInfo()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Storage Info
+                </button>
             </div>
-            <div id="storage-info">Loading...</div>
         </div>
 
-        <div class="main-content">
-            <div id="message"></div>
-
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <h3>Total Backups</h3>
-                    <div class="value" id="total-backups">-</div>
-                    <div class="subtitle">Cloud backups stored</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Storage Used</h3>
-                    <div class="value" id="storage-used">-</div>
-                    <div class="subtitle" id="storage-percentage">-</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Available Space</h3>
-                    <div class="value" id="available-space">-</div>
-                    <div class="subtitle">9GB total capacity</div>
-                </div>
-                <div class="stat-card">
-                    <h3>Latest Backup</h3>
-                    <div class="value" id="latest-backup">-</div>
-                    <div class="subtitle">Most recent backup</div>
-                </div>
-            </div>
-
-            <div class="actions">
-                <button class="btn btn-primary" onclick="createBackup()">
-                    📦 Create Backup
-                </button>
-                <button class="btn btn-secondary" onclick="refreshBackups()">
-                    🔄 Refresh
-                </button>
-                <button class="btn btn-success" onclick="showStorageInfo()">
-                    💾 Storage Info
-                </button>
-            </div>
-
-            <div class="backups-section">
-                <div class="section-header">
-                    <h2>Cloud Backups</h2>
-                    <span id="backups-count">Loading...</span>
-                </div>
-                <div class="backups-list" id="backups-list">
-                    <div class="loading">Loading cloud backups...</div>
+        <!-- Backups List -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Railway Cloud Backups</h2>
+            <div id="backupsList" class="space-y-4">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
+                    <p class="text-gray-500 mt-2">Loading cloud backups...</p>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Create Backup Modal -->
-    <div id="createBackupModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Create Railway Cloud Backup</h3>
-                <span class="close" onclick="closeModal('createBackupModal')">&times;</span>
-            </div>
-            <div class="form-group">
-                <label for="backupDescription">Backup Description:</label>
-                <textarea id="backupDescription" rows="3" placeholder="Enter a description for this backup..."></textarea>
-            </div>
-            <div class="actions">
-                <button class="btn btn-primary" onclick="confirmCreateBackup()">Create Backup</button>
-                <button class="btn btn-secondary" onclick="closeModal('createBackupModal')">Cancel</button>
+    <div id="createBackupModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg max-w-md w-full">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Create Railway Backup</h3>
+                        <button onclick="closeModal('createBackupModal')" class="text-gray-400 hover:text-gray-600">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="mb-4">
+                        <label for="backupDescription" class="block text-sm font-medium text-gray-700 mb-2">Backup Description:</label>
+                        <textarea id="backupDescription" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Enter a description for this backup..."></textarea>
+                    </div>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="closeModal('createBackupModal')" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                            Cancel
+                        </button>
+                        <button onclick="confirmCreateBackup()" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors">
+                            Create Backup
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Restore Confirmation Modal -->
-    <div id="restoreModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Restore Cloud Backup</h3>
-                <span class="close" onclick="closeModal('restoreModal')">&times;</span>
+    <!-- Restore Modal -->
+    <div id="restoreModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg max-w-lg w-full">
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold text-gray-900">Restore Backup</h3>
+                        <button onclick="closeModal('restoreModal')" class="text-gray-400 hover:text-gray-600">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="text-gray-600 mb-4">Are you sure you want to restore this backup? This will overwrite current data.</p>
+                    <div id="restoreBackupInfo" class="bg-gray-50 rounded-lg p-4 mb-6"></div>
+                    <div class="flex justify-end space-x-3">
+                        <button onclick="closeModal('restoreModal')" class="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                            Cancel
+                        </button>
+                        <button onclick="confirmRestore()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md transition-colors">
+                            Restore Backup
+                        </button>
+                    </div>
+                </div>
             </div>
-            <div id="restoreModalContent">
-                <p>Are you sure you want to restore this backup? This will overwrite current data.</p>
-                <div class="backup-info" id="restoreBackupInfo"></div>
+        </div>
+    </div>
+
+    <!-- Notification Modal -->
+    <div id="notificationBackdrop" class="notification-backdrop hidden"></div>
+    <div id="notification" class="notification hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6">
+            <div class="flex items-center">
+                <div id="notificationIcon" class="mr-3"></div>
+                <div>
+                    <h4 id="notificationTitle" class="text-lg font-semibold text-gray-900 mb-1"></h4>
+                    <p id="notificationMessage" class="text-gray-600"></p>
+                </div>
             </div>
-            <div class="actions">
-                <button class="btn btn-warning" onclick="confirmRestore()">Restore Backup</button>
-                <button class="btn btn-secondary" onclick="closeModal('restoreModal')">Cancel</button>
+            <div class="mt-4 flex justify-end">
+                <button onclick="hideNotification()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors">
+                    Close
+                </button>
             </div>
         </div>
     </div>
 
     <script>
+        // Global variables
         let currentBackups = [];
         let selectedBackupId = null;
+
+        // Handle authentication errors
+        function handleAuthError(response) {
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return true;
+            }
+            return false;
+        }
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
@@ -495,7 +288,7 @@
                     loadStorageStats()
                 ]);
             } catch (error) {
-                showMessage('Error loading dashboard: ' + error.message, 'error');
+                showNotification('Error loading dashboard: ' + error.message, 'error');
             }
         }
 
@@ -506,6 +299,8 @@
                     credentials: 'include'
                 });
 
+                if (handleAuthError(response)) return;
+
                 if (!response.ok) {
                     throw new Error('Failed to load backups');
                 }
@@ -514,10 +309,10 @@
                 currentBackups = data.backups || [];
                 
                 displayBackups(currentBackups);
-                updateBackupCount();
+                updateDashboard();
             } catch (error) {
                 console.error('Error loading backups:', error);
-                showMessage('Error loading backups: ' + error.message, 'error');
+                showNotification('Error loading backups: ' + error.message, 'error');
             }
         }
 
@@ -527,6 +322,8 @@
                     method: 'GET',
                     credentials: 'include'
                 });
+
+                if (handleAuthError(response)) return;
 
                 if (!response.ok) {
                     throw new Error('Failed to load storage stats');
@@ -542,72 +339,98 @@
         }
 
         function displayBackups(backups) {
-            const backupsList = document.getElementById('backups-list');
+            const backupsList = document.getElementById('backupsList');
             
             if (backups.length === 0) {
-                backupsList.innerHTML = '<div class="loading">No cloud backups found</div>';
+                backupsList.innerHTML = `
+                    <div class="text-center py-8">
+                        <svg class="h-12 w-12 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.4 4.4 0 003 15z"/>
+                        </svg>
+                        <p class="text-gray-500">No cloud backups found</p>
+                        <p class="text-sm text-gray-400 mt-1">Create your first Railway backup to get started</p>
+                    </div>
+                `;
                 return;
             }
 
             backupsList.innerHTML = backups.map(backup => `
-                <div class="backup-item">
-                    <div class="backup-info">
-                        <h4>${backup.description || 'Unnamed Backup'}</h4>
-                        <p>Backup ID: ${backup.backupId}</p>
-                        <div class="backup-meta">
-                            <span>📅 ${new Date(backup.timestamp).toLocaleString()}</span>
-                            <span>📁 ${backup.files} files</span>
-                            <span>💾 ${backup.sizeFormatted}</span>
+                <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center mb-2">
+                                <h3 class="font-semibold text-gray-800">${backup.description || 'Railway Cloud Backup'}</h3>
+                                <span class="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">Railway</span>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-1">ID: ${backup.backupId}</p>
+                            <div class="flex items-center space-x-4 text-sm text-gray-500">
+                                <span class="flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                    ${formatDate(backup.timestamp)}
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                                    </svg>
+                                    ${backup.files} files
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                                    </svg>
+                                    ${backup.sizeFormatted}
+                                </span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="backup-actions">
-                        <button class="btn btn-sm btn-warning" onclick="restoreBackup('${backup.backupId}')">
-                            🔄 Restore
-                        </button>
-                        <button class="btn btn-sm btn-secondary" onclick="showBackupDetails('${backup.backupId}')">
-                            📋 Details
-                        </button>
+                        <div class="flex space-x-2">
+                            <button onclick="showBackupDetails('${backup.backupId}')" class="text-blue-600 hover:text-blue-800 text-sm">
+                                <svg class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>Details
+                            </button>
+                            <button onclick="restoreBackup('${backup.backupId}')" class="text-green-600 hover:text-green-800 text-sm">
+                                <svg class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                                </svg>Restore
+                            </button>
+                        </div>
                     </div>
                 </div>
             `).join('');
         }
 
-        function updateBackupCount() {
-            const count = currentBackups.length;
-            document.getElementById('backups-count').textContent = `${count} backup${count !== 1 ? 's' : ''}`;
-            document.getElementById('total-backups').textContent = count;
-        }
-
-        function updateStorageStats(stats) {
-            document.getElementById('storage-used').textContent = stats.totalSizeFormatted;
-            document.getElementById('available-space').textContent = stats.availableSpaceFormatted;
-            document.getElementById('storage-percentage').textContent = `${stats.usagePercentage}% used`;
-            
-            const storageInfo = document.getElementById('storage-info');
-            storageInfo.textContent = `${stats.totalSizeFormatted} / ${stats.maxStorageGB}GB used`;
+        function updateDashboard() {
+            document.getElementById('totalBackups').textContent = currentBackups.length;
             
             if (currentBackups.length > 0) {
-                const latest = currentBackups[0];
-                document.getElementById('latest-backup').textContent = new Date(latest.timestamp).toLocaleDateString();
+                const lastBackup = currentBackups[0];
+                document.getElementById('lastBackup').textContent = formatDate(lastBackup.timestamp);
+            } else {
+                document.getElementById('lastBackup').textContent = 'None';
             }
         }
 
+        function updateStorageStats(stats) {
+            document.getElementById('totalSize').textContent = stats.totalSizeFormatted || '0 B';
+            document.getElementById('availableSpace').textContent = stats.availableSpaceFormatted || 'Unlimited';
+            
+            const storageInfo = document.getElementById('storage-info');
+            storageInfo.textContent = `${stats.totalSizeFormatted || '0 B'} / ${stats.maxStorageGB || 'Unlimited'} used`;
+        }
+
         function createBackup() {
-            document.getElementById('createBackupModal').style.display = 'block';
+            document.getElementById('createBackupModal').classList.remove('hidden');
         }
 
         async function confirmCreateBackup() {
             const description = document.getElementById('backupDescription').value || 'Manual Railway cloud backup';
-            const createButton = document.querySelector('#createBackupModal .btn-primary');
-            const originalText = createButton.textContent;
+            const createButton = document.querySelector('#createBackupModal button[onclick="confirmCreateBackup()"]');
             
             try {
-                // Disable button and show loading state
                 createButton.disabled = true;
-                createButton.textContent = 'Creating...';
-                createButton.style.opacity = '0.7';
-                
-                showMessage('Creating Railway cloud backup...', 'success');
+                createButton.innerHTML = '<svg class="h-4 w-4 mr-2 animate-spin inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Creating...';
                 
                 const response = await fetch('/api/backup/create', {
                     method: 'POST',
@@ -618,27 +441,26 @@
                     body: JSON.stringify({ description })
                 });
 
+                if (handleAuthError(response)) return;
+
                 if (!response.ok) {
                     throw new Error('Failed to create backup');
                 }
 
                 const data = await response.json();
-                showMessage('Railway cloud backup created successfully!', 'success');
+                showNotification('Railway cloud backup created successfully!', 'success');
                 
                 closeModal('createBackupModal');
                 document.getElementById('backupDescription').value = '';
                 
-                // Reload dashboard
                 await loadDashboard();
                 
             } catch (error) {
                 console.error('Error creating backup:', error);
-                showMessage('Error creating backup: ' + error.message, 'error');
+                showNotification('Error creating backup: ' + error.message, 'error');
             } finally {
-                // Reset button state
                 createButton.disabled = false;
-                createButton.textContent = originalText;
-                createButton.style.opacity = '1';
+                createButton.innerHTML = 'Create Backup';
             }
         }
 
@@ -650,62 +472,54 @@
             
             const restoreBackupInfo = document.getElementById('restoreBackupInfo');
             restoreBackupInfo.innerHTML = `
-                <div class="backup-item">
-                    <div class="backup-info">
-                        <h4>${backup.description || 'Unnamed Backup'}</h4>
-                        <p>Backup ID: ${backup.backupId}</p>
-                        <div class="backup-meta">
-                            <span>📅 ${new Date(backup.timestamp).toLocaleString()}</span>
-                            <span>📁 ${backup.files} files</span>
-                            <span>💾 ${backup.sizeFormatted}</span>
-                        </div>
+                <div class="space-y-2">
+                    <h4 class="font-medium text-gray-900">${backup.description || 'Railway Cloud Backup'}</h4>
+                    <p class="text-sm text-gray-600">ID: ${backup.backupId}</p>
+                    <div class="flex space-x-4 text-sm text-gray-500">
+                        <span>${formatDate(backup.timestamp)}</span>
+                        <span>${backup.files} files</span>
+                        <span>${backup.sizeFormatted}</span>
                     </div>
                 </div>
             `;
             
-            document.getElementById('restoreModal').style.display = 'block';
+            document.getElementById('restoreModal').classList.remove('hidden');
         }
 
         async function confirmRestore() {
             if (!selectedBackupId) return;
             
-            const restoreButton = document.querySelector('#restoreModal .btn-warning');
-            const originalText = restoreButton.textContent;
+            const restoreButton = document.querySelector('#restoreModal button[onclick="confirmRestore()"]');
             
             try {
-                // Disable button and show loading state
                 restoreButton.disabled = true;
-                restoreButton.textContent = 'Restoring...';
-                restoreButton.style.opacity = '0.7';
-                
-                showMessage('Restoring Railway cloud backup...', 'success');
+                restoreButton.innerHTML = '<svg class="h-4 w-4 mr-2 animate-spin inline" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Restoring...';
                 
                 const response = await fetch(`/api/backup/restore/${selectedBackupId}`, {
                     method: 'POST',
                     credentials: 'include'
                 });
 
+                if (handleAuthError(response)) return;
+
                 if (!response.ok) {
                     throw new Error('Failed to restore backup');
                 }
 
                 const data = await response.json();
-                showMessage('Railway cloud backup restored successfully!', 'success');
+                showNotification('Railway cloud backup restored successfully!', 'success');
                 
                 closeModal('restoreModal');
                 selectedBackupId = null;
                 
-                // Reload dashboard
                 await loadDashboard();
                 
             } catch (error) {
                 console.error('Error restoring backup:', error);
-                showMessage('Error restoring backup: ' + error.message, 'error');
+                showNotification('Error restoring backup: ' + error.message, 'error');
             } finally {
-                // Reset button state
                 restoreButton.disabled = false;
-                restoreButton.textContent = originalText;
-                restoreButton.style.opacity = '1';
+                restoreButton.innerHTML = 'Restore Backup';
             }
         }
 
@@ -713,23 +527,29 @@
             const backup = currentBackups.find(b => b.backupId === backupId);
             if (!backup) return;
 
-            alert(`Backup Details:\n\n` +
-                  `Description: ${backup.description || 'Unnamed Backup'}\n` +
-                  `ID: ${backup.backupId}\n` +
-                  `Created: ${new Date(backup.timestamp).toLocaleString()}\n` +
-                  `Files: ${backup.files}\n` +
-                  `Size: ${backup.sizeFormatted}\n` +
-                  `Location: Railway Cloud Storage`);
+            const details = `Railway Cloud Backup Details:
+
+Description: ${backup.description || 'Railway Cloud Backup'}
+ID: ${backup.backupId}
+Created: ${formatDate(backup.timestamp)}
+Files: ${backup.files}
+Size: ${backup.sizeFormatted}
+Location: Railway Cloud Storage
+Type: ${backup.backupType || 'Manual'}`;
+
+            alert(details);
         }
 
         function showStorageInfo() {
-            const info = `Railway Cloud Storage Information:\n\n` +
-                        `• Storage Type: Railway Persistent Volume\n` +
-                        `• Location: /data (Railway Cloud)\n` +
-                        `• Total Capacity: 9GB\n` +
-                        `• Backup Limit: 1,000 backups\n` +
-                        `• Data Persistence: Survives deployments\n` +
-                        `• Automatic Cleanup: Enabled`;
+            const info = `Railway Cloud Storage Information:
+
+• Storage Type: Railway Persistent Volume
+• Location: /data (Railway Cloud)
+• Total Capacity: 9GB
+• Backup Limit: 1,000 backups
+• Data Persistence: Survives deployments
+• Automatic Cleanup: Enabled
+• Service: Railway PostgreSQL + File Storage`;
             
             alert(info);
         }
@@ -739,29 +559,67 @@
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
+            document.getElementById(modalId).classList.add('hidden');
+            if (modalId === 'restoreModal') {
+                selectedBackupId = null;
+            }
         }
 
-        function showMessage(message, type) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.className = type;
-            messageDiv.textContent = message;
+        // Show notification
+        function showNotification(message, type = 'success') {
+            const notification = document.getElementById('notification');
+            const backdrop = document.getElementById('notificationBackdrop');
+            const icon = document.getElementById('notificationIcon');
+            const title = document.getElementById('notificationTitle');
+            const messageEl = document.getElementById('notificationMessage');
             
-            setTimeout(() => {
-                messageDiv.textContent = '';
-                messageDiv.className = '';
-            }, 5000);
+            if (type === 'success') {
+                icon.innerHTML = `<div class="p-2 rounded-full success-bg"><svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div>`;
+                title.textContent = 'Success';
+            } else {
+                icon.innerHTML = `<div class="p-2 rounded-full error-bg"><svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></div>`;
+                title.textContent = 'Error';
+            }
+            
+            messageEl.textContent = message;
+            
+            backdrop.classList.remove('hidden');
+            notification.classList.remove('hidden');
+            
+            // Close on backdrop click
+            backdrop.onclick = hideNotification;
+        }
+        
+        // Hide notification
+        function hideNotification() {
+            const notification = document.getElementById('notification');
+            const backdrop = document.getElementById('notificationBackdrop');
+            
+            backdrop.classList.add('hidden');
+            notification.classList.add('hidden');
+            backdrop.onclick = null;
+        }
+
+        // Format date
+        function formatDate(timestamp) {
+            return new Date(timestamp).toLocaleString();
+        }
+
+        // Logout function
+        function logout() {
+            window.location.href = '/login';
         }
 
         // Close modal when clicking outside
         window.onclick = function(event) {
-            const modals = document.querySelectorAll('.modal');
-            modals.forEach(modal => {
+            const modals = ['createBackupModal', 'restoreModal'];
+            modals.forEach(modalId => {
+                const modal = document.getElementById(modalId);
                 if (event.target === modal) {
-                    modal.style.display = 'none';
+                    closeModal(modalId);
                 }
             });
         }
     </script>
 </body>
-</html> 
+</html>
