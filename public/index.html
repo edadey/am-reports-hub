@@ -136,6 +136,7 @@
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placements</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Activities</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assessments</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Careers</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Reports</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Report</th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -143,7 +144,7 @@
             </thead>
             <tbody id="collegeOverviewTableBody" class="bg-white divide-y divide-gray-200">
               <tr>
-                <td colspan="8" class="px-6 py-4 text-center text-gray-500">Loading colleges...</td>
+                <td colspan="9" class="px-6 py-4 text-center text-gray-500">Loading colleges...</td>
               </tr>
             </tbody>
           </table>
@@ -770,6 +771,16 @@
     let previousReportData = null;
     let currentCollegeId = null;
     let currentUser = null;
+
+    // Handle authentication errors globally
+    function handleAuthError(error) {
+      if (error.response && error.response.status === 401) {
+        console.log('Authentication expired, redirecting to login...');
+        window.location.href = '/login';
+        return true;
+      }
+      return false;
+    }
 
     // Authentication functions
     async function checkAuthStatus() {
@@ -2970,7 +2981,7 @@ let deletedAccountManagers = [];
                 totalPlacements += totals.totalPlacements || 0;
                 totalActivities += totals.totalActivities || 0;
                 totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
-                totalCareersAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                totalCareersAssessments += totals.totalCareersAssessments || 0;
               }
             }
           } catch (error) {
@@ -3096,7 +3107,7 @@ let deletedAccountManagers = [];
                 totalPlacements += totals.totalPlacements || 0;
                 totalActivities += totals.totalActivities || 0;
                 totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
-                totalCareersAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                totalCareersAssessments += totals.totalCareersAssessments || 0;
               }
             }
           } catch (error) {
@@ -3156,7 +3167,8 @@ let deletedAccountManagers = [];
         totalStudents: 0,
         totalPlacements: 0,
         totalActivities: 0,
-        studentsWithoutAssessments: 0
+        studentsWithoutAssessments: 0,
+        totalCareersAssessments: 0
       };
 
       if (!reportData.rows || !reportData.headers) return totals;
@@ -3187,6 +3199,17 @@ let deletedAccountManagers = [];
           h.toLowerCase().includes('without') && h.toLowerCase().includes('assessment')
         );
 
+        // Find careers-related columns with comprehensive patterns
+        const careersIndex = headers.findIndex(h => {
+          const headerLower = h.toLowerCase();
+          return headerLower.includes('career') || 
+                 headerLower.includes('job profile') || 
+                 headerLower.includes('quiz') || 
+                 headerLower.includes('mapped job profile') ||
+                 headerLower.includes('total mapped job profiles') || 
+                 (headerLower.includes('mapped') && !headerLower.includes('placement'));
+        });
+
         // Sum up the values with improved parsing
         if (totalStudentsIndex >= 0 && row[totalStudentsIndex]) {
           const value = parseFloat(row[totalStudentsIndex]);
@@ -3212,6 +3235,12 @@ let deletedAccountManagers = [];
             totals.studentsWithoutAssessments += value;
           }
         }
+        if (careersIndex >= 0 && row[careersIndex]) {
+          const value = parseFloat(row[careersIndex]);
+          if (!isNaN(value)) {
+            totals.totalCareersAssessments += value;
+          }
+        }
       });
 
       return totals;
@@ -3224,7 +3253,7 @@ let deletedAccountManagers = [];
       if (colleges.length === 0) {
         tableBody.innerHTML = `
           <tr>
-            <td colspan="8" class="px-6 py-4 text-center text-gray-500">No colleges found</td>
+            <td colspan="9" class="px-6 py-4 text-center text-gray-500">No colleges found</td>
           </tr>
         `;
         return;
@@ -3247,6 +3276,7 @@ let deletedAccountManagers = [];
           let placements = 0;
           let activities = 0;
           let assessments = 0;
+          let careers = 0;
           let totalReports = reports.length;
           let lastReportDate = 'No reports';
           
@@ -3262,6 +3292,7 @@ let deletedAccountManagers = [];
               placements = totals.totalPlacements || 0;
               activities = totals.totalActivities || 0;
               assessments = (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+              careers = totals.totalCareersAssessments || 0;
             }
           }
           
@@ -3272,6 +3303,7 @@ let deletedAccountManagers = [];
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${placements.toLocaleString()}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${activities.toLocaleString()}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${assessments.toLocaleString()}</td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${careers.toLocaleString()}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${totalReports.toLocaleString()}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${lastReportDate}</td>
               <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -3293,6 +3325,7 @@ let deletedAccountManagers = [];
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">0</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">No reports</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <button onclick="window.open('college-dashboard.html?id=${college.id}', '_blank')" class="text-blue-600 hover:underline">
@@ -3306,7 +3339,7 @@ let deletedAccountManagers = [];
             tableHTML += `
               <tr>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.name}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" colspan="6">Error loading data</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" colspan="7">Error loading data</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <button onclick="window.open('college-dashboard.html?id=${college.id}', '_blank')" class="text-blue-600 hover:underline">
                     View Dashboard
