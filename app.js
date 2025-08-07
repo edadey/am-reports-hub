@@ -121,24 +121,27 @@ const BackupAPIService = require('./src/services/BackupAPIService');
 // Initialize services
 const volumeService = new VolumeService();
 
-// Initialize backup service - use PostgreSQL if /data volume not available
+// Initialize backup service - prioritize PostgreSQL for data consistency
 let backupService;
 async function initializeBackupService() {
   try {
-    // Try Railway backup service first (file-based with /data volume)
-    const railwayService = new RailwayBackupService();
-    await railwayService.initialize();
-    backupService = railwayService;
-    console.log('✅ Using Railway file-based backup service');
-  } catch (error) {
-    console.log('⚠️ Railway volume not available, falling back to PostgreSQL backup service');
+    // Use PostgreSQL backup service for data consistency and reliability
+    console.log('🔄 Initializing PostgreSQL database backup service...');
+    const postgresService = new PostgreSQLBackupService();
+    await postgresService.initialize();
+    backupService = postgresService;
+    console.log('✅ Using PostgreSQL database backup service (primary)');
+  } catch (postgresError) {
+    console.log('⚠️ PostgreSQL backup service failed, trying Railway file-based backup...');
     try {
-      const postgresService = new PostgreSQLBackupService();
-      await postgresService.initialize();
-      backupService = postgresService;
-      console.log('✅ Using PostgreSQL database backup service');
-    } catch (pgError) {
-      console.error('❌ Failed to initialize any backup service:', pgError);
+      const railwayService = new RailwayBackupService();
+      await railwayService.initialize();
+      backupService = railwayService;
+      console.log('✅ Using Railway file-based backup service (fallback)');
+    } catch (railwayError) {
+      console.error('❌ Failed to initialize any backup service:');
+      console.error('   PostgreSQL error:', postgresError.message);
+      console.error('   Railway error:', railwayError.message);
       // Create a minimal backup service that does nothing
       backupService = {
         createBackup: async () => ({ backupId: 'none', message: 'No backup service available' }),

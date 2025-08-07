@@ -212,6 +212,8 @@ class PostgreSQLBackupService {
         backupType: backup.backupType,
         timestamp: backup.createdAt.toISOString(),
         size: backup.size,
+        sizeFormatted: this.formatBytes(backup.size),
+        files: backup.metadata.totalRecords || 0, // Use total records as "files" for dashboard compatibility
         metadata: backup.metadata,
         createdAt: backup.createdAt,
         updatedAt: backup.updatedAt,
@@ -364,7 +366,14 @@ class PostgreSQLBackupService {
       return {
         totalBackups,
         totalSize,
-        formattedSize: this.formatBytes(totalSize),
+        totalSizeFormatted: this.formatBytes(totalSize),
+        formattedSize: this.formatBytes(totalSize), // Keep for backward compatibility
+        availableSpace: 999999999999, // Virtually unlimited for PostgreSQL
+        availableSpaceFormatted: 'Unlimited',
+        usagePercentage: 0,
+        maxStorageGB: 'Unlimited',
+        maxBackups: 'Unlimited',
+        isRailway: false,
         backupsByType,
         storageLocation: 'PostgreSQL Database',
         lastBackup: await this.getLastBackupTime(),
