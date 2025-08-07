@@ -319,22 +319,82 @@ module.exports = {
       },
     });
 
-    // Add indexes
-    await queryInterface.addIndex('users', ['email']);
-    await queryInterface.addIndex('users', ['username']);
-    await queryInterface.addIndex('users', ['role']);
-    await queryInterface.addIndex('account_managers', ['email']);
-    await queryInterface.addIndex('colleges', ['name']);
-    await queryInterface.addIndex('colleges', ['accountManagerId']);
-    await queryInterface.addIndex('reports', ['collegeId']);
-    await queryInterface.addIndex('reports', ['status']);
-    await queryInterface.addIndex('reports', ['createdAt']);
-    await queryInterface.addIndex('sessions', ['token']);
-    await queryInterface.addIndex('sessions', ['userId']);
-    await queryInterface.addIndex('sessions', ['isActive']);
-    await queryInterface.addIndex('security_logs', ['userId']);
-    await queryInterface.addIndex('security_logs', ['action']);
-    await queryInterface.addIndex('security_logs', ['createdAt']);
+    // Add indexes (with error handling for existing indexes)
+    try {
+      await queryInterface.addIndex('users', ['email']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('users', ['username']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('users', ['role']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('account_managers', ['email']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('colleges', ['name']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('colleges', ['accountManagerId']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('reports', ['collegeId']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('reports', ['status']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('reports', ['createdAt']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('sessions', ['token']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('sessions', ['userId']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('sessions', ['isActive']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('security_logs', ['userId']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('security_logs', ['action']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
+    try {
+      await queryInterface.addIndex('security_logs', ['createdAt']);
+    } catch (error) {
+      if (!error.message.includes('already exists')) throw error;
+    }
   },
 
   async down(queryInterface, Sequelize) {
