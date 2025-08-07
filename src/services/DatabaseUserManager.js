@@ -1,6 +1,6 @@
 const DatabaseService = require('./DatabaseService');
 const { User, AccountManager, College, Report, Session, SecurityLog } = require('../database/models');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 class DatabaseUserManager {
