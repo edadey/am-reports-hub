@@ -4429,22 +4429,33 @@ app.post('/api/admin/migrate-database', authService.requireAuth(), async (req, r
   }
 });
 
-// Start server immediately
-app.listen(PORT, () => {
-  console.log(`AM Reports Hub running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
-  console.log('✅ Server is ready to accept requests');
-  console.log('🏥 Healthcheck endpoint available at /');
-  
-  // Initialize services in background (non-blocking) after server starts
+// Only start server if this file is run directly (not loaded as module)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`AM Reports Hub running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
+    console.log('✅ Server is ready to accept requests');
+    console.log('🏥 Healthcheck endpoint available at /');
+    
+    // Initialize services in background (non-blocking) after server starts
+    setTimeout(() => {
+      console.log('🔄 Starting background service initialization...');
+      initializeServices().catch(error => {
+        console.error('❌ Service initialization failed:', error);
+        console.log('⚠️ Continuing with basic functionality - some features may be limited');
+      });
+    }, 5000); // Wait 5 seconds before starting services to ensure healthcheck is ready
+  });
+} else {
+  // Initialize services when loaded as module
   setTimeout(() => {
     console.log('🔄 Starting background service initialization...');
     initializeServices().catch(error => {
       console.error('❌ Service initialization failed:', error);
       console.log('⚠️ Continuing with basic functionality - some features may be limited');
     });
-  }, 5000); // Wait 5 seconds before starting services to ensure healthcheck is ready
-});
+  }, 1000);
+}
 
 module.exports = app; 
