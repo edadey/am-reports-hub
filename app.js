@@ -695,12 +695,14 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 });
 */
 
-// Root endpoint for Railway health checks
+// Root endpoint for Railway health checks - responds immediately
 app.get('/', (req, res) => {
+  console.log('🏥 Root health check requested');
   res.status(200).json({
     status: 'healthy',
     message: 'AM Reports Hub is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
   });
 });
 
@@ -4151,16 +4153,20 @@ async function initializeServices() {
   }
 }
 
-// Start server
+// Start server immediately
 app.listen(PORT, () => {
   console.log(`AM Reports Hub running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
+  console.log('✅ Server is ready to accept requests');
   
-  // Initialize services in background (non-blocking)
-  initializeServices().catch(error => {
-    console.error('❌ Service initialization failed:', error);
-  });
+  // Initialize services in background (non-blocking) after server starts
+  setTimeout(() => {
+    console.log('🔄 Starting background service initialization...');
+    initializeServices().catch(error => {
+      console.error('❌ Service initialization failed:', error);
+    });
+  }, 1000); // Wait 1 second before starting services
 });
 
 module.exports = app; 
