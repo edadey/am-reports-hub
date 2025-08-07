@@ -1,5 +1,7 @@
 const { Sequelize } = require('sequelize');
 const models = require('../database/models');
+const path = require('path');
+const fs = require('fs-extra');
 
 class DatabaseService {
   constructor() {
@@ -16,11 +18,8 @@ class DatabaseService {
       await this.sequelize.authenticate();
       console.log('✅ Database connection established successfully');
       
-      // Sync models (in development only)
-      if (process.env.NODE_ENV === 'development') {
-        await this.sequelize.sync({ alter: true });
-        console.log('✅ Database models synchronized');
-      }
+      // Run migrations to create tables
+      await this.runMigrations();
       
       this.isConnected = true;
       console.log('✅ Database Service initialized');
@@ -36,18 +35,30 @@ class DatabaseService {
     try {
       console.log('🔄 Running database migrations...');
       
-      // In production, migrations should be run separately
-      // For development, we'll use sync for now
-      if (process.env.NODE_ENV === 'development') {
-        await this.sequelize.sync({ force: false, alter: true });
-        console.log('✅ Database schema updated');
+      // Check if we're in production and need to run migrations
+      if (process.env.NODE_ENV === 'production') {
+        // In production, run the migration file directly
+        const migrationPath = path.join(__dirname, '../database/migrations/001-create-initial-tables.js');
+        if (await fs.pathExists(migrationPath)) {
+          console.log('📋 Running production migration...');
+          const migration = require(migrationPath);
+          await migration.up(this.sequelize.getQueryInterface(), Sequelize);
+          console.log('✅ Production migration completed');
+        }
       } else {
-        console.log('ℹ️ Migrations should be run separately in production');
+        // In development, use sync for convenience
+        await this.sequelize.sync({ force: false, alter: true });
+        console.log('✅ Database schema updated (development mode)');
       }
       
       return true;
     } catch (error) {
       console.error('❌ Migration failed:', error);
+      // Don't throw error if tables already exist
+      if (error.message.includes('already exists') || error.message.includes('duplicate')) {
+        console.log('ℹ️ Tables already exist, continuing...');
+        return true;
+      }
       throw error;
     }
   }

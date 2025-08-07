@@ -695,18 +695,41 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 });
 */
 
-// Simple health check endpoint for Railway
-app.get('/health', (req, res) => {
+// Enhanced health check endpoint for Railway
+app.get('/health', async (req, res) => {
   try {
-    // Basic health check - just ensure the app is responding
-    res.status(200).json({ 
-      status: 'healthy', 
+    const healthData = {
+      status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       environment: process.env.NODE_ENV || 'development',
       port: PORT,
-      ready: true
-    });
+      ready: true,
+      database: 'unknown'
+    };
+
+    // Check database connectivity if DATABASE_URL is set
+    if (process.env.DATABASE_URL) {
+      try {
+        const DatabaseService = require('./src/services/DatabaseService');
+        const dbHealth = await DatabaseService.healthCheck();
+        healthData.database = dbHealth.status;
+        healthData.databaseConnected = dbHealth.connected;
+        
+        if (!dbHealth.connected) {
+          healthData.status = 'degraded';
+          healthData.databaseError = dbHealth.error;
+        }
+      } catch (dbError) {
+        healthData.status = 'degraded';
+        healthData.database = 'error';
+        healthData.databaseError = dbError.message;
+      }
+    } else {
+      healthData.database = 'not_configured';
+    }
+
+    res.status(200).json(healthData);
   } catch (error) {
     console.error('Health check error:', error);
     res.status(500).json({ 

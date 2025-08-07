@@ -2,7 +2,7 @@ const { Sequelize } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
 
-// Database connection
+// Database connection with Railway-specific configuration
 const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://localhost:5432/am_reports_hub', {
   dialect: 'postgres',
   logging: process.env.NODE_ENV === 'development' ? console.log : false,
@@ -11,6 +11,16 @@ const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://localh
     min: 0,
     acquire: 30000,
     idle: 10000,
+  },
+  dialectOptions: {
+    ssl: process.env.NODE_ENV === 'production' ? {
+      require: true,
+      rejectUnauthorized: false,
+    } : false,
+  },
+  retry: {
+    max: 3,
+    timeout: 10000,
   },
 });
 
