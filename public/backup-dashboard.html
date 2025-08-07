@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Backup Management - AM Reports Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
         .card-hover {
             transition: all 0.3s ease;
         }
         .card-hover:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
         .backup-status {
             animation: pulse 2s infinite;
@@ -24,22 +20,55 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.7; }
         }
+        .notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            min-width: 320px;
+            max-width: 480px;
+        }
+        .notification-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+        }
+        .success-bg {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .error-bg {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-white min-h-screen">
     <!-- Header -->
-    <header class="bg-white shadow-sm border-b border-gray-200">
+    <header class="bg-white shadow-sm border-b border-gray-100">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
+                <div class="flex items-center space-x-3">
+                    <svg class="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
                     <h1 class="text-2xl font-bold text-gray-900">Backup Management</h1>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <button onclick="window.location.href='/college-dashboard'" class="text-gray-600 hover:text-gray-900">
-                        <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+                <div class="flex items-center space-x-3">
+                    <button onclick="window.location.href='/admin-dashboard'" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                        </svg>
+                        Back to Dashboard
                     </button>
-                    <button onclick="logout()" class="bg-red-500 text-white px-4 py-2 rounded-md hover:bg-red-600">
-                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                    <button onclick="logout()" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                        <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                        </svg>
+                        Logout
                     </button>
                 </div>
             </div>
@@ -52,7 +81,9 @@
             <div class="bg-white rounded-lg shadow p-6 card-hover">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                        <i class="fas fa-database text-xl"></i>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Total Backups</p>
@@ -64,7 +95,9 @@
             <div class="bg-white rounded-lg shadow p-6 card-hover">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full bg-green-100 text-green-600">
-                        <i class="fas fa-hdd text-xl"></i>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/>
+                        </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Total Size</p>
@@ -76,7 +109,9 @@
             <div class="bg-white rounded-lg shadow p-6 card-hover">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
-                        <i class="fas fa-clock text-xl"></i>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Last Backup</p>
@@ -88,7 +123,9 @@
             <div class="bg-white rounded-lg shadow p-6 card-hover">
                 <div class="flex items-center">
                     <div class="p-3 rounded-full bg-purple-100 text-purple-600">
-                        <i class="fas fa-shield-alt text-xl"></i>
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                        </svg>
                     </div>
                     <div class="ml-4">
                         <p class="text-sm font-medium text-gray-600">Status</p>
@@ -103,15 +140,21 @@
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Quick Actions</h2>
             <div class="flex flex-wrap gap-4">
                 <button onclick="createBackup()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
-                    <i class="fas fa-plus mr-2"></i>
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
                     Create New Backup
                 </button>
                 <button onclick="restoreLatestBackup()" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
-                    <i class="fas fa-undo mr-2"></i>
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
                     Restore Latest
                 </button>
                 <button onclick="refreshBackups()" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors flex items-center">
-                    <i class="fas fa-sync-alt mr-2"></i>
+                    <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
                     Refresh
                 </button>
             </div>
@@ -137,7 +180,9 @@
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Backup Details</h3>
                         <button onclick="closeBackupModal()" class="text-gray-400 hover:text-gray-600">
-                            <i class="fas fa-times text-xl"></i>
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
                         </button>
                     </div>
                     <div id="backupModalContent">
@@ -148,11 +193,22 @@
         </div>
     </div>
 
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50">
-        <div class="flex items-center">
-            <i class="fas fa-check mr-2"></i>
-            <span id="toastMessage">Success!</span>
+    <!-- Notification Modal -->
+    <div id="notificationBackdrop" class="notification-backdrop hidden"></div>
+    <div id="notification" class="notification hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6">
+            <div class="flex items-center">
+                <div id="notificationIcon" class="mr-3"></div>
+                <div>
+                    <h4 id="notificationTitle" class="text-lg font-semibold text-gray-900 mb-1"></h4>
+                    <p id="notificationMessage" class="text-gray-600"></p>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="hideNotification()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md transition-colors">
+                    Close
+                </button>
+            </div>
         </div>
     </div>
 
@@ -210,7 +266,9 @@
             if (currentBackups.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-8">
-                        <i class="fas fa-database text-4xl text-gray-300 mb-4"></i>
+                        <svg class="h-12 w-12 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"/>
+                        </svg>
                         <p class="text-gray-500">No backups found</p>
                         <p class="text-sm text-gray-400 mt-1">Create your first backup to get started</p>
                     </div>
@@ -237,10 +295,14 @@
                         </div>
                         <div class="flex space-x-2">
                             <button onclick="showBackupDetails('${backup.timestamp}')" class="text-blue-600 hover:text-blue-800 text-sm">
-                                <i class="fas fa-info-circle mr-1"></i>Details
+                                <svg class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>Details
                             </button>
                             <button onclick="restoreBackup('${backup.timestamp}')" class="text-green-600 hover:text-green-800 text-sm">
-                                <i class="fas fa-undo mr-1"></i>Restore
+                                <svg class="h-4 w-4 mr-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                                </svg>Restore
                             </button>
                         </div>
                     </div>
@@ -252,8 +314,7 @@
         async function createBackup() {
             try {
                 const button = event.target;
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Creating...';
+                button.innerHTML = '<svg class="h-4 w-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Creating...';
                 button.disabled = true;
                 
                 const response = await fetch('/api/backup/create', {
@@ -277,7 +338,7 @@
                 showNotification('Error creating backup', 'error');
             } finally {
                 const button = event.target;
-                button.innerHTML = originalText;
+                button.innerHTML = '<svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>Create New Backup';
                 button.disabled = false;
             }
         }
@@ -295,8 +356,7 @@
             
             try {
                 const button = event.target;
-                const originalText = button.innerHTML;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Restoring...';
+                button.innerHTML = '<svg class="h-4 w-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Restoring...';
                 button.disabled = true;
                 
                 const response = await fetch('/api/backup/restore', {
@@ -317,7 +377,7 @@
                 showNotification('Error restoring backup', 'error');
             } finally {
                 const button = event.target;
-                button.innerHTML = originalText;
+                button.innerHTML = '<svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>Restore Latest';
                 button.disabled = false;
             }
         }
@@ -378,24 +438,37 @@
 
         // Show notification
         function showNotification(message, type = 'success') {
-            const toast = document.getElementById('toast');
-            const toastMessage = document.getElementById('toastMessage');
+            const notification = document.getElementById('notification');
+            const backdrop = document.getElementById('notificationBackdrop');
+            const icon = document.getElementById('notificationIcon');
+            const title = document.getElementById('notificationTitle');
+            const messageEl = document.getElementById('notificationMessage');
             
-            toast.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 ${
-                type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-            }`;
+            if (type === 'success') {
+                icon.innerHTML = `<div class="p-2 rounded-full success-bg"><svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg></div>`;
+                title.textContent = 'Success';
+            } else {
+                icon.innerHTML = `<div class="p-2 rounded-full error-bg"><svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></div>`;
+                title.textContent = 'Error';
+            }
             
-            toastMessage.textContent = message;
+            messageEl.textContent = message;
             
-            // Show toast
-            setTimeout(() => {
-                toast.classList.remove('translate-x-full');
-            }, 100);
+            backdrop.classList.remove('hidden');
+            notification.classList.remove('hidden');
             
-            // Hide toast after 3 seconds
-            setTimeout(() => {
-                toast.classList.add('translate-x-full');
-            }, 3000);
+            // Close on backdrop click
+            backdrop.onclick = hideNotification;
+        }
+        
+        // Hide notification
+        function hideNotification() {
+            const notification = document.getElementById('notification');
+            const backdrop = document.getElementById('notificationBackdrop');
+            
+            backdrop.classList.add('hidden');
+            notification.classList.add('hidden');
+            backdrop.onclick = null;
         }
 
         // Format date
