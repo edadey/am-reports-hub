@@ -695,8 +695,33 @@ Format as numbered list with specific targets and timeframes. Make suggestions p
 });
 */
 
-// Enhanced health check endpoint for Railway
-app.get('/health', async (req, res) => {
+// Root endpoint for Railway health checks
+app.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    message: 'AM Reports Hub is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Simple health check endpoint for Railway - always responds
+app.get('/health', (req, res) => {
+  console.log('🏥 Health check requested');
+  
+  // Simple response that always works
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    port: PORT,
+    ready: true,
+    message: 'AM Reports Hub is running'
+  });
+});
+
+// Enhanced health check endpoint for detailed status
+app.get('/health/detailed', async (req, res) => {
   try {
     const healthData = {
       status: 'healthy',
@@ -730,11 +755,9 @@ app.get('/health', async (req, res) => {
       healthData.database = 'not_configured';
     }
 
-    // Always return 200 for health checks - Railway needs this
     res.status(200).json(healthData);
   } catch (error) {
-    console.error('Health check error:', error);
-    // Even on error, return 200 to prevent Railway from failing the deployment
+    console.error('Detailed health check error:', error);
     res.status(200).json({ 
       status: 'degraded', 
       error: error.message,
