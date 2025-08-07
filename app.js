@@ -803,11 +803,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// Simple health check endpoint for Railway - always responds
+// Simple health check endpoint for Railway - always responds (used by Railway healthcheck)
 app.get('/health', (req, res) => {
   console.log('🏥 Health check requested');
   
-  // Simple response that always works
+  // Always respond with 200 OK - this is critical for Railway deployment
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -815,7 +815,8 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     port: PORT,
     ready: true,
-    message: 'AM Reports Hub is running'
+    message: 'AM Reports Hub is running',
+    version: '1.0.0'
   });
 });
 
@@ -4438,6 +4439,7 @@ app.listen(PORT, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
   console.log('✅ Server is ready to accept requests');
+  console.log('🏥 Healthcheck endpoint available at /health');
   
   // Initialize services in background (non-blocking) after server starts
   setTimeout(() => {
@@ -4446,7 +4448,7 @@ app.listen(PORT, () => {
       console.error('❌ Service initialization failed:', error);
       console.log('⚠️ Continuing with basic functionality - some features may be limited');
     });
-  }, 1000); // Wait 1 second before starting services
+  }, 2000); // Wait 2 seconds before starting services to ensure healthcheck is ready
 });
 
 module.exports = app; 

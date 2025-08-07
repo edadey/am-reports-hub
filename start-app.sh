@@ -1,22 +1,19 @@
 #!/bin/bash
-# cPanel Startup Script for AM Reports
 
-echo "🚀 Starting AM Reports on cPanel..."
+echo "🚀 Starting AM Reports Hub..."
 
-# Set environment
-export NODE_ENV=production
-export PORT=3000
+# Set environment variables if not already set
+export NODE_ENV=${NODE_ENV:-production}
+export PORT=${PORT:-3000}
 
-# Check if app is already running
-if pgrep -f "node app.js" > /dev/null; then
-    echo "⚠️ App is already running. Stopping..."
-    pkill -f "node app.js"
-    sleep 2
+echo "📋 Environment: $NODE_ENV"
+echo "🔌 Port: $PORT"
+
+# Check if we're in Railway environment
+if [ -n "$RAILWAY_ENVIRONMENT" ]; then
+    echo "🚂 Railway environment detected: $RAILWAY_ENVIRONMENT"
 fi
 
 # Start the application
-echo "✅ Starting application..."
-node app.js > app.log 2>&1 &
-
-echo "✅ Application started. Check app.log for details."
-echo "🌐 Access at: https://reports.navigate.uk.com"
+echo "🎯 Starting Node.js application..."
+exec node --max-old-space-size=4096 app.js
