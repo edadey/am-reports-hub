@@ -254,6 +254,9 @@ app.post('/api/backup/create', async (req, res) => {
   try {
     const { description } = req.body;
     console.log('🔄 Creating persistent backup...');
+    console.log('🔄 Backup service type:', typeof railwayBackupService);
+    console.log('🔄 Backup service constructor:', railwayBackupService.constructor.name);
+    console.log('🔄 Available methods:', Object.getOwnPropertyNames(railwayBackupService));
     
     const result = await railwayBackupService.createBackup(description || 'Manual Railway cloud backup');
     
