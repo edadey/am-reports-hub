@@ -176,13 +176,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Helper function to get the appropriate user manager
-function getUserManager() {
-  return process.env.DATABASE_URL ? databaseUserManager : userManager;
+async function getUserManager() {
+  if (process.env.DATABASE_URL) {
+    await databaseUserManager.initialize();
+    return databaseUserManager;
+  }
+  return userManager;
 }
 
 // Initialize services
 const userManager = new UserManager(volumeService);
-const databaseUserManager = DatabaseUserManager;
+const databaseUserManager = new DatabaseUserManager();
 const aiAnalyzer = new AIAnalyzer();
 const reportScheduler = new ReportScheduler();
 const dataImporter = new DataImporter();
@@ -1169,7 +1173,7 @@ app.delete('/api/users/:id', authService.requireAuth(), authService.requireRole(
 // College Management Routes
 app.get('/api/colleges', async (req, res) => {
   try {
-    const colleges = await getUserManager().getColleges();
+    const colleges = await (await getUserManager()).getColleges();
     res.json({ colleges });
   } catch (error) {
     console.error('Get colleges error:', error);
@@ -1180,7 +1184,7 @@ app.get('/api/colleges', async (req, res) => {
 app.get('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const colleges = await getUserManager().getColleges();
+    const colleges = await (await getUserManager()).getColleges();
     const college = colleges.find(c => 
       parseInt(c.id) === parseInt(id) || 
       String(c.id) === String(id) || 
@@ -1247,7 +1251,7 @@ app.post('/api/colleges', authService.requireAuth(), async (req, res) => {
       modules: modules || []
     });
     
-    const result = await getUserManager().createCollege({
+    const result = await (await getUserManager()).createCollege({
       name,
       location: location || '',
       contactPerson: contactPerson || '',
@@ -1289,7 +1293,7 @@ app.put('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     
     console.log('Update data:', updateData);
     
-    const result = await getUserManager().updateCollege(parseInt(id), updateData);
+    const result = await (await getUserManager()).updateCollege(parseInt(id), updateData);
     console.log('Update result:', result);
     
     res.json({ success: true, college: result });
@@ -1308,7 +1312,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
     console.log('DELETE /api/colleges/:id - Parsed ID:', parseInt(id));
     
     // First check if the college exists
-    const colleges = await getUserManager().getColleges();
+    const colleges = await (await getUserManager()).getColleges();
     console.log('DELETE /api/colleges/:id - Available colleges:', colleges.map(c => ({ id: c.id, name: c.name })));
     
     const collegeExists = colleges.find(c => 
@@ -1324,7 +1328,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'College not found' });
     }
     
-    await getUserManager().deleteCollege(parseInt(id));
+    await (await getUserManager()).deleteCollege(parseInt(id));
     
     res.json({ success: true, message: 'College deleted successfully' });
   } catch (error) {
@@ -1337,7 +1341,7 @@ app.delete('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
 // Account Manager Routes
 app.get('/api/account-managers', async (req, res) => {
   try {
-    const managers = await getUserManager().getAccountManagers();
+    const managers = await (await getUserManager()).getAccountManagers();
     res.json(managers);
   } catch (error) {
     console.error('Get account managers error:', error);
@@ -1355,7 +1359,7 @@ app.post('/api/account-managers', authService.requireAuth(), async (req, res) =>
     
     console.log('🔄 Creating account manager with data:', { name, email, phone: phone || '', region: region || '' });
     
-    const result = await getUserManager().createAccountManager({
+    const result = await (await getUserManager()).createAccountManager({
       name,
       email,
       phone: phone || '',
@@ -1381,7 +1385,7 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
       return res.status(400).json({ error: 'Name and email are required' });
     }
     
-    const result = await getUserManager().updateAccountManager(id, {
+    const result = await (await getUserManager()).updateAccountManager(id, {
       name,
       email,
       phone: phone || '',
@@ -1399,7 +1403,7 @@ app.put('/api/account-managers/:id', authService.requireAuth(), async (req, res)
 app.get('/api/account-managers/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const managers = await getUserManager().getAccountManagers();
+    const managers = await (await getUserManager()).getAccountManagers();
     const manager = managers.find(m => m.id === parseInt(id));
     
     if (!manager) {
@@ -1482,7 +1486,7 @@ app.delete('/api/colleges/:collegeId/reports/:reportId', authService.requireAuth
 app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const colleges = await getUserManager().getColleges();
+    const colleges = await (await getUserManager()).getColleges();
     // Handle both string and number IDs
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
@@ -1501,7 +1505,7 @@ app.get('/api/colleges/:collegeId', authService.requireAuth(), async (req, res) 
 app.get('/api/account-managers/:accountManagerId', authService.requireAuth(), async (req, res) => {
   try {
     const { accountManagerId } = req.params;
-    const accountManagers = await getUserManager().getAccountManagers();
+    const accountManagers = await (await getUserManager()).getAccountManagers();
     // Handle both string and number IDs
     const accountManager = accountManagers.find(am => 
       am.id === parseInt(accountManagerId) || am.id === accountManagerId || am.id.toString() === accountManagerId
@@ -1527,7 +1531,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     }
 
     // Get college data for filename
-    const colleges = await getUserManager().getColleges();
+    const colleges = await (await getUserManager()).getColleges();
     const college = colleges.find(c => 
       c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId
     );
@@ -2683,6 +2687,22 @@ function calculateChanges(currentData, previousReportPath) {
 
 async function getCollegeReports(collegeId) {
   try {
+    // First try to load from database if available
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log(`📊 Loading reports for college ${collegeId} from database...`);
+        await databaseUserManager.initialize();
+        const dbReports = await databaseUserManager.getReports(parseInt(collegeId));
+        if (dbReports && dbReports.length > 0) {
+          console.log(`✅ Found ${dbReports.length} reports for college ${collegeId} in database`);
+          return dbReports;
+        }
+      } catch (dbError) {
+        console.log(`⚠️ Failed to load reports from database, trying file system: ${dbError.message}`);
+      }
+    }
+
+    // Fallback to file system
     console.log(`📊 Loading reports for college ${collegeId} from volume...`);
     
     const reportsPath = `reports/${collegeId}.json`;
@@ -2756,6 +2776,30 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     await volumeService.writeFile(reportsPath, reports);
     console.log('✅ Reports file written to volume successfully');
     
+    // Also save to database if available for permanent storage
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('💾 Saving report to database for permanent storage...');
+        await databaseUserManager.initialize();
+        const dbReportData = {
+          name: report.name,
+          collegeId: parseInt(collegeId),
+          data: report.data,
+          summary: report.summary,
+          createdBy: report.createdBy,
+          validationChecksum: report.validationChecksum,
+          validationTime: report.validationTime,
+          status: 'completed'
+        };
+        
+        const dbReport = await databaseUserManager.createReport(dbReportData);
+        console.log(`✅ Report saved to database with ID: ${dbReport.id}`);
+      } catch (dbError) {
+        console.error('⚠️ Failed to save report to database (file system backup available):', dbError.message);
+        // Don't fail the entire operation if database save fails, file system backup exists
+      }
+    }
+    
     // Create backup after successful save
     try {
               await railwayBackupService.createBackup(`Manual report backup - ${collegeId} - ${Date.now()}`);
@@ -2777,9 +2821,9 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       // Don't fail the report save if analytics update fails
     }
     
-    // Update college's lastReportDate
+    // Update college's lastReportDate using the correct user manager (database-first)
     try {
-      await userManager.updateCollege(collegeId, {
+      await (await getUserManager()).updateCollege(collegeId, {
         lastReportDate: new Date().toISOString()
       });
       console.log(`Updated lastReportDate for college ${collegeId}`);
