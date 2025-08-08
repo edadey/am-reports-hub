@@ -247,6 +247,7 @@ class DatabaseUserManager {
           lastReportDate: collegeData.lastreportdate || null,
           misContactName: collegeData.miscontactname || '',
           misContactEmail: collegeData.miscontactemail || '',
+          collegeSystem: collegeData.collegesystem || '',
           renewalDate: collegeData.renewaldate || '',
           modules: collegeData.modules || [],
           keyStakeholders: collegeData.keystakeholders || [],
@@ -297,8 +298,8 @@ class DatabaseUserManager {
         normalised.lastreportdate = normalised.lastReportDate;
         delete normalised.lastReportDate;
       }
-      // Ignore collegeSystem field for now (stored only in UI) to avoid DB mismatch
       if (Object.prototype.hasOwnProperty.call(normalised, 'collegeSystem')) {
+        normalised.collegesystem = normalised.collegeSystem;
         delete normalised.collegeSystem;
       }
       // Accept either form for robustness (camelCase already handled above)

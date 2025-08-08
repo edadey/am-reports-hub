@@ -37,13 +37,31 @@ class DatabaseService {
       
       // Check if we're in production and need to run migrations
       if (process.env.NODE_ENV === 'production') {
-        // In production, run the migration file directly
-        const migrationPath = path.join(__dirname, '../database/migrations/001-create-initial-tables.js');
-        if (await fs.pathExists(migrationPath)) {
-          console.log('📋 Running production migration...');
-          const migration = require(migrationPath);
-          await migration.up(this.sequelize.getQueryInterface(), Sequelize);
-          console.log('✅ Production migration completed');
+        // In production, run all migration files in order
+        const migrationsDir = path.join(__dirname, '../database/migrations');
+        if (await fs.pathExists(migrationsDir)) {
+          const files = (await fs.readdir(migrationsDir))
+            .filter(f => f.endsWith('.js'))
+            .sort();
+          const qi = this.sequelize.getQueryInterface();
+          for (const file of files) {
+            try {
+              console.log(`📋 Running migration: ${file}`);
+              const migration = require(path.join(migrationsDir, file));
+              if (migration && typeof migration.up === 'function') {
+                await migration.up(qi, Sequelize);
+              }
+              console.log(`✅ Migration completed: ${file}`);
+            } catch (error) {
+              // Ignore common "already exists" / duplicate errors to keep idempotent
+              const msg = String(error.message || '');
+              if (msg.includes('already exists') || msg.includes('duplicate')) {
+                console.log(`ℹ️ Migration ${file} changes already applied, continuing...`);
+                continue;
+              }
+              throw error;
+            }
+          }
         }
       } else {
         // In development, use sync for convenience
