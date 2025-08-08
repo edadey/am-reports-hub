@@ -35,6 +35,31 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
   <script>
+    function forceReadableStyles(headers, rows) {
+      try {
+        const api = window.luckysheet;
+        if (!api || !api.setRangeStyle) return;
+        const endRow = rows.length; // includes header row at 0
+        const endCol = Math.max(0, headers.length - 1);
+        const apply = () => {
+          try {
+            api.setRangeStyle({
+              range: [{ row: [0, endRow], column: [0, endCol] }],
+              style: { fc: '#111111', bg: '#ffffff' }
+            });
+            // Explicitly target header row again for good measure
+            api.setRangeStyle({
+              range: [{ row: [0, 0], column: [0, endCol] }],
+              style: { fc: '#111111', bl: 1, bg: '#ffffff' }
+            });
+          } catch (_) { /* ignore */ }
+        };
+        // Apply now and after render ticks to override late paints
+        apply();
+        setTimeout(apply, 50);
+        setTimeout(apply, 300);
+      } catch (_) { /* ignore */ }
+    }
     const qs = new URLSearchParams(location.search);
     const collegeId = qs.get('collegeId');
     const reportId = qs.get('reportId');
@@ -81,19 +106,7 @@
             forceCalculation: true,
             data: sheets
           });
-          // Force readable text across entire used range
-          try {
-            const lastRow = rows.length; // includes header row in sheets meta, but style ranges are 0-based inclusive
-            const lastCol = headers.length - 1;
-            if (window.luckysheet && window.luckysheet.setRangeStyle) {
-              window.luckysheet.setRangeStyle({
-                range: [{ row: [0, lastRow], column: [0, lastCol] }],
-                style: { fc: '#111111', bg: '#ffffff' }
-              });
-            }
-          } catch (e) {
-            console.warn('Style application skipped:', e.message);
-          }
+          forceReadableStyles(headers, rows);
           setStatus('Loaded');
           return;
         } catch (e) {
@@ -120,19 +133,7 @@
             forceCalculation: true,
             data: sheets
           });
-          // Apply readable styles to entire data range
-          try {
-            const lastRow = rows.length;
-            const lastCol = headers.length - 1;
-            if (window.luckysheet && window.luckysheet.setRangeStyle) {
-              window.luckysheet.setRangeStyle({
-                range: [{ row: [0, lastRow], column: [0, lastCol] }],
-                style: { fc: '#111111', bg: '#ffffff' }
-              });
-            }
-          } catch (e) {
-            console.warn('Style application skipped:', e.message);
-          }
+          forceReadableStyles(headers, rows);
           setStatus('Loaded from upload');
           return;
         } catch (e) {
