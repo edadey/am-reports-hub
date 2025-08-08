@@ -3023,12 +3023,36 @@ async function getCollegeReport(collegeId, reportId) {
 
 async function deleteCollegeReport(collegeId, reportId) {
   try {
+    // 1) Delete from database if available
+    if (process.env.DATABASE_URL) {
+      try {
+        await databaseUserManager.initialize();
+        const dbReports = await databaseUserManager.getReports(parseInt(collegeId));
+        const target = dbReports.find(r => String(r.id) === String(reportId));
+        if (target) {
+          await (require('./src/services/DatabaseUserManager')).models.Report.destroy({ where: { id: target.id } });
+        }
+      } catch (e) {
+        console.log('DB delete failed or not applicable, will still remove from volume:', e.message);
+      }
+    }
+
+    // 2) Delete from volume JSON
     const reportsPath = `reports/${collegeId}.json`;
     const reports = await volumeService.readFile(reportsPath).catch(() => []);
-    
-    const filteredReports = reports.filter(report => report.id !== reportId);
+    const filteredReports = reports.filter(report => String(report.id) !== String(reportId));
     await volumeService.writeFile(reportsPath, filteredReports);
-    
+
+    // 3) Also prune previous-reports cache
+    try {
+      const previousReportsPath = 'previous-reports.json';
+      const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+      if (prevMap && prevMap[collegeId] && Array.isArray(prevMap[collegeId].reports)) {
+        prevMap[collegeId].reports = prevMap[collegeId].reports.filter(r => String(r.id) !== String(reportId));
+        await volumeService.writeFile(previousReportsPath, prevMap);
+      }
+    } catch (_) {}
+
     return { success: true };
   } catch (error) {
     console.error('Delete college report error:', error);

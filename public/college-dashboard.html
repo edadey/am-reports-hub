@@ -3681,7 +3681,8 @@
       try {
         const collegeId = getCollegeId();
         const response = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          credentials: 'include'
         });
         const result = await response.json();
         
@@ -3695,6 +3696,9 @@
         // Update UI
         updateReportsList();
         updateReportsTable();
+        // Also refresh parent/global lists if present
+        try { if (typeof loadCollegeData === 'function') { await loadCollegeData(); } } catch (_) {}
+        try { if (typeof loadAllAIInsights === 'function') { await loadAllAIInsights(); } } catch (_) {}
         
         // Refresh metrics to reflect the deletion
         updateDashboardData();
