@@ -123,6 +123,7 @@
         <button id="processBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
           Process Files
         </button>
+        <button id="openExcelEditorBtn" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition-colors duration-200 font-medium shadow-sm touch-button ml-2">Open Excel Editor</button>
         <button id="testActivityBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button ml-2">
           Test Activity Processing
         </button>
@@ -410,6 +411,16 @@
       if (testActivityBtn) {
         testActivityBtn.addEventListener('click', testActivityProcessing);
       }
+      const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
+      if (openExcelEditorBtn) {
+        openExcelEditorBtn.addEventListener('click', () => {
+          if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
+            const rows = tableData.map(r => r);
+            localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows }));
+          }
+          window.open('report-editor.html', '_blank');
+        });
+      }
       
       // Table editing
       const addRowBtn = document.getElementById('addRowBtn');
@@ -620,6 +631,11 @@
             console.log(`Response Enrichment for ${dept}:`, response.data.data.activities.enrichment[dept]);
           });
           
+          // Prepare data for Excel editor and cache it
+          const headers = await buildHeadersFromProcessed(response.data.data);
+          const rows = await buildRowsFromProcessed(response.data.data, headers);
+          localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+          // Render the classic table as before
           await adaptTableToData(response.data.data);
           showStatus('Files processed successfully', 'success');
         }
@@ -627,6 +643,32 @@
         console.error('Error processing files:', error);
         showStatus('Error processing files: ' + error.message, 'error');
       }
+    }
+    // Build headers and rows for Excel editor from processed structure
+    async function buildHeadersFromProcessed(data) {
+      const all = new Set(['Department']);
+      (data.departments || []).forEach(dept => {
+        const metrics = (data.metrics || {})[dept] || {};
+        Object.keys(metrics).forEach(k => { if (k !== 'Department') all.add(k); });
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        Object.keys(emp).forEach(k => all.add(k));
+        const enr = data.activities?.enrichment?.[dept] || {};
+        Object.keys(enr).forEach(k => all.add(k));
+      });
+      return Array.from(all);
+    }
+
+    async function buildRowsFromProcessed(data, headers) {
+      return (data.departments || []).map(dept => {
+        const row = [dept];
+        const metrics = (data.metrics || {})[dept] || {};
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        const enr = data.activities?.enrichment?.[dept] || {};
+        headers.slice(1).forEach(h => {
+          row.push(metrics[h] ?? emp[h] ?? enr[h] ?? '');
+        });
+        return row;
+      });
     }
     
     // Test activity processing

@@ -16,6 +16,10 @@
     .btn.secondary { background:#fff; color:#111827; border-color:#d1d5db; }
     .status { margin-left:12px; color:#6b7280; font-size:13px; }
     #luckysheet { position:absolute; top:54px; left:0; right:0; bottom:0; }
+    /* Improve readability: force dark text throughout grid */
+    #luckysheet, #luckysheet * { color:#111 !important; }
+    .luckysheet-cell-input, .luckysheet-input-box * { color:#111 !important; }
+    .luckysheet-cell-main, .luckysheet-rows, .luckysheet-cols { background:#fff !important; }
   </style>
 </head>
 <body>
@@ -58,38 +62,68 @@
     }
 
     async function loadReport() {
-      if (!collegeId || !reportId) {
-        setStatus('Missing collegeId or reportId', 'error');
-        return;
+      // 1) Load by IDs if provided
+      if (collegeId && reportId) {
+        try {
+          setStatus('Loading report...');
+          const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, { credentials: 'include' });
+          const json = await res.json();
+          if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
+          const { headers = [], rows = [] } = json.report.data;
+          const sheets = toLuckySheetData(headers, rows);
+          window.luckysheet.create({
+            container: 'luckysheet',
+            showinfobar: false,
+            showsheetbar: true,
+            showtoolbar: true,
+            enableAddRow: true,
+            enableAddCol: true,
+            forceCalculation: true,
+            data: sheets
+          });
+          setStatus('Loaded');
+          return;
+        } catch (e) {
+          console.error(e);
+          setStatus(`Load failed: ${e.message}`, 'error');
+          return;
+        }
       }
-      try {
-        setStatus('Loading report...');
-        const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, { credentials: 'include' });
-        const json = await res.json();
-        if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
-        const { headers = [], rows = [] } = json.report.data;
-        const sheets = toLuckySheetData(headers, rows);
-        window.luckysheet.create({
-          container: 'luckysheet',
-          showinfobar: false,
-          showsheetbar: true,
-          showtoolbar: true,
-          enableAddRow: true,
-          enableAddCol: true,
-          forceCalculation: true,
-          data: sheets
-        });
-        setStatus('Loaded');
-      } catch (e) {
-        console.error(e);
-        setStatus(`Load failed: ${e.message}`, 'error');
+      // 2) Fallback: load from localStorage (Generate Report flow)
+      const cached = localStorage.getItem('excelEditorData');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const headers = parsed.headers || [];
+          const rows = parsed.rows || [];
+          const sheets = toLuckySheetData(headers, rows);
+          window.luckysheet.create({
+            container: 'luckysheet',
+            showinfobar: false,
+            showsheetbar: true,
+            showtoolbar: true,
+            enableAddRow: true,
+            enableAddCol: true,
+            forceCalculation: true,
+            data: sheets
+          });
+          setStatus('Loaded from upload');
+          return;
+        } catch (e) {
+          console.error(e);
+        }
       }
+      setStatus('No source data provided', 'error');
     }
 
     async function saveReport() {
       try {
         setStatus('Saving...');
         const { headers, rows } = fromLuckySheet();
+        if (!collegeId) {
+          setStatus('Select a college in Generate Report or open from a report to enable saving.', 'error');
+          return;
+        }
         const payload = { reportData: { headers, rows }, reportName: 'Edited Report', summary: 'Edited in Excel editor' };
         const res = await fetch(`/api/colleges/${collegeId}/reports`, {
           method: 'POST',
@@ -101,6 +135,7 @@
         if (!json.success) throw new Error(json.error || 'Save failed');
         await fetch(`/api/reports/${collegeId}/recalculate`, { method: 'POST', credentials: 'include' });
         setStatus('Saved and recalculated', 'success');
+        localStorage.removeItem('excelEditorData');
       } catch (e) {
         console.error(e);
         setStatus(`Save failed: ${e.message}`, 'error');
