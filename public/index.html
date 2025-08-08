@@ -97,6 +97,15 @@
         </div>
       </div>
 
+      <!-- College Systems Overview -->
+      <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-semibold text-gray-900">College Systems Overview</h3>
+          <button onclick="refreshDashboardData()" class="text-blue-600 hover:text-blue-800 text-sm">Refresh</button>
+        </div>
+        <div id="collegeSystemsOverview" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+      </div>
+
       <!-- Quick Actions -->
       <div class="bg-white rounded-lg shadow p-6 mb-8">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
@@ -3179,6 +3188,26 @@ let deletedAccountManagers = [];
         // Update college overview table
         updateCollegeOverviewTable(colleges);
         
+        // Update College Systems Overview
+        try {
+          const counts = {};
+          (colleges || []).forEach(c => {
+            const key = (c.collegeSystem || '').trim() || 'Unspecified';
+            counts[key] = (counts[key] || 0) + 1;
+          });
+          const container = document.getElementById('collegeSystemsOverview');
+          if (container) {
+            const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+            container.innerHTML = entries.map(([name, count]) => `
+              <div class="border rounded-lg p-4">
+                <p class="text-sm text-gray-500">System</p>
+                <p class="text-lg font-semibold text-gray-900">${name}</p>
+                <p class="text-2xl font-bold text-blue-600 mt-2">${count}</p>
+              </div>
+            `).join('');
+          }
+        } catch (e) { /* no-op */ }
+        
       } catch (error) {
         console.error('Error loading dashboard data:', error);
         
@@ -3307,6 +3336,26 @@ let deletedAccountManagers = [];
         
         // Update college overview table
         updateCollegeOverviewTable(colleges);
+        
+        // Update College Systems Overview
+        try {
+          const counts = {};
+          (colleges || []).forEach(c => {
+            const key = (c.collegeSystem || '').trim() || 'Unspecified';
+            counts[key] = (counts[key] || 0) + 1;
+          });
+          const container = document.getElementById('collegeSystemsOverview');
+          if (container) {
+            const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+            container.innerHTML = entries.map(([name, count]) => `
+              <div class="border rounded-lg p-4">
+                <p class="text-sm text-gray-500">System</p>
+                <p class="text-lg font-semibold text-gray-900">${name}</p>
+                <p class="text-2xl font-bold text-blue-600 mt-2">${count}</p>
+              </div>
+            `).join('');
+          }
+        } catch (e) { /* no-op */ }
         
       } catch (error) {
         console.error('Error loading dashboard data:', error);
