@@ -3167,7 +3167,7 @@ app.post('/api/ai/analyze', authService.requireAuth(), async (req, res) => {
     // Use direct OpenAI API call instead of AIAnalyzer
     const https = require('https');
     
-    const prompt = `You are an expert UK Further Education (FE) consultant. Provide 2-3 KPI suggestions for a college with:
+    const prompt = `You are an expert UK Further Education (FE) consultant. Use clear, casual but professional British English for UK college staff. Provide 2-3 KPI suggestions for a college with:
 - ${performanceData.totalStudents || 0} students
 - ${performanceData.percentWithPlacements || 0}% placement rate
 - ${performanceData.percentStudentsWithActivities || 0}% activity participation

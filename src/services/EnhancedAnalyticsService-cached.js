@@ -131,7 +131,7 @@ class EnhancedAnalyticsService {
           // Use direct HTTPS request instead of AIAnalyzer to avoid fetch issues
           const https = require('https');
           
-          const prompt = `You are an expert UK Further Education (FE) consultant specializing in Navigate software implementation.
+          const prompt = `You are an expert UK Further Education (FE) consultant specialising in Navigate software implementation.
 
 COLLEGE CONTEXT:
 - Name: ${collegeData.name || 'Unknown College'}
@@ -180,7 +180,7 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
             messages: [
               {
                 role: "system",
-                content: "You are an expert UK Further Education (FE) consultant specializing in Navigate software implementation. Write in simple, clear UK English using British spelling. Keep your tone friendly and easy to understand. Provide only 2-3 most important, practical suggestions per section. Focus on Navigate software capabilities and UK FE best practices."
+                content: "You are an expert UK Further Education (FE) consultant specialising in Navigate software implementation. Use clear, casual but professional British English for UK college staff—avoid big, complicated words and jargon. Keep the tone friendly and supportive. Provide only the 2–3 most important, practical suggestions per section. Use British spelling. Focus on Navigate software capabilities and UK FE best practice."
               },
               {
                 role: "user",
