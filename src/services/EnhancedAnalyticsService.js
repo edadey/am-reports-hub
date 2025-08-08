@@ -254,7 +254,8 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
         const DatabaseUserManager = require('./DatabaseUserManager');
         await DatabaseUserManager.initialize();
         
-        const college = await DatabaseUserManager.getCollege(parseInt(collegeId));
+        // DatabaseUserManager exposes getCollegeById for single-college fetches
+        const college = await DatabaseUserManager.getCollegeById(parseInt(collegeId));
         if (college) {
           console.log(`EnhancedAnalyticsService: Loaded college data from database for ${college.name}`);
           return college;

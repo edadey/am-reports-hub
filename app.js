@@ -2997,13 +2997,18 @@ app.post('/api/colleges/:collegeId/generate-kpis', authService.requireAuth(), as
     const { collegeId } = req.params;
     console.log('Generating AI KPIs for college:', collegeId);
     
-    // Load college data
-    const collegeData = await userManager.getCollege(collegeId);
+    // Load college data (prefer DB manager when available)
+    let collegeData;
+    try {
+      const mgr = await getInitializedUserManager();
+      if (mgr.getCollegeById) {
+        collegeData = await mgr.getCollegeById(parseInt(collegeId));
+      } else if (mgr.getCollege) {
+        collegeData = await mgr.getCollege(collegeId);
+      }
+    } catch (_) {}
     if (!collegeData) {
-      return res.status(404).json({
-        success: false,
-        error: 'College not found'
-      });
+      collegeData = await userManager.getCollege(collegeId);
     }
     
     // Load performance data
