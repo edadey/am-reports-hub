@@ -24,7 +24,7 @@
     <div class="title">Excel Editor (Alternative)</div>
     <button id="btnSave" class="btn primary">Save</button>
     <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
-    <button id="btnRevert" class="btn secondary">Revert to classic editor</button>
+    <button id="btnRevert" class="btn secondary">Back to Reports</button>
     <span id="status" class="status"></span>
   </div>
   <div id="sheet"></div>
@@ -176,6 +176,7 @@
         await fetch(`/api/reports/${targetCollegeId}/recalculate`, { method: 'POST', credentials: 'include' });
         setStatus('Saved and recalculated', 'success');
         localStorage.removeItem('excelEditorData');
+        try { showPostSaveOptions(targetCollegeId); } catch (_) {}
       } catch (e) {
         console.error(e);
         setStatus(`Save failed: ${e.message}`, 'error');
@@ -187,7 +188,7 @@
         const { headers, rows } = fromXSheet();
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
-      window.location.href = 'generate-report.html?fromExcel=1';
+      window.location.href = 'index.html?tab=reports';
     }
 
     async function populateCollegePicker() {
@@ -236,6 +237,63 @@
       }
     });
     document.getElementById('btnRevert').addEventListener('click', revertToClassic);
+
+    // Inject Save as Template button
+    (function addSaveTemplateBtn(){
+      const topbar = document.querySelector('.topbar');
+      if (!topbar) return;
+      const btn = document.createElement('button');
+      btn.textContent = 'Save as Template';
+      btn.className = 'btn secondary';
+      btn.id = 'btnSaveTemplate';
+      btn.style.marginLeft = '8px';
+      btn.onclick = async () => {
+        try {
+          const { headers, rows } = fromXSheet();
+          const name = prompt('Enter template name:');
+          if (!name) return;
+          const description = prompt('Optional description:') || '';
+          const res = await fetch('/api/save-template', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ name, description, headers, tableData: rows })
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'Template save failed');
+          setStatus('Template saved', 'success');
+        } catch (e) {
+          console.error(e);
+          setStatus(`Template save failed: ${e.message}`, 'error');
+        }
+      };
+      const status = document.getElementById('status');
+      topbar.insertBefore(btn, status);
+    })();
+
+    // Post-save options modal
+    function showPostSaveOptions(collegeId) {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.35); display:flex; align-items:center; justify-content:center; z-index:999999;';
+      const collegeBtn = collegeId ? '<button id="goCollege" class="btn secondary">Open College Dashboard</button>' : '';
+      modal.innerHTML = `
+        <div style="background:#fff; padding:16px; border-radius:8px; width:90%; max-width:420px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+          <h3 style="margin:0 0 8px; font-weight:600; color:#111827;">Report saved</h3>
+          <p style="margin:0 0 12px; color:#4b5563; font-size:14px;">What would you like to do next?</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+            <button id="goReports" class="btn secondary">Go to Reports</button>
+            ${collegeBtn}
+            <button id="closePostSave" class="btn primary">Close</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.querySelector('#closePostSave').onclick = () => modal.remove();
+      modal.querySelector('#goReports').onclick = () => { window.location.href = 'index.html?tab=reports'; };
+      if (collegeId) {
+        const btn = modal.querySelector('#goCollege');
+        if (btn) btn.onclick = () => { window.location.href = `college-dashboard.html?id=${collegeId}&tab=reports`; };
+      }
+    }
 
     loadReport();
   </script>

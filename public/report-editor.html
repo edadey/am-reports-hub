@@ -39,7 +39,7 @@
     <div class="title">Excel Editor</div>
     <button id="btnSave" class="btn primary">Save</button>
     <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
-    <button id="btnRevert" class="btn secondary">Revert to classic editor</button>
+    <button id="btnRevert" class="btn secondary">Back to Reports</button>
     <span id="status" class="status"></span>
   </div>
   <div id="luckysheet"></div>
@@ -225,7 +225,7 @@
         const { headers, rows } = fromLuckySheet();
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
-      window.location.href = 'generate-report.html?fromExcel=1';
+      window.location.href = 'index.html?tab=reports';
     }
 
     async function populateCollegePicker() {
