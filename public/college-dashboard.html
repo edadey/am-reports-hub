@@ -4392,9 +4392,9 @@
         return;
       }
 
-      const ranking = peerData.rankings?.placement || 'N/A';
+      const ranking = (peerData.rankings && (peerData.rankings.placement || peerData.rankings.placement === 0)) ? peerData.rankings.placement : 'N/A';
       const totalColleges = peerData.totalColleges || 0;
-      const quartile = peerData.quartiles?.placement || 'N/A';
+      const quartile = (peerData.quartiles && (peerData.quartiles.placement || peerData.quartiles.placement === 0)) ? peerData.quartiles.placement : 'N/A';
       const similarCollegesCount = peerData.similarCollegesCount || 0;
 
       container.innerHTML = `
@@ -4424,7 +4424,7 @@
           </div>
           <div class="bg-orange-50 rounded-lg p-4">
             <div class="text-center">
-              <div class="text-2xl font-bold text-orange-600">${peerData.overallAverages?.placementRate ? peerData.overallAverages.placementRate.toFixed(1) : 'N/A'}%</div>
+              <div class="text-2xl font-bold text-orange-600">${(peerData.overallAverages && typeof peerData.overallAverages.placementRate === 'number') ? peerData.overallAverages.placementRate.toFixed(1) : 'N/A'}%</div>
               <div class="text-sm text-gray-600">Peer Average</div>
               <div class="text-xs text-gray-500">placement rate</div>
             </div>
@@ -4440,7 +4440,7 @@
             Detailed Rankings
           </h4>
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            ${peerData.availableSections.placements ? `
+             ${(peerData.availableSections && peerData.availableSections.placements) ? `
             <div class="bg-white rounded-lg p-3 border border-blue-200">
               <div class="text-center">
                 <div class="text-lg font-bold ${getRankingColor(peerData.rankings?.placement, peerData.totalColleges)}">${peerData.rankings?.placement || 'N/A'}</div>
@@ -4450,7 +4450,7 @@
               </div>
             </div>
             ` : ''}
-            ${peerData.availableSections.activities ? `
+             ${(peerData.availableSections && peerData.availableSections.activities) ? `
             <div class="bg-white rounded-lg p-3 border border-blue-200">
               <div class="text-center">
                 <div class="text-lg font-bold ${getRankingColor(peerData.rankings?.activity, peerData.totalColleges)}">${peerData.rankings?.activity || 'N/A'}</div>
@@ -4460,7 +4460,7 @@
               </div>
             </div>
             ` : ''}
-            ${peerData.availableSections.assessments ? `
+             ${(peerData.availableSections && peerData.availableSections.assessments) ? `
             <div class="bg-white rounded-lg p-3 border border-blue-200">
               <div class="text-center">
                 <div class="text-lg font-bold ${getRankingColor(peerData.rankings?.assessment, peerData.totalColleges)}">${peerData.rankings?.assessment || 'N/A'}</div>
@@ -4476,7 +4476,7 @@
         <div class="bg-gray-50 rounded-lg p-4">
           <h4 class="font-semibold text-gray-900 mb-3">Performance Comparison</h4>
           <div class="space-y-3">
-            ${peerData.availableSections.placements ? `
+             ${(peerData.availableSections && peerData.availableSections.placements) ? `
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-600">Placement Rate vs Peers:</span>
               <span class="text-sm font-medium ${peerData.performanceGap?.placement >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -4484,7 +4484,7 @@
               </span>
             </div>
             ` : ''}
-            ${peerData.availableSections.activities ? `
+             ${(peerData.availableSections && peerData.availableSections.activities) ? `
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-600">Activity Participation vs Peers:</span>
               <span class="text-sm font-medium ${peerData.performanceGap?.activity >= 0 ? 'text-green-600' : 'text-red-600'}">
@@ -4492,7 +4492,7 @@
               </span>
             </div>
             ` : ''}
-            ${peerData.availableSections.assessments ? `
+             ${(peerData.availableSections && peerData.availableSections.assessments) ? `
             <div class="flex justify-between items-center">
               <span class="text-sm text-gray-600">Assessment Completion vs Peers:</span>
               <span class="text-sm font-medium ${peerData.performanceGap?.assessment >= 0 ? 'text-green-600' : 'text-red-600'}">

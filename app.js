@@ -3720,7 +3720,14 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
     console.log('Has college data:', !!enhancedData.collegeData);
     console.log('Has performance data:', !!enhancedData.performanceData);
     console.log('Has peer comparison:', !!enhancedData.peerComparison);
-    console.log('Peer comparison details:', enhancedData.peerComparison);
+    try {
+      console.log('Peer comparison summary:', {
+        totalColleges: enhancedData.peerComparison?.totalColleges,
+        placementRank: enhancedData.peerComparison?.rankings?.placement,
+        activityRank: enhancedData.peerComparison?.rankings?.activity,
+        assessmentRank: enhancedData.peerComparison?.rankings?.assessment
+      });
+    } catch (_) {}
     console.log('Has AI recommendations:', !!enhancedData.aiRecommendations);
 
     res.json({

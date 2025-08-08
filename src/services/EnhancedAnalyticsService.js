@@ -1020,13 +1020,29 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
       const similarAverageAssessmentRate = similarCollegesCount > 0 ? similarAssessmentRate / similarCollegesCount : overallAverageAssessmentRate;
 
       // Calculate performance rankings and quartiles
+      // Ensure current college exists in comparison list (ID type-safe)
+      const currentIdStr = String(collegeData.id);
+      let existsInList = allPerformanceData.some(c => String(c.collegeId) === currentIdStr);
+      if (!existsInList && currentStudentCount > 0) {
+        // Synthesise an entry for the current college from provided performanceData
+        allPerformanceData.push({
+          collegeId: collegeData.id,
+          collegeName: collegeData.name || 'This College',
+          studentCount: currentStudentCount,
+          placementRate: performanceData.percentWithPlacements || 0,
+          activityRate: performanceData.percentStudentsWithActivities || 0,
+          assessmentRate: performanceData.assessmentCompletionRate || 0,
+          lastReportDate: collegeData.lastReportDate
+        });
+      }
+
       const sortedByPlacement = [...allPerformanceData].sort((a, b) => b.placementRate - a.placementRate);
       const sortedByActivity = [...allPerformanceData].sort((a, b) => b.activityRate - a.activityRate);
       const sortedByAssessment = [...allPerformanceData].sort((a, b) => b.assessmentRate - a.assessmentRate);
 
-      const currentCollegeIndex = sortedByPlacement.findIndex(c => c.collegeId === collegeData.id);
-      const currentActivityIndex = sortedByActivity.findIndex(c => c.collegeId === collegeData.id);
-      const currentAssessmentIndex = sortedByAssessment.findIndex(c => c.collegeId === collegeData.id);
+      const currentCollegeIndex = sortedByPlacement.findIndex(c => String(c.collegeId) === currentIdStr);
+      const currentActivityIndex = sortedByActivity.findIndex(c => String(c.collegeId) === currentIdStr);
+      const currentAssessmentIndex = sortedByAssessment.findIndex(c => String(c.collegeId) === currentIdStr);
 
       // Calculate quartiles
       const calculateQuartile = (index, total) => {
