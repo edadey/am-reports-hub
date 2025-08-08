@@ -1434,7 +1434,17 @@ app.get('/api/account-managers/:id', authService.requireAuth(), async (req, res)
 app.delete('/api/account-managers/:id', authService.requireAuth(), async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await userManager.deleteAccountManager(id);
+    let result;
+    try {
+      const mgr = await getInitializedUserManager();
+      if (mgr.deleteAccountManager) {
+        await mgr.deleteAccountManager(parseInt(id));
+        result = { success: true };
+      }
+    } catch (_) {}
+    if (!result) {
+      result = await userManager.deleteAccountManager(id);
+    }
     
     if (result.success) {
       res.json({ success: true, message: 'Account manager deleted successfully' });

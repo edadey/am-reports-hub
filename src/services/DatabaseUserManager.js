@@ -182,6 +182,9 @@ class DatabaseUserManager {
 
   async deleteAccountManager(id) {
     try {
+      // First, detach any colleges referencing this manager
+      await College.update({ accountManagerId: null }, { where: { accountManagerId: id } });
+
       const deletedRowsCount = await AccountManager.destroy({
         where: { id },
       });
