@@ -107,7 +107,7 @@ console.log('AI_ANALYSIS_ENABLED:', process.env.AI_ANALYSIS_ENABLED);
 
 // Import services
 const UserManager = require('./src/services/UserManager');
-const databaseUserManagerInstance = require('./src/services/DatabaseUserManager');
+const DatabaseUserManager = require('./src/services/DatabaseUserManager');
 const DatabaseService = require('./src/services/DatabaseService');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
 const RailwayBackupService = require('./src/services/RailwayBackupService');
@@ -191,7 +191,7 @@ async function getInitializedUserManager() {
 
 // Initialize services
 const userManager = new UserManager(volumeService);
-const databaseUserManager = databaseUserManagerInstance;
+const databaseUserManager = new DatabaseUserManager();
 const aiAnalyzer = new AIAnalyzer();
 const reportScheduler = new ReportScheduler();
 const dataImporter = new DataImporter();
