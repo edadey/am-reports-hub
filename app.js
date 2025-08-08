@@ -2825,8 +2825,11 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
     
     // Update college's lastReportDate using the correct user manager (database-first)
     try {
+      const nowIso = new Date().toISOString();
       await (await getInitializedUserManager()).updateCollege(collegeId, {
-        lastReportDate: new Date().toISOString()
+        // Write to both possible columns to cover differing schemas
+        lastReportDate: nowIso,
+        lastreportdate: nowIso
       });
       console.log(`Updated lastReportDate for college ${collegeId}`);
     } catch (error) {

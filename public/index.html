@@ -1433,63 +1433,69 @@
     });
 
     function getNextReportDate(college) {
+      // If we don't have a stored lastReportDate but we have reports loaded on the page,
+      // attempt to infer from latest report (used on overview rendering code below).
+      if (!college.lastReportDate && Array.isArray(college.reports) && college.reports.length > 0) {
+        const sorted = [...college.reports].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+        college.lastReportDate = sorted[0].createdAt;
+      }
       if (!college.lastReportDate) return 'ASAP';
       
       const lastReport = new Date(college.lastReportDate);
       const today = new Date();
       let nextDate;
       
-      switch (college.reportFrequency) {
+      const freq = (college.reportFrequency || '').toLowerCase();
+      switch (freq) {
         case 'weekly':
           nextDate = new Date(lastReport.getTime() + 7 * 24 * 60 * 60 * 1000);
           break;
         case 'bi-weekly':
+        case 'biweekly':
           nextDate = new Date(lastReport.getTime() + 14 * 24 * 60 * 60 * 1000);
           break;
         case 'monthly':
-          nextDate = new Date(lastReport.getTime() + 30 * 24 * 60 * 60 * 1000);
+          // Advance one month preserving day when possible
+          nextDate = new Date(lastReport);
+          nextDate.setMonth(nextDate.getMonth() + 1);
           break;
         case 'quarterly':
-          nextDate = new Date(lastReport.getTime() + 90 * 24 * 60 * 60 * 1000);
+          nextDate = new Date(lastReport);
+          nextDate.setMonth(nextDate.getMonth() + 3);
           break;
         default:
           return 'Unknown';
       }
       
-      // Check if the next report is overdue
       if (nextDate <= today) {
         const daysOverdue = Math.floor((today - nextDate) / (1000 * 60 * 60 * 24));
-        if (daysOverdue === 0) {
-          return 'Due Today';
-        } else if (daysOverdue === 1) {
-          return 'Overdue by 1 day';
-        } else {
-          return `Overdue by ${daysOverdue} days`;
-        }
+        if (daysOverdue === 0) return 'Due Today';
+        if (daysOverdue === 1) return 'Overdue by 1 day';
+        return `Overdue by ${daysOverdue} days`;
       }
-      
-      // Check if due within the next 7 days
       const daysUntilDue = Math.floor((nextDate - today) / (1000 * 60 * 60 * 24));
-      if (daysUntilDue <= 7) {
-        return `${nextDate.toLocaleDateString()} (in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'})`;
-      }
-      
+      if (daysUntilDue <= 7) return `${nextDate.toLocaleDateString()} (in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'})`;
       return nextDate.toLocaleDateString();
     }
 
     // Enhanced function to check if a report is due
     function isReportDue(college) {
+      if (!college.lastReportDate && Array.isArray(college.reports) && college.reports.length > 0) {
+        const sorted = [...college.reports].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+        college.lastReportDate = sorted[0].createdAt;
+      }
       if (!college.lastReportDate) return true;
       
       const lastReport = new Date(college.lastReportDate);
       const today = new Date();
       const daysSinceLastReport = Math.floor((today - lastReport) / (1000 * 60 * 60 * 24));
-      
-      switch (college.reportFrequency) {
+      const freq = (college.reportFrequency || '').toLowerCase();
+      switch (freq) {
         case 'weekly': return daysSinceLastReport >= 7;
-        case 'bi-weekly': return daysSinceLastReport >= 14;
-        case 'monthly': return daysSinceLastReport >= 30;
-        case 'quarterly': return daysSinceLastReport >= 90;
+        case 'bi-weekly':
+        case 'biweekly': return daysSinceLastReport >= 14;
+        case 'monthly': return daysSinceLastReport >= 28; // approx month window
+        case 'quarterly': return daysSinceLastReport >= 84; // approx quarter
         default: return false;
       }
     }
@@ -2555,6 +2561,17 @@
         
         if (saveResponse.data.success) {
           showStatus(`Report "${reportName}" saved to college dashboard successfully`, 'success');
+          
+          // Immediately update in-memory college to reflect new lastReportDate
+          try {
+            const idx = colleges.findIndex(c => String(c.id) === String(collegeId));
+            if (idx !== -1) {
+              colleges[idx].lastReportDate = new Date().toISOString();
+            }
+          } catch (e) { /* no-op */ }
+          
+          // Trigger a refresh of the colleges table to show latest data
+          await loadColleges();
           
           // Also generate analysis if available
           try {
