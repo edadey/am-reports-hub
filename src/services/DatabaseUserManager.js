@@ -247,6 +247,7 @@ class DatabaseUserManager {
           lastReportDate: collegeData.lastreportdate || null,
           misContactName: collegeData.miscontactname || '',
           misContactEmail: collegeData.miscontactemail || '',
+          collegeSystem: collegeData.collegesystem || '',
           renewalDate: collegeData.renewaldate || '',
           modules: collegeData.modules || [],
           keyStakeholders: collegeData.keystakeholders || [],
@@ -296,6 +297,10 @@ class DatabaseUserManager {
       if (Object.prototype.hasOwnProperty.call(normalised, 'lastReportDate')) {
         normalised.lastreportdate = normalised.lastReportDate;
         delete normalised.lastReportDate;
+      }
+      if (Object.prototype.hasOwnProperty.call(normalised, 'collegeSystem')) {
+        normalised.collegesystem = normalised.collegeSystem;
+        delete normalised.collegeSystem;
       }
       // Accept either form for robustness (camelCase already handled above)
       if (Object.prototype.hasOwnProperty.call(normalised, 'lastreportdate') && normalised.lastreportdate instanceof Date) {

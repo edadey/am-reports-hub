@@ -649,7 +649,6 @@
         max-width: 160px !important;
       }
     }
-    
     @media (max-width: 768px) {
       #kpiTableBody td:nth-child(3),
       #kpiTableBody td:nth-child(5) {
@@ -1169,7 +1168,6 @@
         </div>
       </div>
     </div>
-
     <!-- Details Tab -->
     <div id="details" class="tab-content hidden">
       <div class="flex justify-between items-center mb-6">
@@ -1274,8 +1272,12 @@
             <input type="text" id="misContactName" placeholder="Enter MIS contact name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
           </div>
           <div class="md:col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">MIS Contact Email</label>
-            <input type="email" id="misContactEmail" placeholder="Enter MIS contact email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            <div class="flex items-center justify-between mb-1">
+              <label class="block text-sm font-medium text-gray-700">MIS Contact Email</label>
+              <span class="text-sm text-gray-500">College System</span>
+            </div>
+            <input type="email" id="misContactEmail" placeholder="Enter MIS contact email" class="border border-gray-300 rounded-md px-3 py-2 w-full mb-3" onchange="formDataChanged = true">
+            <input type="text" id="collegeSystem" placeholder="e.g Pro Monitor" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
           </div>
         </div>
       </div>
@@ -1580,10 +1582,7 @@
       </div>
     </div>
   </div>
-
   <!-- Mobile Navigation Bar -->
-
-
   <script>
     // Global variables
     let collegeData = null;
@@ -1906,6 +1905,7 @@
       document.getElementById('misContactName').value = collegeData.misContactName || '';
       document.getElementById('misContactEmail').value = collegeData.misContactEmail || '';
       document.getElementById('renewalDate').value = collegeData.renewalDate || '';
+      const csEl = document.getElementById('collegeSystem'); if (csEl) csEl.value = collegeData.collegeSystem || '';
     }
 
     // Function to update performance indicators display
@@ -2166,7 +2166,6 @@
 
       return sections;
     }
-
     // Calculate totals from report data
     function calculateTotalsFromReport(reportData) {
       const totals = {
@@ -2795,7 +2794,6 @@
         details[3].querySelector('span:last-child').textContent = totalActivityHours.toLocaleString();
       }
     }
-
     // Update employer activities details
     function updateEmployerActivitiesDetails(totals) {
       const employerActivitiesDetails = document.getElementById('employerActivitiesDetails');
@@ -3355,7 +3353,6 @@
         return `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
       }
     }
-
     // Display report data in table format with visual elements
     // CACHE-BUST: 2025-01-27-17-30-00
     function displayReportData(reportData) {
@@ -3899,13 +3896,11 @@
         window.location.href = 'index.html?tab=reports';
       }
     }
-
     // Chart instances
     let placementsChart = null;
     let activitiesChart = null;
     let assessmentsChart = null;
     let careersChart = null;
-
     // Initialize charts with real data
     async function initializeCharts() {
       // Destroy existing charts if they exist
@@ -4538,7 +4533,6 @@
         </div>
       `;
     }
-
     function renderGeminiInsights(aiData) {
       console.log('renderGeminiInsights called with:', aiData);
       const container = document.getElementById('geminiInsightsContainer');
@@ -5182,7 +5176,6 @@
         `;
       }
     }
-
     function updateChartVisibilityForEnhancedAnalytics(performanceData) {
       console.log('updateChartVisibilityForEnhancedAnalytics called with:', performanceData);
       
@@ -5305,7 +5298,8 @@
           accountManagerId: document.getElementById('accountManager').value || null,
           status: document.getElementById('status').value,
           ofstedRating: document.getElementById('ofstedRating').value,
-          engagementLevel: document.getElementById('engagementLevel').value
+          engagementLevel: document.getElementById('engagementLevel').value,
+          collegeSystem: (document.getElementById('collegeSystem') || {}).value || ''
         };
 
         // Collect modules data
@@ -5625,7 +5619,6 @@
       showNotification('Error refreshing AI insights: ' + error.message, 'error');
     }
   }
-
   // KPI Tab Logic
     const kpiStatuses = [
       { value: 'on_target', label: 'On Target', color: 'bg-green-400' },
@@ -6275,7 +6268,6 @@
       // Update row numbers
       updateKpiNumbers();
     }
-
     // Mark KPI as completed
     function markKpiCompleted(button) {
       const row = button.closest('tr');
@@ -6921,7 +6913,6 @@
         textarea.focus();
       }
     }
-
     function cutText(textareaId) {
       const textarea = document.getElementById(textareaId);
       if (textarea) {
