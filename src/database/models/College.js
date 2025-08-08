@@ -102,11 +102,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'renewaldate',
     },
-    collegesystem: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: 'collegesystem',
-    },
     modules: {
       type: DataTypes.JSONB,
       allowNull: true,
