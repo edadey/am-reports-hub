@@ -3152,9 +3152,12 @@ let deletedAccountManagers = [];
               if (latestReport.data && latestReport.data.rows) {
                 const totals = calculateTotalsFromReport(latestReport.data);
                 totalStudents += totals.totalStudents || 0;
-                totalPlacements += totals.totalPlacements || 0;
+                // Placements: ensure we use students with placements if available
+                totalPlacements += (totals.studentsWithPlacements || totals.totalPlacements || 0);
                 totalActivities += totals.totalActivities || 0;
-                totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                // Assessments: prefer explicit students-with-assessments if present
+                const assessed = (totals.studentsWithAssessments || (totals.totalStudents - totals.studentsWithoutAssessments)) || 0;
+                totalAssessments += assessed;
                 totalCareersAssessments += totals.totalCareersAssessments || 0;
               }
             }
@@ -3380,8 +3383,10 @@ let deletedAccountManagers = [];
       const totals = {
         totalStudents: 0,
         totalPlacements: 0,
+        studentsWithPlacements: 0,
         totalActivities: 0,
         studentsWithoutAssessments: 0,
+        studentsWithAssessments: 0,
         totalCareersAssessments: 0
       };
 
@@ -3398,20 +3403,28 @@ let deletedAccountManagers = [];
           h.toLowerCase().includes('student') && h.toLowerCase().includes('total')
         );
         
-        const placementsIndex = headers.findIndex(h => 
-          (h.toLowerCase().includes('placement') && !h.toLowerCase().includes('percent')) ||
-          h.toLowerCase().includes('placements')
-        );
+        // Prefer explicit "Students with Placements" where available
+        const studentsWithPlacementsIndex = headers.findIndex(h => h.toLowerCase().includes('students with placements'));
+        // Fallback: any non-percent placement total (avoid hours)
+        const placementsIndex = headers.findIndex(h => {
+          const t = h.toLowerCase();
+          return t.includes('placement') && !t.includes('percent') && !t.includes('hour');
+        });
         
         const totalActivitiesIndex = headers.findIndex(h => 
           h.toLowerCase().includes('total') && h.toLowerCase().includes('activity') ||
           h.toLowerCase().includes('activity') && h.toLowerCase().includes('total')
         );
         
-        const studentsWithoutAssessmentsIndex = headers.findIndex(h => 
-          (h.toLowerCase().includes('student') && h.toLowerCase().includes('assessment')) ||
-          h.toLowerCase().includes('without') && h.toLowerCase().includes('assessment')
-        );
+        // Assessments: detect WITH and WITHOUT explicitly
+        const studentsWithAssessmentsIndex = headers.findIndex(h => {
+          const t = h.toLowerCase();
+          return (t.includes('students with') || t.includes('with')) && t.includes('assessment');
+        });
+        const studentsWithoutAssessmentsIndex = headers.findIndex(h => {
+          const t = h.toLowerCase();
+          return t.includes('without') && t.includes('assessment');
+        });
 
         // Find careers-related columns with comprehensive patterns
         const careersIndex = headers.findIndex(h => {
@@ -3430,7 +3443,14 @@ let deletedAccountManagers = [];
             totals.totalStudents += value;
           }
         }
-        if (placementsIndex >= 0 && row[placementsIndex]) {
+        // Placements: use explicit students-with count if present, else fallback
+        if (studentsWithPlacementsIndex >= 0 && row[studentsWithPlacementsIndex]) {
+          const value = parseFloat(row[studentsWithPlacementsIndex]);
+          if (!isNaN(value)) {
+            totals.studentsWithPlacements += value;
+            totals.totalPlacements += value;
+          }
+        } else if (placementsIndex >= 0 && row[placementsIndex]) {
           const value = parseFloat(row[placementsIndex]);
           if (!isNaN(value)) {
             totals.totalPlacements += value;
@@ -3440,6 +3460,12 @@ let deletedAccountManagers = [];
           const value = parseFloat(row[totalActivitiesIndex]);
           if (!isNaN(value)) {
             totals.totalActivities += value;
+          }
+        }
+        if (studentsWithAssessmentsIndex >= 0 && row[studentsWithAssessmentsIndex]) {
+          const value = parseFloat(row[studentsWithAssessmentsIndex]);
+          if (!isNaN(value)) {
+            totals.studentsWithAssessments += value;
           }
         }
         if (studentsWithoutAssessmentsIndex >= 0 && row[studentsWithoutAssessmentsIndex]) {
@@ -3502,9 +3528,9 @@ let deletedAccountManagers = [];
             if (latestReport.data && latestReport.data.rows) {
               const totals = calculateTotalsFromReport(latestReport.data);
               students = totals.totalStudents || 0;
-              placements = totals.totalPlacements || 0;
+              placements = (totals.studentsWithPlacements || totals.totalPlacements || 0);
               activities = totals.totalActivities || 0;
-              assessments = (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+              assessments = (totals.studentsWithAssessments || (totals.totalStudents - totals.studentsWithoutAssessments)) || 0;
               careers = totals.totalCareersAssessments || 0;
             }
           }
