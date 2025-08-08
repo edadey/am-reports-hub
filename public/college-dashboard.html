@@ -1593,7 +1593,7 @@
     let currentUser = null; // Initialize currentUser here to prevent undefined errors
     let formDataChanged = false; // Flag to track if form data has been modified
     let isMobile = false; // Mobile detection flag
-    let isCloud = window.location.hostname !== 'localhost'; // Environment detection
+    let isCloud = false; // Deprecated indicator disabled
 
     // Navigation functions - defined early to avoid reference errors
     function goBack() {
@@ -1646,8 +1646,7 @@
           return;
         }
 
-        // Show environment indicator
-        console.log(`🌐 Using ${isCloud ? 'CLOUD' : 'LOCAL'} environment: ${window.location.origin}`);
+        // Environment indicator removed
 
         // Load college details
         const collegeResponse = await fetch(`/api/colleges/${collegeId}`, {
@@ -1718,11 +1717,7 @@
         // Update the dashboard with real data
         updateDashboardData();
         
-        // Show environment indicator in UI
-        const envIndicator = document.createElement('div');
-        envIndicator.className = 'fixed top-4 right-4 bg-blue-100 border border-blue-400 text-blue-700 px-3 py-1 rounded text-sm font-medium z-50';
-        envIndicator.textContent = `${isCloud ? '☁️ CLOUD' : '💻 LOCAL'}`;
-        document.body.appendChild(envIndicator);
+        // Environment badge removed
         
         // Load all AI insights after college data is loaded
         loadAllAIInsights();
