@@ -1,6 +1,10 @@
 const express = require('express');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Serve static assets from public so /index.html, /login etc. work immediately
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Minimal healthcheck endpoint - responds immediately
 app.get('/', (req, res) => {
@@ -18,15 +22,16 @@ app.listen(PORT, () => {
     try {
       console.log('📦 Loading full AM Reports Hub application...');
       
-      // Try to load the full app
-      require('./app.js');
-      console.log('✅ Full application loaded successfully');
+      // Load the full app and mount its routes
+      const fullApp = require('./app.js');
+      app.use(fullApp);
+      console.log('✅ Full application mounted successfully');
       
     } catch (error) {
       console.error('❌ Error loading full application:', error.message);
       console.log('⚠️ Continuing with minimal server functionality');
       
-      // Add basic routes for common pages
+      // Add basic routes for common pages as a fallback
       app.get('/login', (req, res) => {
         res.send(`
           <html>
