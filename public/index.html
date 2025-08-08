@@ -3415,13 +3415,12 @@ let deletedAccountManagers = [];
 
         // Find careers-related columns with comprehensive patterns
         const careersIndex = headers.findIndex(h => {
-          const headerLower = h.toLowerCase();
-          return headerLower.includes('career') || 
-                 headerLower.includes('job profile') || 
-                 headerLower.includes('quiz') || 
-                 headerLower.includes('mapped job profile') ||
-                 headerLower.includes('total mapped job profiles') || 
-                 (headerLower.includes('mapped') && !headerLower.includes('placement'));
+          const t = h.toLowerCase();
+          const mentionsCareer = t.includes('career');
+          const mentionsQuizOrAssessment = t.includes('quiz') || t.includes('assessment');
+          const isPercent = t.includes('%') || t.includes('percent');
+          const isMappedProfiles = t.includes('mapped') || t.includes('job profile') || t.includes('profile');
+          return mentionsCareer && mentionsQuizOrAssessment && !isPercent && !isMappedProfiles;
         });
 
         // Sum up the values with improved parsing
