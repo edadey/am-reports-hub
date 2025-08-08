@@ -3377,9 +3377,23 @@ app.get('/api/enhanced-analytics/:collegeId', authService.requireAuth(), async (
       const performanceData = await enhancedAnalyticsService.loadPerformanceData(collegeId);
       
       if (!collegeData || !performanceData) {
-        return res.status(404).json({
-          success: false,
-          error: 'College or performance data not found'
+        // Graceful minimal response so frontend can render fallback UI
+        return res.json({
+          success: true,
+          data: {
+            success: true,
+            collegeData: collegeData || { id: Number(collegeId) },
+            performanceData: performanceData || {
+              totalStudents: 0,
+              percentWithPlacements: 0,
+              percentStudentsWithActivities: 0,
+              assessmentCompletionRate: 0,
+              availableSections: { placements: false, activities: false, assessments: false, careers: false }
+            },
+            peerComparison: {},
+            aiRecommendations: { success: false, recommendations: { sections: { kpiSuggestions: '' } } },
+            timestamp: new Date().toISOString()
+          }
         });
       }
 

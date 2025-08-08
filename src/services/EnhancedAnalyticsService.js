@@ -363,10 +363,49 @@ Keep all suggestions practical, achievable, and specific to UK FE colleges using
         console.log(`EnhancedAnalyticsService: No analytics data found for college ${collegeId}`);
       }
 
-      return null;
+      // As a final fallback, return a minimal, well-formed performance object
+      // so the UI and downstream logic can still operate without 404s.
+      return {
+        totalStudents: 0,
+        studentsWithPlacements: 0,
+        studentsWithActivities: 0,
+        studentsWithActivitiesEnrichment: 0,
+        studentsWithActivitiesEmployer: 0,
+        studentsWithoutAssessments: 0,
+        percentWithPlacements: 0,
+        percentStudentsWithActivities: 0,
+        percentStudentsWithActivitiesEnrichment: 0,
+        percentStudentsWithActivitiesEmployer: 0,
+        assessmentCompletionRate: 0,
+        availableSections: {
+          placements: false,
+          activities: false,
+          assessments: false,
+          careers: false
+        }
+      };
     } catch (error) {
       console.error('Error loading performance data:', error);
-      return null;
+      // Return the same minimal structure on error to avoid front-end breakage
+      return {
+        totalStudents: 0,
+        studentsWithPlacements: 0,
+        studentsWithActivities: 0,
+        studentsWithActivitiesEnrichment: 0,
+        studentsWithActivitiesEmployer: 0,
+        studentsWithoutAssessments: 0,
+        percentWithPlacements: 0,
+        percentStudentsWithActivities: 0,
+        percentStudentsWithActivitiesEnrichment: 0,
+        percentStudentsWithActivitiesEmployer: 0,
+        assessmentCompletionRate: 0,
+        availableSections: {
+          placements: false,
+          activities: false,
+          assessments: false,
+          careers: false
+        }
+      };
     }
   }
 
