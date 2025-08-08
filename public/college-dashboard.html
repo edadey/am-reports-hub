@@ -3901,6 +3901,26 @@
     let activitiesChart = null;
     let assessmentsChart = null;
     let careersChart = null;
+
+    // Defensive helper to prevent duplicate Chart.js instances on the same canvas
+    function destroyExistingChartForCanvas(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      // Destroy any chart we track on window (legacy handling)
+      const windowChartRef = window[`${canvasId}Instance`] || window[`${canvasId}`];
+      if (windowChartRef && typeof windowChartRef.destroy === 'function') {
+        try { windowChartRef.destroy(); } catch (_) {}
+        window[`${canvasId}Instance`] = null;
+        window[`${canvasId}`] = null;
+      }
+      // Destroy chart registered in Chart.js registry (v3/v4)
+      if (window.Chart && typeof window.Chart.getChart === 'function') {
+        const existing = window.Chart.getChart(canvas);
+        if (existing && typeof existing.destroy === 'function') {
+          try { existing.destroy(); } catch (_) {}
+        }
+      }
+    }
     // Initialize charts with real data
     async function initializeCharts() {
       // Destroy existing charts if they exist
@@ -4901,9 +4921,7 @@
       // Update placements chart
       const placementsCtx = document.getElementById('placementsChart');
       if (placementsCtx && availableSections.placements) {
-        if (window.placementsChart && typeof window.placementsChart.destroy === 'function') {
-          window.placementsChart.destroy();
-        }
+        destroyExistingChartForCanvas('placementsChart');
         
         window.placementsChart = new Chart(placementsCtx.getContext('2d'), {
           type: 'line',
@@ -4934,9 +4952,7 @@
       // Update activities chart
       const activitiesCtx = document.getElementById('activitiesChart');
       if (activitiesCtx && availableSections.activities) {
-        if (window.activitiesChart && typeof window.activitiesChart.destroy === 'function') {
-          window.activitiesChart.destroy();
-        }
+        destroyExistingChartForCanvas('activitiesChart');
         
         window.activitiesChart = new Chart(activitiesCtx.getContext('2d'), {
           type: 'line',
@@ -4967,9 +4983,7 @@
       // Update assessments chart
       const assessmentsCtx = document.getElementById('assessmentsChart');
       if (assessmentsCtx && availableSections.assessments) {
-        if (window.assessmentsChart && typeof window.assessmentsChart.destroy === 'function') {
-          window.assessmentsChart.destroy();
-        }
+        destroyExistingChartForCanvas('assessmentsChart');
         
         window.assessmentsChart = new Chart(assessmentsCtx.getContext('2d'), {
           type: 'doughnut',
@@ -4999,9 +5013,7 @@
       // Update careers chart
       const careersCtx = document.getElementById('careersChart');
       if (careersCtx && availableSections.careers) {
-        if (window.careersChart && typeof window.careersChart.destroy === 'function') {
-          window.careersChart.destroy();
-        }
+        destroyExistingChartForCanvas('careersChart');
         
         window.careersChart = new Chart(careersCtx.getContext('2d'), {
           type: 'line',

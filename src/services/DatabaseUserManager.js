@@ -290,19 +290,39 @@ class DatabaseUserManager {
     try {
       // Normalise incoming field names to match database column attributes
       const normalised = { ...updates };
-      if (Object.prototype.hasOwnProperty.call(normalised, 'reportFrequency')) {
-        normalised.reportfrequency = normalised.reportFrequency;
-        delete normalised.reportFrequency;
-      }
-      if (Object.prototype.hasOwnProperty.call(normalised, 'lastReportDate')) {
-        normalised.lastreportdate = normalised.lastReportDate;
-        delete normalised.lastReportDate;
-      }
-      if (Object.prototype.hasOwnProperty.call(normalised, 'collegeSystem')) {
-        normalised.collegesystem = normalised.collegeSystem;
-        delete normalised.collegeSystem;
-      }
-      // Accept either form for robustness (camelCase already handled above)
+
+      // Mapping of frontend camelCase fields → database attribute names
+      const fieldMap = {
+        // Dates / frequency and system
+        reportFrequency: 'reportfrequency',
+        lastReportDate: 'lastreportdate',
+        collegeSystem: 'collegesystem',
+        // Contacts and misc (DB columns are lower-case without camelCase)
+        misContact: 'miscontact',
+        dataTransferMethod: 'datatransfermethod',
+        ofstedRating: 'ofstedrating',
+        // Extra metadata
+        misContactName: 'miscontactname',
+        misContactEmail: 'miscontactemail',
+        renewalDate: 'renewaldate',
+        // Arrays / JSON fields
+        keyStakeholders: 'keystakeholders',
+        engagementLevel: 'engagementlevel',
+        swotStrengths: 'swotstrengths',
+        swotWeaknesses: 'swotweaknesses',
+        swotOpportunities: 'swotopportunities',
+        swotThreats: 'swotthreats',
+      };
+
+      // Apply mapping
+      Object.entries(fieldMap).forEach(([from, to]) => {
+        if (Object.prototype.hasOwnProperty.call(normalised, from)) {
+          normalised[to] = normalised[from];
+          delete normalised[from];
+        }
+      });
+
+      // Convert Date objects to ISO strings where applicable
       if (Object.prototype.hasOwnProperty.call(normalised, 'lastreportdate') && normalised.lastreportdate instanceof Date) {
         normalised.lastreportdate = normalised.lastreportdate.toISOString();
       }
