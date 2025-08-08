@@ -2639,16 +2639,44 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
     worksheet.getCell('A2').value = `Generated: ${createdAt ? new Date(createdAt).toLocaleString() : new Date().toLocaleString()}`;
     worksheet.getCell('A2').font = { size: 10, color: { argb: 'FF666666' } };
 
-    // Header row styling
+    // Header row styling (+ column colour mapping similar to UI)
     const headerRowIndex = 4;
     const dataStartRow = headerRowIndex + 1;
+    const uiArgbBySection = {
+      placements: 'FFDBEAFE',    // light blue
+      assessments: 'FFCCFBF1',   // light teal
+      careers: 'FFFED7AA',       // light orange
+      activities: 'FFFED7AA',    // light orange
+      enrichment: 'FFDCFCE7',    // light green
+      employment: 'FFF3E8FF',    // light purple
+      targets: 'FFFCE7F3',       // light pink
+      login: 'FFE0E7FF',         // light indigo
+      department: 'FFFED7AA',    // amber-ish
+      default: 'FFF3F4F6'        // light grey
+    };
+    function sectionFromHeader(h) {
+      const s = String(h || '').toLowerCase();
+      if (s.includes('placements')) return 'placements';
+      if (s.includes('enrichment')) return 'enrichment';
+      if (s.includes('employment')) return 'employment';
+      if (s.includes('careers')) return 'careers';
+      if (s.includes('assessments')) return 'assessments';
+      if (s.includes('targets')) return 'targets';
+      if (s.includes('login')) return 'login';
+      if (s.includes('department')) return 'department';
+      return 'default';
+    }
+    const columnArgb = [];
     if (headers.length) {
       const headerRow = worksheet.getRow(headerRowIndex);
       headers.forEach((h, idx) => {
         const cell = headerRow.getCell(idx + 1);
         cell.value = h;
         cell.font = { bold: true, color: { argb: 'FF111111' } };
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        const sec = sectionFromHeader(h);
+        const argb = uiArgbBySection[sec] || uiArgbBySection.default;
+        columnArgb[idx] = argb;
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
         worksheet.getColumn(idx + 1).width = Math.max(12, String(h || '').length + 2);
       });
@@ -2690,6 +2718,11 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
           if (typeof val === 'number') {
             cell.numFmt = '0.00';
           }
+        }
+        // Light tint to mirror UI section colouring
+        const argb = columnArgb[cIdx];
+        if (argb) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
         }
         cell.font = { color: { argb: 'FF111111' } };
       });
