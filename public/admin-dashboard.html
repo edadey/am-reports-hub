@@ -169,7 +169,8 @@
                 // Load college count
                 const collegesResponse = await fetch('/api/colleges');
                 const collegesData = await collegesResponse.json();
-                document.getElementById('collegeCount').textContent = collegesData.length || 0;
+                const list = Array.isArray(collegesData) ? collegesData : (Array.isArray(collegesData.colleges) ? collegesData.colleges : []);
+                document.getElementById('collegeCount').textContent = list.length || 0;
 
                 // Load environment info and set storage type
                 const isRailway = window.location.hostname.includes('railway');
