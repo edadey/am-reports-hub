@@ -284,7 +284,22 @@ class DatabaseUserManager {
 
   async updateCollege(id, updates) {
     try {
-      const [updatedRowsCount] = await College.update(updates, {
+      // Normalise incoming field names to match database column attributes
+      const normalised = { ...updates };
+      if (Object.prototype.hasOwnProperty.call(normalised, 'reportFrequency')) {
+        normalised.reportfrequency = normalised.reportFrequency;
+        delete normalised.reportFrequency;
+      }
+      if (Object.prototype.hasOwnProperty.call(normalised, 'lastReportDate')) {
+        normalised.lastreportdate = normalised.lastReportDate;
+        delete normalised.lastReportDate;
+      }
+      // Accept either form for robustness (camelCase already handled above)
+      if (Object.prototype.hasOwnProperty.call(normalised, 'lastreportdate') && normalised.lastreportdate instanceof Date) {
+        normalised.lastreportdate = normalised.lastreportdate.toISOString();
+      }
+
+      const [updatedRowsCount] = await College.update(normalised, {
         where: { id },
       });
       

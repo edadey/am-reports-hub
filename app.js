@@ -1176,7 +1176,14 @@ app.delete('/api/users/:id', authService.requireAuth(), authService.requireRole(
 app.get('/api/colleges', async (req, res) => {
   try {
     const colleges = await (await getInitializedUserManager()).getColleges();
-    res.json({ colleges });
+    // Normalise fields for frontend consumption
+    const mapped = colleges.map(c => ({
+      ...c,
+      // Ensure both forms exist for compatibility
+      reportFrequency: c.reportFrequency || c.reportfrequency || 'weekly',
+      lastReportDate: c.lastReportDate || c.lastreportdate || null
+    }));
+    res.json({ colleges: mapped });
   } catch (error) {
     console.error('Get colleges error:', error);
     res.status(500).json({ error: 'Failed to get colleges' });
@@ -1198,6 +1205,11 @@ app.get('/api/colleges/:id', authService.requireAuth(), async (req, res) => {
       return res.status(404).json({ error: 'College not found' });
     }
     
+    // Normalise before returning
+    if (college) {
+      college.reportFrequency = college.reportFrequency || college.reportfrequency || 'weekly';
+      college.lastReportDate = college.lastReportDate || college.lastreportdate || null;
+    }
     res.json({ success: true, college });
   } catch (error) {
     console.error('Get college error:', error);
@@ -2838,7 +2850,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       console.log(`🔄 Manager has updateCollege method: ${typeof manager.updateCollege}`);
       
       const result = await manager.updateCollege(numericCollegeId, {
-        lastReportDate: nowIso
+        lastreportdate: nowIso
       });
       console.log(`✅ Updated lastReportDate for college ${collegeId} to ${nowIso}`, result);
     } catch (error) {

@@ -1221,19 +1221,33 @@
           colleges = [];
         }
         
-        // Ensure all colleges have required properties with defaults
+        // Ensure all colleges have required properties with defaults and unified names
         colleges = colleges.map(college => ({
           id: college.id,
           name: college.name || 'Unnamed College',
           numberOfProviders: college.numberOfProviders || '',
           accountManagerId: college.accountManagerId || null,
-          reportFrequency: college.reportFrequency || 'weekly',
-          lastReportDate: college.lastReportDate || null,
+          reportFrequency: (college.reportFrequency || college.reportfrequency || 'weekly'),
+          lastReportDate: (college.lastReportDate || college.lastreportdate || null),
           status: college.status || 'A',
-          ofstedRating: college.ofstedRating || 'G',
+          ofstedRating: (college.ofstedRating || college.ofstedrating || 'G'),
           template: college.template || 'standard',
           ...college // Keep any additional properties
         }));
+        
+        // Optionally enrich with latest report timestamps per college if missing
+        for (const c of colleges) {
+          if (!c.lastReportDate) {
+            try {
+              const r = await axios.get(`/api/colleges/${c.id}/reports`, { params: { _t: Date.now() } });
+              const reports = r.data.reports || [];
+              if (reports.length > 0) {
+                const latest = reports.sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt))[0];
+                c.lastReportDate = latest.createdAt;
+              }
+            } catch (_) {}
+          }
+        }
         
         // Set allColleges to the same data for search functionality
         allColleges = [...colleges];
