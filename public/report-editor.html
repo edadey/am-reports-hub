@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel Report Editor</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/plugins.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css" />
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .topbar { display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid #e5e7eb; }
+    .topbar .title { font-weight:600; color:#111827; margin-right:auto; }
+    .btn { padding:8px 12px; border-radius:6px; font-size:14px; cursor:pointer; border:1px solid transparent; }
+    .btn.primary { background:#2563eb; color:#fff; }
+    .btn.secondary { background:#fff; color:#111827; border-color:#d1d5db; }
+    .status { margin-left:12px; color:#6b7280; font-size:13px; }
+    #luckysheet { position:absolute; top:54px; left:0; right:0; bottom:0; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">Excel Editor</div>
+    <button id="btnSave" class="btn primary">Save</button>
+    <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
+    <button id="btnRevert" class="btn secondary">Revert to classic editor</button>
+    <span id="status" class="status"></span>
+  </div>
+  <div id="luckysheet"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
+  <script>
+    const qs = new URLSearchParams(location.search);
+    const collegeId = qs.get('collegeId');
+    const reportId = qs.get('reportId');
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg, type = 'info') {
+      statusEl.textContent = msg;
+      statusEl.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#065f46' : '#6b7280');
+    }
+
+    function toLuckySheetData(headers, rows) {
+      const data = [headers, ...rows];
+      const cellData = data.map(r => r.map(v => ({ v })));
+      return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: headers.length, row: data.length }];
+    }
+
+    function fromLuckySheet() {
+      const sheet = luckysheet.getSheet();
+      const first = Array.isArray(sheet) ? sheet[0] : sheet;
+      const flowdata = first && first.data ? first.data : [];
+      const values = (flowdata || []).map(row => (row || []).map(c => (c && c.v) ?? ''));
+      const headers = values[0] || [];
+      const rows = values.slice(1);
+      return { headers, rows };
+    }
+
+    async function loadReport() {
+      if (!collegeId || !reportId) {
+        setStatus('Missing collegeId or reportId', 'error');
+        return;
+      }
+      try {
+        setStatus('Loading report...');
+        const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, { credentials: 'include' });
+        const json = await res.json();
+        if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
+        const { headers = [], rows = [] } = json.report.data;
+        const sheets = toLuckySheetData(headers, rows);
+        window.luckysheet.create({
+          container: 'luckysheet',
+          showinfobar: false,
+          showsheetbar: true,
+          showtoolbar: true,
+          enableAddRow: true,
+          enableAddCol: true,
+          forceCalculation: true,
+          data: sheets
+        });
+        setStatus('Loaded');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Load failed: ${e.message}`, 'error');
+      }
+    }
+
+    async function saveReport() {
+      try {
+        setStatus('Saving...');
+        const { headers, rows } = fromLuckySheet();
+        const payload = { reportData: { headers, rows }, reportName: 'Edited Report', summary: 'Edited in Excel editor' };
+        const res = await fetch(`/api/colleges/${collegeId}/reports`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Save failed');
+        await fetch(`/api/reports/${collegeId}/recalculate`, { method: 'POST', credentials: 'include' });
+        setStatus('Saved and recalculated', 'success');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Save failed: ${e.message}`, 'error');
+      }
+    }
+
+    function revertToClassic() {
+      window.location.href = `college-dashboard.html?id=${collegeId}&tab=reports`;
+    }
+
+    document.getElementById('btnSave').addEventListener('click', saveReport);
+    document.getElementById('btnRecalc').addEventListener('click', async () => {
+      try {
+        setStatus('Recalculating...');
+        await fetch(`/api/reports/${collegeId}/recalculate`, { method: 'POST', credentials: 'include' });
+        setStatus('Recalculated', 'success');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Recalc failed: ${e.message}`, 'error');
+      }
+    });
+    document.getElementById('btnRevert').addEventListener('click', revertToClassic);
+
+    loadReport();
+  </script>
+</body>
+</html>
+
