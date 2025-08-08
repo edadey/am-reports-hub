@@ -1891,6 +1891,7 @@
         } else {
           templates = [];
         }
+      window.__templates = templates;
         
         console.log('Templates loaded:', templates.length);
         console.log('Template data structure:', templates);
@@ -1925,6 +1926,9 @@
       console.log('Selected template ID:', templateId);
       console.log('Available templates:', templates);
       const template = templateId ? templates.find(t => String(t.id) === String(templateId)) : null;
+      if (template && Array.isArray(template.headers) && Array.isArray(template.tableData)) {
+        try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: template.headers, rows: template.tableData })); } catch (_) {}
+      }
       console.log('Found template:', template);
       return template;
     }
@@ -2205,7 +2209,15 @@
       const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
       if (openExcelEditorBtn) {
         openExcelEditorBtn.addEventListener('click', () => {
-          if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
+          // Prefer selected template if available
+          const sel = document.getElementById('templateSelect');
+          const selId = sel && sel.value ? sel.value : '';
+          if (selId && Array.isArray(window.__templates)) {
+            const tpl = window.__templates.find(t => String(t.id) === String(selId));
+            if (tpl && Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
+              localStorage.setItem('excelEditorData', JSON.stringify({ headers: tpl.headers, rows: tpl.tableData }));
+            }
+          } else if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
             try {
               localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows: tableData }));
               const hint = document.getElementById('excelEditorHint');

@@ -2630,7 +2630,7 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
     const { headers = [], rows = [], name = 'Report', createdAt } = req.body || {};
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Report');
+    const worksheet = workbook.addWorksheet('Report Data');
 
     // Title and meta
     worksheet.getCell('A1').value = `Report: ${name}`;

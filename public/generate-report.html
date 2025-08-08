@@ -415,12 +415,20 @@
       const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
       if (openExcelEditorBtn) {
         openExcelEditorBtn.addEventListener('click', () => {
-          if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
+          // If a template is selected, prefer that
+          const sel = document.getElementById('templateSelect');
+          const selId = sel && sel.value ? sel.value : '';
+          if (selId && Array.isArray(window.__templates)) {
+            const tpl = window.__templates.find(t => String(t.id) === String(selId));
+            if (tpl && Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
+              localStorage.setItem('excelEditorData', JSON.stringify({ headers: tpl.headers, rows: tpl.tableData }));
+            }
+          } else if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
             const rows = tableData.map(r => r);
             localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows }));
-            const hint = document.getElementById('excelEditorHint');
-            if (hint) hint.classList.remove('hidden');
           }
+          const hint = document.getElementById('excelEditorHint');
+          if (hint) hint.classList.remove('hidden');
           window.open('report-editor-xs.html', '_blank');
         });
       }
