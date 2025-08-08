@@ -2448,12 +2448,22 @@ app.delete('/api/reports/:collegeId/:reportId', authService.requireAuth(), async
 
 app.get('/api/templates', authService.requireAuth(), async (req, res) => {
   try {
+    // Always read from persistent volume path
     const templatesFile = 'templates.json';
     let templates = [];
     try {
       templates = await volumeService.readFile(templatesFile);
     } catch (e) {
-      templates = [];
+      // Attempt migration from legacy data path
+      try {
+        const fs = require('fs-extra');
+        const path = require('path');
+        const legacyPath = path.join('data', 'templates.json');
+        if (await fs.pathExists(legacyPath)) {
+          templates = await fs.readJson(legacyPath);
+          await volumeService.writeFile(templatesFile, templates);
+        }
+      } catch (_) { templates = []; }
     }
     res.json({ templates });
   } catch (error) {
@@ -2611,7 +2621,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     
     // Create backup after deletion
     try {
-              await railwayBackupService.createBackup(`Manual template deletion backup - ${Date.now()}`);
+               await railwayBackupService.createBackup(`Manual template deletion backup - ${Date.now()}`);
       console.log('✅ Backup created after template deletion');
     } catch (backupError) {
       console.error('⚠️ Failed to create backup after template deletion:', backupError);

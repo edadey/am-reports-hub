@@ -2242,7 +2242,10 @@
         const activityHoursEmployerIndex = headers.findIndex(h => h.toLowerCase().includes('activity') && h.toLowerCase().includes('hour') && h.toLowerCase().includes('employer'));
         
 
-        const studentsWithoutAssessmentsIndex = headers.findIndex(h => h.toLowerCase().includes('student') && h.toLowerCase().includes('assessment'));
+        // Prefer explicit "Students without Assessments" column if present; otherwise fall back to derived
+        const studentsWithoutAssessmentsIndex = headers.findIndex(h =>
+          h.toLowerCase().includes('students without') && h.toLowerCase().includes('assessment')
+        );
         const totalStudentsCareersIndex = headers.findIndex(h => h.toLowerCase().includes('total') && h.toLowerCase().includes('student') && h.toLowerCase().includes('career'));
         const studentsCompletedCareerQuizIndex = headers.findIndex(h => h.toLowerCase().includes('student') && h.toLowerCase().includes('completed') && h.toLowerCase().includes('career') && h.toLowerCase().includes('quiz'));
         const percentCompletedCareerQuizIndex = headers.findIndex(h => h.toLowerCase().includes('percent') && h.toLowerCase().includes('completed') && h.toLowerCase().includes('career') && h.toLowerCase().includes('quiz'));
@@ -2360,10 +2363,20 @@
         if (totals.totalActivityHoursEnrichment > 0 || totals.totalActivityHoursEmployer > 0) {
           totals.totalActivityHours = totals.totalActivityHoursEnrichment + totals.totalActivityHoursEmployer;
         }
-        if (studentsWithoutAssessmentsIndex >= 0 && row[studentsWithoutAssessmentsIndex]) {
+        if (studentsWithoutAssessmentsIndex >= 0 && row[studentsWithoutAssessmentsIndex] !== undefined) {
           const value = parseFloat(row[studentsWithoutAssessmentsIndex]);
           if (!isNaN(value)) {
             totals.studentsWithoutAssessments += value;
+          }
+        } else if (totalStudentsIndex >= 0) {
+          // Fallback: derive from completed assessments if column exists
+          const completedIdx = headers.findIndex(h => h.toLowerCase().includes('students with assessments'));
+          if (completedIdx >= 0 && row[completedIdx] !== undefined) {
+            const total = parseFloat(row[totalStudentsIndex]);
+            const completed = parseFloat(row[completedIdx]);
+            if (!isNaN(total) && !isNaN(completed)) {
+              totals.studentsWithoutAssessments += Math.max(0, total - completed);
+            }
           }
         }
         if (totalStudentsCareersIndex >= 0 && row[totalStudentsCareersIndex]) {
