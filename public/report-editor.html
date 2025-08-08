@@ -93,7 +93,17 @@
 
     function toLuckySheetData(headers, rows) {
       const data = [headers, ...rows];
-      const cellData = data.map(r => r.map(v => ({ v })));
+      const cellData = data.map((row, rowIdx) => row.map((value, colIdx) => {
+        const cell = { v: value };
+        // Force readable styles, especially for header row which is canvas-rendered
+        cell.fc = '#111111';
+        if (rowIdx === 0) {
+          cell.bg = '#ffffff';
+          cell.bl = 1; // bold header
+          cell.fs = 12; // readable size
+        }
+        return cell;
+      }));
       return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: headers.length, row: data.length }];
     }
 
@@ -199,15 +209,11 @@
     }
 
     function revertToClassic() {
-      if (collegeId) {
-        window.location.href = `college-dashboard.html?id=${collegeId}&tab=reports`;
-      } else {
-        try {
-          const { headers, rows } = fromLuckySheet();
-          localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
-        } catch (_) { /* ignore */ }
-        window.location.href = 'generate-report.html';
-      }
+      try {
+        const { headers, rows } = fromLuckySheet();
+        localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+      } catch (_) { /* ignore */ }
+      window.location.href = 'generate-report.html?fromExcel=1';
     }
 
     async function populateCollegePicker() {

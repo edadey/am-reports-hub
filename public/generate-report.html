@@ -424,6 +424,29 @@
           window.open('report-editor.html', '_blank');
         });
       }
+
+      // Auto-load data carried back from the Excel editor so users don't need to reupload
+      (function restoreFromExcelIfAvailable(){
+        const params = new URLSearchParams(location.search);
+        if (params.get('fromExcel') === '1') {
+          try {
+            const cached = localStorage.getItem('excelEditorData');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              const headers = parsed.headers || [];
+              const rows = parsed.rows || [];
+              if (headers.length && rows.length) {
+                window.tableHeaders = headers;
+                window.tableData = rows;
+                renderTable();
+                const hint = document.getElementById('excelEditorHint');
+                if (hint) hint.classList.remove('hidden');
+                showStatus('Restored data from Excel editor', 'success');
+              }
+            }
+          } catch (e) { console.warn('Restore from Excel failed:', e); }
+        }
+      })();
       
       // Table editing
       const addRowBtn = document.getElementById('addRowBtn');
