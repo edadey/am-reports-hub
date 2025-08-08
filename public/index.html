@@ -258,6 +258,10 @@
           <button id="processBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
             Process Files
           </button>
+          <button id="openExcelEditorBtn" class="ml-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 focus:bg-purple-700 active:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
+            Open Excel Editor
+          </button>
+          <span id="excelEditorHint" class="ml-2 text-gray-600 text-sm hidden">Ready: click to open Excel editor</span>
         </div>
         
         <!-- Template Selection Section -->
@@ -2198,6 +2202,19 @@
     function setupEventListeners() {
       // File processing
       document.getElementById('processBtn').addEventListener('click', processFiles);
+      const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
+      if (openExcelEditorBtn) {
+        openExcelEditorBtn.addEventListener('click', () => {
+          if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
+            try {
+              localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows: tableData }));
+              const hint = document.getElementById('excelEditorHint');
+              if (hint) hint.classList.remove('hidden');
+            } catch (e) { /* ignore */ }
+          }
+          window.open('report-editor.html', '_blank');
+        });
+      }
       
       // Table editing
       document.getElementById('addRowBtn').addEventListener('click', addRow);
@@ -2270,6 +2287,12 @@
         if (response.data.success) {
           console.log('Raw response data:', response.data.data);
           await adaptTableToData(response.data.data);
+          // Cache for Excel editor and show hint
+          try {
+            localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows: tableData }));
+            const hint = document.getElementById('excelEditorHint');
+            if (hint) hint.classList.remove('hidden');
+          } catch (e) { /* ignore */ }
           showStatus('Files processed successfully', 'success');
         }
       } catch (error) {
