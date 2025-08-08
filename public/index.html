@@ -3439,11 +3439,31 @@ let deletedAccountManagers = [];
           h.toLowerCase().includes('activity') && h.toLowerCase().includes('total')
         );
         
-        // Assessments: detect WITH and WITHOUT explicitly
-        const studentsWithAssessmentsIndex = headers.findIndex(h => {
-          const t = h.toLowerCase();
-          return (t.includes('students with') || t.includes('with')) && t.includes('assessment');
-        });
+        // Assessments: prefer explicit "Students with 1 assessment" (and common variants)
+        const studentsWithAssessmentsIndex = (() => {
+          const lowered = headers.map(h => h.toLowerCase());
+          const priorityPhrases = [
+            'students with 1 assessment',
+            'students with at least 1 assessment',
+            'students with 1+ assessment',
+            'students with at least one assessment',
+            'students with ≥1 assessment',
+            'students with 1 assessments'
+          ];
+          for (const phrase of priorityPhrases) {
+            const idx = lowered.findIndex(h => h.includes(phrase));
+            if (idx !== -1) return idx;
+          }
+          // Fallback: generic students-with-assessment but exclude percent/hours/avg/score and parenthesised metrics
+          return lowered.findIndex(t => (
+            (t.includes('students with') || t.includes('with')) &&
+            t.includes('assessment') &&
+            !t.includes('percent') && !t.includes('%') &&
+            !t.includes('hour') && !t.includes('hrs') &&
+            !t.includes('avg') && !t.includes('average') && !t.includes('mean') && !t.includes('score') &&
+            !t.includes('(')
+          ));
+        })();
         const studentsWithoutAssessmentsIndex = headers.findIndex(h => {
           const t = h.toLowerCase();
           return t.includes('without') && t.includes('assessment');
