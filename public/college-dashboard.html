@@ -4278,50 +4278,55 @@
       });
       
       // Always show total students
-      if (totalStudentsEl) totalStudentsEl.textContent = performanceData.totalStudents || 0;
+      if (totalStudentsEl) totalStudentsEl.textContent =
+        typeof performanceData.totalStudents === 'number' && performanceData.totalStudents > 0
+          ? performanceData.totalStudents
+          : 'No data yet';
       
       // Conditionally show/hide placement rate card
       if (placementRateEl && placementCard) {
         if (performanceData.availableSections.placements && performanceData.percentWithPlacements !== null) {
           placementRateEl.textContent = `${performanceData.percentWithPlacements.toFixed(1)}%`;
-          placementCard.style.display = 'block';
         } else {
-          placementCard.style.display = 'none';
+          placementRateEl.textContent = 'No data yet';
         }
+        placementCard.style.display = 'block';
       }
       
       // Conditionally show/hide enrichment activities card
       if (enrichmentActivitiesEl && enrichmentActivitiesCard) {
         if (performanceData.availableSections.activities && performanceData.percentStudentsWithActivitiesEnrichment !== null) {
           enrichmentActivitiesEl.textContent = `${performanceData.percentStudentsWithActivitiesEnrichment.toFixed(1)}%`;
-          enrichmentActivitiesCard.style.display = 'block';
         } else if (performanceData.availableSections.activities && performanceData.percentStudentsWithActivities !== null) {
           // Fallback to general activities if no separate enrichment data
           enrichmentActivitiesEl.textContent = `${performanceData.percentStudentsWithActivities.toFixed(1)}%`;
-          enrichmentActivitiesCard.style.display = 'block';
         } else {
-          enrichmentActivitiesCard.style.display = 'none';
+          enrichmentActivitiesEl.textContent = 'No data yet';
         }
+        enrichmentActivitiesCard.style.display = 'block';
       }
       
       // Conditionally show/hide employer activities card
       if (employerActivitiesEl && employerActivitiesCard) {
         if (performanceData.availableSections.activities && performanceData.percentStudentsWithActivitiesEmployer !== null && performanceData.percentStudentsWithActivitiesEmployer > 0) {
           employerActivitiesEl.textContent = `${performanceData.percentStudentsWithActivitiesEmployer.toFixed(1)}%`;
-          employerActivitiesCard.style.display = 'block';
+        } else if (performanceData.availableSections.activities && performanceData.percentStudentsWithActivities !== null) {
+          // fallback to general activities if employer split isn't available
+          employerActivitiesEl.textContent = `${performanceData.percentStudentsWithActivities.toFixed(1)}%`;
         } else {
-          employerActivitiesCard.style.display = 'none';
+          employerActivitiesEl.textContent = 'No data yet';
         }
+        employerActivitiesCard.style.display = 'block';
       }
       
       // Conditionally show/hide assessment rate card
       if (assessmentRateEl && assessmentCard) {
         if (performanceData.availableSections.assessments && performanceData.assessmentCompletionRate !== null) {
           assessmentRateEl.textContent = `${performanceData.assessmentCompletionRate.toFixed(1)}%`;
-          assessmentCard.style.display = 'block';
         } else {
-          assessmentCard.style.display = 'none';
+          assessmentRateEl.textContent = 'No data yet';
         }
+        assessmentCard.style.display = 'block';
       }
       
       console.log('Performance cards updated with values:', {
