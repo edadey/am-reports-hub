@@ -549,11 +549,12 @@
     async function loadTemplates() {
       try {
         const response = await axios.get('/api/templates');
-        const templates = response.data;
+        const apiData = response.data;
+        const list = Array.isArray(apiData) ? apiData : (Array.isArray(apiData.templates) ? apiData.templates : []);
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
           templateSelect.innerHTML = '<option value="">No template - Use new data structure</option>' +
-            templates.map(template => `<option value="${template.id}">${template.name}</option>`).join('');
+            list.map(template => `<option value="${template.id}">${template.name}</option>`).join('');
         }
       } catch (error) {
         console.error('Error loading templates:', error);

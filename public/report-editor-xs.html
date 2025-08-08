@@ -25,6 +25,7 @@
     <button id="btnSave" class="btn primary">Save</button>
     <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
     <button id="btnRevert" class="btn secondary">Back to Reports</button>
+    <button id="btnDownload" class="btn secondary">Download Excel</button>
     <span id="status" class="status"></span>
   </div>
   <div id="sheet"></div>
@@ -294,6 +295,35 @@
         if (btn) btn.onclick = () => { window.location.href = `college-dashboard.html?id=${collegeId}&tab=reports`; };
       }
     }
+
+    // Download button - export via backend to preserve formatting
+    document.getElementById('btnDownload').addEventListener('click', async () => {
+      try {
+        setStatus('Preparing Excel...', 'info');
+        const { headers, rows } = fromXSheet();
+        const payload = { headers, rows, name: 'Edited Report', createdAt: new Date().toISOString() };
+        const res = await fetch('/api/export-excel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Export failed');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'report.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatus('Downloaded', 'success');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Download failed: ${e.message}`, 'error');
+      }
+    });
 
     loadReport();
   </script>

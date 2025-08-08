@@ -2624,6 +2624,104 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
   }
 });
 
+// Export Excel from editor payload, preserving basic formatting
+app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
+  try {
+    const { headers = [], rows = [], name = 'Report', createdAt } = req.body || {};
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Report');
+
+    // Title and meta
+    worksheet.getCell('A1').value = `Report: ${name}`;
+    worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } };
+    worksheet.getCell('A2').value = `Generated: ${createdAt ? new Date(createdAt).toLocaleString() : new Date().toLocaleString()}`;
+    worksheet.getCell('A2').font = { size: 10, color: { argb: 'FF666666' } };
+
+    // Header row styling
+    const headerRowIndex = 4;
+    const dataStartRow = headerRowIndex + 1;
+    if (headers.length) {
+      const headerRow = worksheet.getRow(headerRowIndex);
+      headers.forEach((h, idx) => {
+        const cell = headerRow.getCell(idx + 1);
+        cell.value = h;
+        cell.font = { bold: true, color: { argb: 'FF111111' } };
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        worksheet.getColumn(idx + 1).width = Math.max(12, String(h || '').length + 2);
+      });
+      headerRow.commit();
+    }
+
+    // Detect percentage headers to apply number format and create simple bar via conditional formatting later if desired
+    const percentageColumns = new Set();
+    headers.forEach((h, idx) => {
+      const hl = String(h || '').toLowerCase();
+      if (hl.includes('percent') || hl.includes('%')) percentageColumns.add(idx);
+    });
+
+    // Data rows
+    rows.forEach((rowArr, rIdx) => {
+      const row = worksheet.getRow(dataStartRow + rIdx);
+      rowArr.forEach((val, cIdx) => {
+        const cell = row.getCell(cIdx + 1);
+        // Percent handling
+        if (percentageColumns.has(cIdx)) {
+          let num = null;
+          if (typeof val === 'number') {
+            num = val > 1 ? val / 100 : val;
+          } else if (typeof val === 'string' && val.trim().endsWith('%')) {
+            const parsed = parseFloat(val);
+            if (!isNaN(parsed)) num = parsed / 100;
+          } else {
+            const parsed = parseFloat(val);
+            if (!isNaN(parsed) && parsed <= 1) num = parsed;
+          }
+          if (num !== null) {
+            cell.value = num;
+            cell.numFmt = '0.0%';
+          } else {
+            cell.value = val == null ? '' : val;
+          }
+        } else {
+          cell.value = val == null ? '' : val;
+          if (typeof val === 'number') {
+            cell.numFmt = '0.00';
+          }
+        }
+        cell.font = { color: { argb: 'FF111111' } };
+      });
+      row.commit();
+    });
+
+    // Simple table styling
+    const lastRow = dataStartRow + rows.length - 1;
+    if (headers.length && rows.length) {
+      worksheet.autoFilter = {
+        from: { row: headerRowIndex, column: 1 },
+        to: { row: headerRowIndex, column: headers.length }
+      };
+      // Add thin borders
+      for (let r = headerRowIndex; r <= lastRow; r++) {
+        for (let c = 1; c <= headers.length; c++) {
+          const cell = worksheet.getRow(r).getCell(c);
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        }
+      }
+    }
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (e) {
+    console.error('Export Excel error:', e);
+    res.status(500).json({ error: 'Failed to export Excel' });
+  }
+});
+
 // Backup management endpoints - Using SimpleBackupService for college data
 
 // Data validation endpoints
