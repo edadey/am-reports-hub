@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel Report Editor (Alternative)</title>
+  <!-- x-data-spreadsheet (x-spreadsheet) CDN -->
+  <link rel="stylesheet" href="https://unpkg.com/x-data-spreadsheet@1.1.5/dist/xspreadsheet.css" />
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    .topbar { display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid #e5e7eb; }
+    .topbar .title { font-weight:600; color:#111827; margin-right:auto; }
+    .btn { padding:8px 12px; border-radius:6px; font-size:14px; cursor:pointer; border:1px solid transparent; }
+    .btn.primary { background:#2563eb; color:#fff; }
+    .btn.secondary { background:#fff; color:#111827; border-color:#d1d5db; }
+    .status { margin-left:12px; color:#6b7280; font-size:13px; }
+    #sheet { position:absolute; top:54px; left:0; right:0; bottom:0; }
+    /* Ensure light theme */
+    .x-spreadsheet { background:#ffffff; color:#111111; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">Excel Editor (Alternative)</div>
+    <button id="btnSave" class="btn primary">Save</button>
+    <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
+    <button id="btnRevert" class="btn secondary">Revert to classic editor</button>
+    <span id="status" class="status"></span>
+  </div>
+  <div id="sheet"></div>
+
+  <!-- College selection modal for saving when opened from uploads -->
+  <div id="selectCollegeModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); align-items:center; justify-content:center; z-index:99999;">
+    <div style="background:#fff; padding:16px; border-radius:8px; width:90%; max-width:420px; box-shadow:0 10px 25px rgba(0,0,0,0.15);">
+      <h3 style="margin:0 0 8px; font-weight:600; color:#111827;">Select College</h3>
+      <p style="margin:0 0 12px; color:#4b5563; font-size:14px;">Choose a college to save this report to.</p>
+      <select id="collegePicker" style="width:100%; border:1px solid #d1d5db; border-radius:6px; padding:8px; margin-bottom:12px;"></select>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button id="cancelCollegeSelect" class="btn secondary">Cancel</button>
+        <button id="confirmCollegeSelect" class="btn primary">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/x-data-spreadsheet@1.1.5/dist/xspreadsheet.js"></script>
+  <script>
+    // Helper: status text
+    const qs = new URLSearchParams(location.search);
+    const collegeId = qs.get('collegeId');
+    const reportId = qs.get('reportId');
+    const statusEl = document.getElementById('status');
+    const modal = document.getElementById('selectCollegeModal');
+    const collegePicker = document.getElementById('collegePicker');
+
+    function setStatus(msg, type = 'info') {
+      statusEl.textContent = msg;
+      statusEl.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#065f46' : '#6b7280');
+    }
+
+    // Spreadsheet instance
+    let spreadsheet = null;
+
+    function toXSheetData(headers, rows) {
+      const allRows = [headers, ...rows];
+      const rowsObj = {};
+      for (let r = 0; r < allRows.length; r++) {
+        const row = allRows[r] || [];
+        const cells = {};
+        for (let c = 0; c < row.length; c++) {
+          const val = row[c];
+          // Keep it simple: just text; x-spreadsheet defaults to dark text on white
+          cells[c] = { text: val == null ? '' : String(val) };
+        }
+        rowsObj[r] = { cells };
+      }
+      return [{ name: 'Report', rows: rowsObj }];
+    }
+
+    function fromXSheet() {
+      const data = spreadsheet.getData();
+      const first = Array.isArray(data) ? data[0] : data;
+      const rowsObj = (first && first.rows) || {};
+      const rowIndices = Object.keys(rowsObj).map(n => parseInt(n, 10)).sort((a,b) => a-b);
+      if (rowIndices.length === 0) return { headers: [], rows: [] };
+      // Determine max columns
+      let maxCol = 0;
+      for (const r of rowIndices) {
+        const cells = (rowsObj[r] && rowsObj[r].cells) || {};
+        const cols = Object.keys(cells).map(n => parseInt(n, 10));
+        if (cols.length) maxCol = Math.max(maxCol, Math.max(...cols) + 1);
+      }
+      const values = rowIndices.map(r => {
+        const cells = (rowsObj[r] && rowsObj[r].cells) || {};
+        const row = new Array(maxCol).fill('');
+        for (let c = 0; c < maxCol; c++) {
+          const cell = cells[c];
+          row[c] = cell && cell.text != null ? String(cell.text) : '';
+        }
+        return row;
+      });
+      const headers = values[0] || [];
+      const rows = values.slice(1);
+      return { headers, rows };
+    }
+
+    async function loadReport() {
+      // Build spreadsheet instance
+      spreadsheet = x_spreadsheet('#sheet', {
+        showToolbar: true,
+        showGrid: true,
+        showContextmenu: true,
+      });
+
+      // 1) Load by IDs if provided
+      if (collegeId && reportId) {
+        try {
+          setStatus('Loading report...');
+          const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, { credentials: 'include' });
+          const json = await res.json();
+          if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
+          const { headers = [], rows = [] } = json.report.data;
+          const data = toXSheetData(headers, rows);
+          spreadsheet.loadData(data);
+          setStatus('Loaded');
+          return;
+        } catch (e) {
+          console.error(e);
+          setStatus(`Load failed: ${e.message}`, 'error');
+          return;
+        }
+      }
+
+      // 2) Fallback: load from localStorage (Generate Report flow)
+      const cached = localStorage.getItem('excelEditorData');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          const headers = parsed.headers || [];
+          const rows = parsed.rows || [];
+          const data = toXSheetData(headers, rows);
+          spreadsheet.loadData(data);
+          setStatus('Loaded from upload');
+          return;
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      setStatus('No source data provided', 'error');
+    }
+
+    async function saveReport() {
+      try {
+        setStatus('Saving...');
+        const { headers, rows } = fromXSheet();
+        let targetCollegeId = collegeId;
+        if (!targetCollegeId) {
+          await populateCollegePicker();
+          modal.style.display = 'flex';
+          const chosen = await awaitCollegeSelection();
+          modal.style.display = 'none';
+          if (!chosen) {
+            setStatus('Save cancelled', 'error');
+            return;
+          }
+          targetCollegeId = chosen;
+        }
+        const payload = { reportData: { headers, rows }, reportName: 'Edited Report', summary: 'Edited in Excel editor (x-sheet)' };
+        const res = await fetch(`/api/colleges/${targetCollegeId}/reports`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(payload)
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Save failed');
+        await fetch(`/api/reports/${targetCollegeId}/recalculate`, { method: 'POST', credentials: 'include' });
+        setStatus('Saved and recalculated', 'success');
+        localStorage.removeItem('excelEditorData');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Save failed: ${e.message}`, 'error');
+      }
+    }
+
+    function revertToClassic() {
+      try {
+        const { headers, rows } = fromXSheet();
+        localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+      } catch (_) { /* ignore */ }
+      window.location.href = 'generate-report.html?fromExcel=1';
+    }
+
+    async function populateCollegePicker() {
+      try {
+        collegePicker.innerHTML = '<option value="">Loading colleges...</option>';
+        const res = await fetch('/api/colleges', { credentials: 'include' });
+        const json = await res.json();
+        const colleges = Array.isArray(json.colleges) ? json.colleges : json;
+        collegePicker.innerHTML = '<option value="">Select a college...</option>' +
+          colleges.map(c => `<option value="${c.id}">${c.name || c.collegename || ('College ' + c.id)}</option>`).join('');
+      } catch (e) {
+        collegePicker.innerHTML = '<option value="">Failed to load colleges</option>';
+      }
+    }
+
+    function awaitCollegeSelection() {
+      return new Promise(resolve => {
+        const confirmBtn = document.getElementById('confirmCollegeSelect');
+        const cancelBtn = document.getElementById('cancelCollegeSelect');
+        function cleanup(value) {
+          confirmBtn.removeEventListener('click', onConfirm);
+          cancelBtn.removeEventListener('click', onCancel);
+          resolve(value);
+        }
+        function onConfirm() {
+          const val = collegePicker.value;
+          cleanup(val || null);
+        }
+        function onCancel() { cleanup(null); }
+        confirmBtn.addEventListener('click', onConfirm);
+        cancelBtn.addEventListener('click', onCancel);
+      });
+    }
+
+    document.getElementById('btnSave').addEventListener('click', saveReport);
+    document.getElementById('btnRecalc').addEventListener('click', async () => {
+      try {
+        setStatus('Recalculating...');
+        const idForRecalc = collegeId || (localStorage.getItem('currentCollegeId') || '').trim();
+        if (!idForRecalc) throw new Error('Select a college first');
+        await fetch(`/api/reports/${idForRecalc}/recalculate`, { method: 'POST', credentials: 'include' });
+        setStatus('Recalculated', 'success');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Recalc failed: ${e.message}`, 'error');
+      }
+    });
+    document.getElementById('btnRevert').addEventListener('click', revertToClassic);
+
+    loadReport();
+  </script>
+</body>
+</html>
+
+
