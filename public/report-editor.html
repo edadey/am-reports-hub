@@ -81,6 +81,19 @@
             forceCalculation: true,
             data: sheets
           });
+          // Force readable text across entire used range
+          try {
+            const lastRow = rows.length; // includes header row in sheets meta, but style ranges are 0-based inclusive
+            const lastCol = headers.length - 1;
+            if (window.luckysheet && window.luckysheet.setRangeStyle) {
+              window.luckysheet.setRangeStyle({
+                range: [{ row: [0, lastRow], column: [0, lastCol] }],
+                style: { fc: '#111111', bg: '#ffffff' }
+              });
+            }
+          } catch (e) {
+            console.warn('Style application skipped:', e.message);
+          }
           setStatus('Loaded');
           return;
         } catch (e) {
@@ -107,6 +120,19 @@
             forceCalculation: true,
             data: sheets
           });
+          // Apply readable styles to entire data range
+          try {
+            const lastRow = rows.length;
+            const lastCol = headers.length - 1;
+            if (window.luckysheet && window.luckysheet.setRangeStyle) {
+              window.luckysheet.setRangeStyle({
+                range: [{ row: [0, lastRow], column: [0, lastCol] }],
+                style: { fc: '#111111', bg: '#ffffff' }
+              });
+            }
+          } catch (e) {
+            console.warn('Style application skipped:', e.message);
+          }
           setStatus('Loaded from upload');
           return;
         } catch (e) {

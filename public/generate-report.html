@@ -124,6 +124,7 @@
           Process Files
         </button>
         <button id="openExcelEditorBtn" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition-colors duration-200 font-medium shadow-sm touch-button ml-2">Open Excel Editor</button>
+        <span id="excelEditorHint" class="ml-2 text-gray-600 text-sm hidden">Ready: click to open Excel editor</span>
         <button id="testActivityBtn" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button ml-2">
           Test Activity Processing
         </button>
@@ -417,6 +418,8 @@
           if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
             const rows = tableData.map(r => r);
             localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows }));
+            const hint = document.getElementById('excelEditorHint');
+            if (hint) hint.classList.remove('hidden');
           }
           window.open('report-editor.html', '_blank');
         });
@@ -635,6 +638,8 @@
           const headers = await buildHeadersFromProcessed(response.data.data);
           const rows = await buildRowsFromProcessed(response.data.data, headers);
           localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+          const hint = document.getElementById('excelEditorHint');
+          if (hint) hint.classList.remove('hidden');
           // Render the classic table as before
           await adaptTableToData(response.data.data);
           showStatus('Files processed successfully', 'success');
