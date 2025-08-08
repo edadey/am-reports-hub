@@ -264,7 +264,9 @@
     document.getElementById('btnRecalc').addEventListener('click', async () => {
       try {
         setStatus('Recalculating...');
-        await fetch(`/api/reports/${collegeId}/recalculate`, { method: 'POST', credentials: 'include' });
+        const idForRecalc = collegeId || (localStorage.getItem('currentCollegeId') || '').trim();
+        if (!idForRecalc) throw new Error('Select a college first');
+        await fetch(`/api/reports/${idForRecalc}/recalculate`, { method: 'POST', credentials: 'include' });
         setStatus('Recalculated', 'success');
       } catch (e) {
         console.error(e);
