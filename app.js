@@ -3045,8 +3045,19 @@ app.post('/api/debug/colleges/:collegeId/generate-kpis', async (req, res) => {
     const { collegeId } = req.params;
     console.log('DEBUG: Generating AI KPIs for college:', collegeId);
     
-    // Load college data
-    const collegeData = await userManager.getCollege(collegeId);
+    // Load college data (DB first, fall back to file)
+    let collegeData;
+    try {
+      const mgr = await getInitializedUserManager();
+      if (mgr.getCollegeById) {
+        collegeData = await mgr.getCollegeById(parseInt(collegeId));
+      } else if (mgr.getCollege) {
+        collegeData = await mgr.getCollege(collegeId);
+      }
+    } catch (_) {}
+    if (!collegeData) {
+      collegeData = await userManager.getCollege(collegeId);
+    }
     if (!collegeData) {
       return res.status(404).json({
         success: false,
