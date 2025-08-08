@@ -2832,13 +2832,19 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       const numericCollegeId = parseInt(collegeId);
       console.log(`🔄 Numeric college ID: ${numericCollegeId}`);
       
-      const result = await (await getInitializedUserManager()).updateCollege(numericCollegeId, {
+      // Test which manager we're getting
+      const manager = await getInitializedUserManager();
+      console.log(`🔄 Using manager type: ${manager.constructor.name}`);
+      console.log(`🔄 Manager has updateCollege method: ${typeof manager.updateCollege}`);
+      
+      const result = await manager.updateCollege(numericCollegeId, {
         lastReportDate: nowIso
       });
       console.log(`✅ Updated lastReportDate for college ${collegeId} to ${nowIso}`, result);
     } catch (error) {
       console.error('❌ Error updating college lastReportDate:', error);
       console.error('❌ Error details:', error.message);
+      console.error('❌ Error stack:', error.stack);
     }
     
     return { 
