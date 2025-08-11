@@ -3651,7 +3651,8 @@ let deletedAccountManagers = [];
               const totals = calculateTotalsFromReport(latestReport.data);
               students = totals.totalStudents || 0;
               placements = (totals.studentsWithPlacements || totals.totalPlacements || 0);
-              activities = totals.totalActivities || 0;
+              const activitiesCombinedRow = (totals.totalActivitiesEmployer || 0) + (totals.totalActivitiesEnrichment || 0);
+              activities = activitiesCombinedRow > 0 ? activitiesCombinedRow : (totals.totalActivities || 0);
               assessments = (totals.studentsWithAssessments || (totals.totalStudents - totals.studentsWithoutAssessments)) || 0;
               careers = totals.totalCareersAssessments || 0;
             }
