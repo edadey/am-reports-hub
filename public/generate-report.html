@@ -257,6 +257,8 @@
   <!-- Modals will be added here -->
   
   <script>
+    // Ensure cookies (session) are sent with uploads and all API calls
+    try { axios.defaults.withCredentials = true; } catch(_) {}
     console.log('=== Script loading started ===');
     console.log('=== NEW VERSION LOADED: 2025-01-27-15-30-00 ===');
     document.body.style.backgroundColor = 'lightblue';
