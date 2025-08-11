@@ -159,8 +159,38 @@
         }
         return cell;
       }));
+      // Append a totals row with formulas where appropriate (average for percent, sum for numbers)
+      const totalsRowIndex = cellData.length; // 0-based index for new row
+      const toCol = (n) => {
+        let s = '';
+        let x = n + 1; // 1-based
+        while (x > 0) {
+          const m = (x - 1) % 26;
+          s = String.fromCharCode(65 + m) + s;
+          x = Math.floor((x - 1) / 26);
+        }
+        return s;
+      };
+      const numBodyRows = bodyRows.length;
+      if (numBodyRows > 0 && tableHeaders.length > 1) {
+        const totalsRow = new Array(tableHeaders.length).fill(null).map(() => ({}));
+        totalsRow[0] = { v: 'TOTAL', bl: 1, fc: '#111111' };
+        for (let c = 1; c < tableHeaders.length; c++) {
+          const colLetter = toCol(c);
+          const fromA1 = `${colLetter}2`;
+          const toA1 = `${colLetter}${1 + numBodyRows}`;
+          const isPercent = percentCols.has(c) || String(tableHeaders[c] || '').includes('%') || String(tableHeaders[c] || '').toLowerCase().includes('percent');
+          totalsRow[c] = {
+            f: isPercent ? `AVERAGE(${fromA1}:${toA1})` : `SUM(${fromA1}:${toA1})`,
+            bl: 1,
+            fc: '#111111',
+            ct: isPercent ? { t: 'n', fa: '0.0%' } : { t: 'n', fa: '#,##0' }
+          };
+        }
+        cellData.push(totalsRow);
+      }
 
-      return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: tableHeaders.length, row: data.length }];
+      return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: tableHeaders.length, row: cellData.length }];
     }
 
     function fromLuckySheet() {
@@ -169,7 +199,11 @@
       const flowdata = first && first.data ? first.data : [];
       const values = (flowdata || []).map(row => (row || []).map(c => (c && c.v) ?? ''));
       const headers = values[0] || [];
-      const rows = values.slice(1);
+      let rows = values.slice(1);
+      // Drop the last row if it's our totals row
+      if (rows.length && String(rows[rows.length - 1][0]).toUpperCase() === 'TOTAL') {
+        rows = rows.slice(0, -1);
+      }
       return { headers, rows };
     }
 
