@@ -5594,8 +5594,8 @@
       const urlParams = new URLSearchParams(window.location.search);
       const collegeId = urlParams.get('id');
       if (!collegeId || !reportId) return;
-      // Prefer Luckysheet editor for richer formatting/formulas
-      window.open(`report-editor.html?collegeId=${collegeId}&reportId=${reportId}`, '_blank');
+      // Revert to x-spreadsheet editor for stability
+      window.open(`report-editor-xs.html?collegeId=${collegeId}&reportId=${reportId}`, '_blank');
     }
 
     // Chart.js initialization

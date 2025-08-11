@@ -430,7 +430,7 @@
             const hint = document.getElementById('excelEditorHint');
             if (hint) hint.classList.remove('hidden');
             // Prefer Luckysheet editor for richer formatting/formulas
-            const editorUrl = new URL('report-editor.html', window.location.origin);
+            const editorUrl = new URL('report-editor-xs.html', window.location.origin);
             // Ensure newest data is used: clear stale cache, then set fresh
             try { localStorage.removeItem('excelEditorData'); } catch(_) {}
             try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows })); } catch(_) {}

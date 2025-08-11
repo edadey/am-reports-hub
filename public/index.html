@@ -2279,7 +2279,7 @@
             } catch (e) { /* ignore */ }
           }
           // Prefer Luckysheet editor for richer formatting/formulas
-          const editorUrl = new URL('report-editor.html', window.location.origin);
+          const editorUrl = new URL('report-editor-xs.html', window.location.origin);
           // Ensure the newest data is used by clearing any stale editor cache then setting fresh
           try { localStorage.removeItem('excelEditorData'); } catch(_) {}
           try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows: tableData })); } catch(_) {}
