@@ -74,7 +74,7 @@
         <div class="bg-white rounded-lg shadow p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Activities</h3>
           <p class="text-3xl font-bold text-orange-600" id="totalActivities">0</p>
-          <p class="text-sm text-gray-600 mt-1">Student activities</p>
+          <p class="text-sm text-gray-600 mt-1">Employer + Engagement activities</p>
         </div>
       </div>
 
@@ -83,7 +83,7 @@
         <div class="bg-white rounded-lg shadow p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Assessments</h3>
           <p class="text-3xl font-bold text-red-600" id="totalAssessments">0</p>
-          <p class="text-sm text-gray-600 mt-1">Completed assessments</p>
+          <p class="text-sm text-gray-600 mt-1">Students with at least 1 assessment</p>
         </div>
         <div class="bg-white rounded-lg shadow p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Total Reports</h3>
@@ -3243,7 +3243,9 @@ let deletedAccountManagers = [];
                 totalStudents += totals.totalStudents || 0;
                 // Placements: ensure we use students with placements if available
                 totalPlacements += (totals.studentsWithPlacements || totals.totalPlacements || 0);
-                totalActivities += totals.totalActivities || 0;
+                // Activities: include both employer and enrichment totals when available
+                const activitiesCombined = (totals.totalActivitiesEmployer || 0) + (totals.totalActivitiesEnrichment || 0);
+                totalActivities += (activitiesCombined > 0 ? activitiesCombined : (totals.totalActivities || 0));
                 // Assessments: prefer explicit students-with-assessments if present
                 const assessed = (totals.studentsWithAssessments || (totals.totalStudents - totals.studentsWithoutAssessments)) || 0;
                 totalAssessments += assessed;
@@ -3393,7 +3395,8 @@ let deletedAccountManagers = [];
                 totalStudents += totals.totalStudents || 0;
                 totalPlacements += totals.totalPlacements || 0;
                 totalActivities += totals.totalActivities || 0;
-                totalAssessments += (totals.totalStudents - totals.studentsWithoutAssessments) || 0;
+                const assessed2 = (totals.studentsWithAssessments || (totals.totalStudents - totals.studentsWithoutAssessments)) || 0;
+                totalAssessments += assessed2;
                 totalCareersAssessments += totals.totalCareersAssessments || 0;
               }
             }
@@ -3502,8 +3505,8 @@ let deletedAccountManagers = [];
         });
         
         const totalActivitiesIndex = headers.findIndex(h => 
-          h.toLowerCase().includes('total') && h.toLowerCase().includes('activity') ||
-          h.toLowerCase().includes('activity') && h.toLowerCase().includes('total')
+          (h.toLowerCase().includes('total') && (h.toLowerCase().includes('activity') || h.toLowerCase().includes('activities')) && !h.toLowerCase().includes('hour')) ||
+          ((h.toLowerCase().includes('activity') || h.toLowerCase().includes('activities')) && h.toLowerCase().includes('total') && !h.toLowerCase().includes('hour'))
         );
         
         // Assessments: prefer explicit "Students with 1 assessment" (and common variants)
@@ -3571,6 +3574,15 @@ let deletedAccountManagers = [];
           if (!isNaN(value)) {
             totals.totalActivities += value;
           }
+        }
+        // Employer/enrichment specific totals if present (summing without hours)
+        if (typeof totalActivitiesEmployerIndex !== 'undefined' && totalActivitiesEmployerIndex >= 0 && row[totalActivitiesEmployerIndex]) {
+          const value = parseFloat(row[totalActivitiesEmployerIndex]);
+          if (!isNaN(value)) totals.totalActivitiesEmployer = (totals.totalActivitiesEmployer || 0) + value;
+        }
+        if (typeof totalActivitiesEnrichmentIndex !== 'undefined' && totalActivitiesEnrichmentIndex >= 0 && row[totalActivitiesEnrichmentIndex]) {
+          const value = parseFloat(row[totalActivitiesEnrichmentIndex]);
+          if (!isNaN(value)) totals.totalActivitiesEnrichment = (totals.totalActivitiesEnrichment || 0) + value;
         }
         if (studentsWithAssessmentsIndex >= 0 && row[studentsWithAssessmentsIndex]) {
           const value = parseFloat(row[studentsWithAssessmentsIndex]);
