@@ -60,6 +60,66 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
   <script>
+    // Inject late CSS with very high specificity to override theme/inline classes
+    (function injectToolbarFixStyles() {
+      try {
+        const style = document.createElement('style');
+        style.id = 'luckysheet-readable-style';
+        style.textContent = `
+          /* Force readable toolbar/title/menu text and light backgrounds */
+          .luckysheet-wa-toolbar-container, .luckysheet-toolbar, .luckysheet-titlebar, .luckysheet-toolbar-menu, .luckysheet-bottom-controll, .luckysheet-wa-editor, .luckysheet-formula-bar, .luckysheet-input-box { background:#ffffff !important; color:#111111 !important; }
+          .luckysheet-wa-toolbar-container *, .luckysheet-toolbar *, .luckysheet-titlebar *, .luckysheet-toolbar-menu *, .luckysheet-bottom-controll *, .luckysheet-wa-editor *, .luckysheet-formula-bar *, .luckysheet-input-box * { color:#111111 !important; fill:#111111 !important; }
+          /* Popover/dropdown menus */
+          .luckysheet-menuButton-menu, .luckysheet-colorSelectBox, .luckysheet-dynamic-tool, .luckysheet-insertFormula-cache, .luckysheet-cols-menu, .luckysheet-rows-menu, .luckysheet-sheetArea-c { background:#ffffff !important; color:#111111 !important; }
+          .luckysheet-toolbar-button, .luckysheet-toolbar-button *, .luckysheet-button, .luckysheet-button * { color:#111111 !important; fill:#111111 !important; }
+          /* Ensure grid areas remain light */
+          #luckysheet, #luckysheet * { color:#111111 !important; }
+          .luckysheet-cell-main, .luckysheet-rows, .luckysheet-cols, .luckysheet-grid-window, .luckysheet-grid-container { background:#ffffff !important; }
+        `;
+        document.head.appendChild(style);
+      } catch (_) {}
+    })();
+
+    // As some Luckysheet components apply inline styles dynamically, also set inline styles programmatically
+    function forceToolbarReadableColors() {
+      try {
+        const containers = document.querySelectorAll([
+          '.luckysheet-wa-toolbar-container',
+          '.luckysheet-toolbar',
+          '.luckysheet-titlebar',
+          '.luckysheet-toolbar-menu',
+          '.luckysheet-bottom-controll',
+          '.luckysheet-wa-editor',
+          '.luckysheet-formula-bar',
+          '.luckysheet-input-box',
+        ].join(','));
+        containers.forEach(el => {
+          el.style.backgroundColor = '#ffffff';
+          el.style.color = '#111111';
+        });
+        const all = document.querySelectorAll([
+          '.luckysheet-wa-toolbar-container *',
+          '.luckysheet-toolbar *',
+          '.luckysheet-titlebar *',
+          '.luckysheet-toolbar-menu *',
+          '.luckysheet-bottom-controll *',
+          '.luckysheet-wa-editor *',
+          '.luckysheet-formula-bar *',
+          '.luckysheet-input-box *',
+          'svg', 'path', 'rect', 'text'
+        ].join(','));
+        all.forEach(el => {
+          el.style.color = '#111111';
+          el.style.fill = '#111111';
+        });
+        const menus = document.querySelectorAll('.luckysheet-menuButton-menu, .luckysheet-colorSelectBox, .luckysheet-dynamic-tool, .luckysheet-insertFormula-cache');
+        menus.forEach(el => {
+          el.style.backgroundColor = '#ffffff';
+          el.style.color = '#111111';
+        });
+      } catch (_) {}
+    }
+
     // Map headers to section colours similar to the Process Files view
     function getSectionInfo(header) {
       const h = String(header || '').toLowerCase();
@@ -227,6 +287,13 @@
             forceCalculation: true,
             data: sheets
           });
+          // Ensure toolbar/menu text is readable now and on later mutations
+          forceToolbarReadableColors();
+          try {
+            const root = document.getElementById('luckysheet')?.parentElement || document.body;
+            const obs = new MutationObserver(() => forceToolbarReadableColors());
+            obs.observe(root, { childList: true, subtree: true, attributes: true });
+          } catch (_) {}
           forceReadableStyles(headers, rows);
           setStatus('Loaded');
           return;
@@ -254,6 +321,13 @@
             forceCalculation: true,
             data: sheets
           });
+          // Ensure toolbar/menu text is readable now and on later mutations
+          forceToolbarReadableColors();
+          try {
+            const root = document.getElementById('luckysheet')?.parentElement || document.body;
+            const obs = new MutationObserver(() => forceToolbarReadableColors());
+            obs.observe(root, { childList: true, subtree: true, attributes: true });
+          } catch (_) {}
           forceReadableStyles(headers, rows);
           setStatus('Loaded from upload');
           return;
