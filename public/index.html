@@ -2278,7 +2278,12 @@
               if (hint) hint.classList.remove('hidden');
             } catch (e) { /* ignore */ }
           }
-          window.open('report-editor-xs.html', '_blank');
+          // Prefer Luckysheet editor for richer formatting/formulas
+          const editorUrl = new URL('report-editor.html', window.location.origin);
+          if (window.currentCollegeId) {
+            editorUrl.searchParams.set('collegeId', String(window.currentCollegeId));
+          }
+          window.open(editorUrl.toString(), '_blank');
         });
       }
       
@@ -3534,6 +3539,30 @@ let deletedAccountManagers = [];
             !t.includes('(')
           ));
         })();
+
+    // Listen for updates from the Excel editor and refresh the table in place
+    window.addEventListener('message', (event) => {
+      try {
+        const data = event && event.data ? event.data : {};
+        if (data && data.type === 'excel-editor-saved') {
+          const cached = localStorage.getItem('excelEditorData');
+          if (!cached) return;
+          const parsed = JSON.parse(cached);
+          const headers = parsed.headers || [];
+          const rows = parsed.rows || [];
+          if (headers.length && rows.length) {
+            window.tableHeaders = headers;
+            window.tableData = rows;
+            renderTable();
+            const hint = document.getElementById('excelEditorHint');
+            if (hint) hint.classList.remove('hidden');
+            showStatus('Updated from Excel editor', 'success');
+          }
+        }
+      } catch (e) {
+        console.warn('Message handling from Excel editor failed:', e);
+      }
+    });
         const studentsWithoutAssessmentsIndex = headers.findIndex(h => {
           const t = h.toLowerCase();
           return t.includes('without') && t.includes('assessment');

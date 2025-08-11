@@ -60,6 +60,20 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
   <script>
+    // Map headers to section colours similar to the Process Files view
+    function getSectionInfo(header) {
+      const h = String(header || '').toLowerCase();
+      if (header === 'Department') return { name: 'Department', bg: '#fef3c7' };
+      if (h.includes('placement')) return { name: 'Placements', bg: '#dbeafe' };
+      if (h.includes('(enrichment)') || h.includes('enrichment') || h.includes('activity') && !h.includes('scheduled')) return { name: 'Enrichment/Activities', bg: '#bfdbfe' };
+      if (h.includes('(employer)') || h.includes('employment') || h.includes('employer')) return { name: 'Employment', bg: '#f3e8ff' };
+      if (h.includes('career') || h.includes('job profile')) return { name: 'Careers', bg: '#fef3c7' };
+      if (h.includes('assessment') || h.includes('score')) return { name: 'Assessments', bg: '#bbf7d0' };
+      if (h.includes('target')) return { name: 'Targets', bg: '#fce7f3' };
+      if (h.includes('login')) return { name: 'Login', bg: '#e0e7ff' };
+      return { name: 'Other', bg: '#f3f4f6' };
+    }
+
     function forceReadableStyles(headers, rows) {
       try {
         const api = window.luckysheet;
@@ -70,12 +84,12 @@
           try {
             api.setRangeStyle({
               range: [{ row: [0, endRow], column: [0, endCol] }],
-              style: { fc: '#111111', bg: '#ffffff' }
+              style: { fc: '#111111' }
             });
             // Explicitly target header row again for good measure
             api.setRangeStyle({
               range: [{ row: [0, 0], column: [0, endCol] }],
-              style: { fc: '#111111', bl: 1, bg: '#ffffff' }
+              style: { fc: '#111111', bl: 1 }
             });
           } catch (_) { /* ignore */ }
         };
@@ -104,19 +118,49 @@
     }
 
     function toLuckySheetData(headers, rows) {
-      const data = [headers, ...rows];
+      const tableHeaders = Array.isArray(headers) ? headers : [];
+      const bodyRows = Array.isArray(rows) ? rows : [];
+      const data = [tableHeaders, ...bodyRows];
+      const percentCols = new Set();
+      const headerInfos = tableHeaders.map(h => getSectionInfo(h));
+
       const cellData = data.map((row, rowIdx) => row.map((value, colIdx) => {
         const cell = { v: value };
-        // Force readable styles, especially for header row which is canvas-rendered
+        // Force readable text
         cell.fc = '#111111';
         if (rowIdx === 0) {
-          cell.bg = '#ffffff';
+          // Header styling with section background
+          const info = headerInfos[colIdx] || { bg: '#ffffff' };
+          cell.bg = info.bg;
           cell.bl = 1; // bold header
-          cell.fs = 12; // readable size
+          cell.fs = 12;
+        } else {
+          // Basic number formatting
+          const headerText = String(tableHeaders[colIdx] || '').toLowerCase();
+          const isPercent = headerText.includes('percent') || headerText.includes('%');
+          if (isPercent) {
+            percentCols.add(colIdx);
+            const num = value === '' || value == null ? '' : Number(value);
+            if (!Number.isNaN(num)) {
+              // Keep as 0..1 or 0..100; normalise to 0..1 for display
+              const normalised = num > 1 ? num / 100 : num;
+              cell.v = normalised;
+              cell.ct = { t: 'n', fa: '0.0%' };
+            } else {
+              cell.ct = { t: 'n', fa: '0.0%' };
+            }
+          } else if (typeof value === 'number' || (!isNaN(parseFloat(value)) && value !== '')) {
+            const num = Number(value);
+            if (!Number.isNaN(num)) {
+              cell.v = num;
+              cell.ct = { t: 'n', fa: '#,##0' };
+            }
+          }
         }
         return cell;
       }));
-      return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: headers.length, row: data.length }];
+
+      return [{ name: 'Report', data: cellData, index: 0, status: 1, order: 0, column: tableHeaders.length, row: data.length }];
     }
 
     function fromLuckySheet() {
@@ -213,7 +257,11 @@
         if (!json.success) throw new Error(json.error || 'Save failed');
         await fetch(`/api/reports/${targetCollegeId}/recalculate`, { method: 'POST', credentials: 'include' });
         setStatus('Saved and recalculated', 'success');
-        localStorage.removeItem('excelEditorData');
+        try {
+          localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+        } catch (_) {}
+        // Notify opener to refresh its table immediately without re-uploading
+        try { if (window.opener) window.opener.postMessage({ type: 'excel-editor-saved' }, '*'); } catch (_) {}
       } catch (e) {
         console.error(e);
         setStatus(`Save failed: ${e.message}`, 'error');
@@ -225,7 +273,8 @@
         const { headers, rows } = fromLuckySheet();
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
-      window.location.href = 'index.html?tab=reports';
+      try { if (window.opener) window.opener.postMessage({ type: 'excel-editor-saved' }, '*'); } catch (_) {}
+      window.location.href = 'index.html?tab=reports&fromExcel=1';
     }
 
     async function populateCollegePicker() {
