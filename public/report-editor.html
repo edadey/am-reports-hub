@@ -106,6 +106,12 @@
           '.luckysheet-wa-editor *',
           '.luckysheet-formula-bar *',
           '.luckysheet-input-box *',
+          '.luckysheet-toolbar-button',
+          '.luckysheet-toolbar-button *',
+          '.luckysheet-toolbar-select',
+          '.luckysheet-toolbar-select *',
+          '.luckysheet-title',
+          '.luckysheet-title *',
           'svg', 'path', 'rect', 'text'
         ].join(','));
         all.forEach(el => {
@@ -116,6 +122,13 @@
         menus.forEach(el => {
           el.style.backgroundColor = '#ffffff';
           el.style.color = '#111111';
+        });
+        // Inputs/selects in toolbar
+        const inputs = document.querySelectorAll('.luckysheet-wa-toolbar-container input, .luckysheet-wa-toolbar-container select, .luckysheet-wa-toolbar-container .selectbox span, .luckysheet-wa-toolbar-container .selectbox div');
+        inputs.forEach(el => {
+          el.style.backgroundColor = '#ffffff';
+          el.style.color = '#111111';
+          el.style.borderColor = '#d1d5db';
         });
       } catch (_) {}
     }
@@ -294,6 +307,8 @@
             const obs = new MutationObserver(() => forceToolbarReadableColors());
             obs.observe(root, { childList: true, subtree: true, attributes: true });
           } catch (_) {}
+          // Timed re-apply in case of async toolbar paints
+          try { let n=0; const id=setInterval(()=>{forceToolbarReadableColors(); if(++n>20) clearInterval(id);}, 250); } catch(_) {}
           forceReadableStyles(headers, rows);
           setStatus('Loaded');
           return;
@@ -328,6 +343,8 @@
             const obs = new MutationObserver(() => forceToolbarReadableColors());
             obs.observe(root, { childList: true, subtree: true, attributes: true });
           } catch (_) {}
+          // Timed re-apply in case of async toolbar paints
+          try { let n=0; const id=setInterval(()=>{forceToolbarReadableColors(); if(++n>20) clearInterval(id);}, 250); } catch(_) {}
           forceReadableStyles(headers, rows);
           setStatus('Loaded from upload');
           return;
