@@ -166,6 +166,78 @@ const railwayBackupService = new Proxy({}, {
 const dataPreservationService = new DataPreservationService(volumeService);
 const cloudBackupService = new CloudBackupService();
 const dataValidationService = new EnhancedDataValidationService();
+
+// Template data synchronization helper
+async function synchronizeTemplateData() {
+  try {
+    console.log('🔄 Synchronizing template data between volume and data layers...');
+    
+    const templatesFile = 'templates.json';
+    const fs = require('fs-extra');
+    const path = require('path');
+    
+    // Read from volume service
+    let volumeTemplates = [];
+    try {
+      volumeTemplates = await volumeService.readFile(templatesFile);
+      console.log(`📖 Found ${volumeTemplates.length} templates in volume storage`);
+    } catch (e) {
+      console.log('📝 No templates found in volume storage');
+    }
+    
+    // Read from legacy data path
+    let legacyTemplates = [];
+    const legacyPath = path.join('data', 'templates.json');
+    try {
+      if (await fs.pathExists(legacyPath)) {
+        legacyTemplates = await fs.readJson(legacyPath);
+        console.log(`📖 Found ${legacyTemplates.length} templates in legacy storage`);
+      }
+    } catch (e) {
+      console.log('📝 No templates found in legacy storage');
+    }
+    
+    // Determine which dataset to use (prefer volume, fallback to legacy)
+    let finalTemplates = [];
+    if (volumeTemplates.length > 0 && legacyTemplates.length > 0) {
+      // Both exist - use the one with more recent data or more templates
+      const volumeNewest = Math.max(...volumeTemplates.map(t => new Date(t.createdAt || t.validationTime || '2020-01-01').getTime()));
+      const legacyNewest = Math.max(...legacyTemplates.map(t => new Date(t.createdAt || t.validationTime || '2020-01-01').getTime()));
+      
+      if (volumeNewest >= legacyNewest) {
+        finalTemplates = volumeTemplates;
+        console.log('🎯 Using volume templates (newer or equal timestamp)');
+      } else {
+        finalTemplates = legacyTemplates;
+        console.log('🎯 Using legacy templates (newer timestamp)');
+      }
+    } else if (volumeTemplates.length > 0) {
+      finalTemplates = volumeTemplates;
+      console.log('🎯 Using volume templates (only source)');
+    } else if (legacyTemplates.length > 0) {
+      finalTemplates = legacyTemplates;
+      console.log('🎯 Using legacy templates (only source)');
+    } else {
+      finalTemplates = [];
+      console.log('📝 No templates found in any storage - starting fresh');
+    }
+    
+    // Ensure both storages have the final dataset
+    if (finalTemplates.length > 0) {
+      await volumeService.writeFile(templatesFile, finalTemplates);
+      await fs.ensureDir(path.dirname(legacyPath));
+      await fs.writeJson(legacyPath, finalTemplates, { spaces: 2 });
+      console.log(`✅ Synchronized ${finalTemplates.length} templates to both storage layers`);
+      
+      // Create initial backup snapshot if templates exist
+      await snapshotTemplatesToBackups(volumeService, finalTemplates, 'sync');
+    }
+    
+    console.log('✅ Template synchronization completed');
+  } catch (error) {
+    console.error('❌ Template synchronization failed:', error);
+  }
+}
 const EnhancedAnalyticsService = require('./src/services/EnhancedAnalyticsService');
 const ReportScheduler = require('./src/services/ReportScheduler');
 const DataImporter = require('./src/services/DataImporter');
@@ -2557,8 +2629,23 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       templates = [];
     }
     
-    // Check if this is a restoration (template already has an ID)
-    if (req.body.id && req.body.id !== Date.now()) {
+    // Check if this is an update of an existing template
+    const existingTemplateIndex = templates.findIndex(t => String(t.id) === String(templateData.id));
+    
+    if (existingTemplateIndex !== -1) {
+      // This is an update of an existing template
+      console.log('🔄 Updating existing template...');
+      const originalTemplate = templates[existingTemplateIndex];
+      const updatedTemplate = {
+        ...templateData,
+        id: String(templateData.id),
+        createdAt: originalTemplate.createdAt || templateData.createdAt, // Preserve original creation date
+        updatedAt: new Date().toISOString(), // Add update timestamp
+        validationChecksum: validationResult.checksum,
+        validationTime: validationResult.validationTime
+      };
+      templates[existingTemplateIndex] = updatedTemplate;
+    } else if (req.body.id && req.body.id !== Date.now()) {
       // This is a restoration, preserve the original ID and data
       console.log('🔄 Restoring existing template...');
       const restoredTemplate = {
@@ -2584,6 +2671,19 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('💾 Writing templates to volume...');
     await volumeService.writeFile(templatesFile, templates);
     console.log('✅ Templates file written to volume successfully');
+    
+    // Also sync to legacy data path for backward compatibility
+    try {
+      const fs = require('fs-extra');
+      const path = require('path');
+      const legacyPath = path.join('data', 'templates.json');
+      await fs.ensureDir(path.dirname(legacyPath));
+      await fs.writeJson(legacyPath, templates, { spaces: 2 });
+      console.log('✅ Templates synced to legacy storage');
+    } catch (syncError) {
+      console.warn('⚠️ Failed to sync templates to legacy storage:', syncError.message);
+    }
+    
     // Local snapshot to persistent backups
     await snapshotTemplatesToBackups(volumeService, templates, 'save');
     
@@ -2638,6 +2738,19 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     
     const deletedTemplate = templates.splice(templateIndex, 1)[0];
     await volumeService.writeFile(templatesFile, templates);
+    
+    // Also sync to legacy data path for backward compatibility
+    try {
+      const fs = require('fs-extra');
+      const path = require('path');
+      const legacyPath = path.join('data', 'templates.json');
+      await fs.ensureDir(path.dirname(legacyPath));
+      await fs.writeJson(legacyPath, templates, { spaces: 2 });
+      console.log('✅ Templates synced to legacy storage after delete');
+    } catch (syncError) {
+      console.warn('⚠️ Failed to sync templates to legacy storage after delete:', syncError.message);
+    }
+    
     // Snapshot after delete
     await snapshotTemplatesToBackups(volumeService, templates, 'delete');
     
@@ -2653,6 +2766,110 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
   } catch (error) {
     console.error('Error deleting template:', error);
     res.status(500).json({ error: 'Failed to delete template' });
+  }
+});
+
+// Update template endpoint
+app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('🔄 Update template request for ID:', id, 'Type:', typeof id);
+    
+    const templatesFile = 'templates.json';
+    let templates = [];
+    
+    console.log('📖 Reading existing templates from volume...');
+    try {
+      templates = await volumeService.readFile(templatesFile);
+      console.log(`✅ Read ${templates.length} existing templates from volume`);
+      console.log('Template IDs:', templates.map(t => ({ id: t.id, type: typeof t.id, name: t.name })));
+    } catch (e) {
+      console.error('Error reading templates file:', e);
+      return res.status(500).json({ error: 'Failed to read existing templates' });
+    }
+    
+    // Find the template to update
+    const templateIndex = templates.findIndex(t => String(t.id) === String(id));
+    console.log('Template index found for update:', templateIndex);
+    
+    if (templateIndex === -1) {
+      console.log('Template not found for update. Available IDs:', templates.map(t => ({ id: t.id, type: typeof t.id, name: t.name })));
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    
+    // Validate the updated template data
+    const { name, description, headers, tableData, rowCount, columnCount } = req.body;
+    
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Template name is required' });
+    }
+    
+    if (!Array.isArray(headers) || headers.length === 0) {
+      return res.status(400).json({ error: 'Template headers are required' });
+    }
+    
+    if (!Array.isArray(tableData)) {
+      return res.status(400).json({ error: 'Template table data must be an array' });
+    }
+    
+    // Preserve the original template ID and creation date
+    const originalTemplate = templates[templateIndex];
+    const updatedTemplate = {
+      id: originalTemplate.id, // Keep original ID
+      name: name.trim(),
+      description: description || '',
+      headers: headers,
+      tableData: tableData,
+      columnCount: columnCount || headers.length,
+      rowCount: rowCount || tableData.length,
+      createdAt: originalTemplate.createdAt, // Keep original creation date
+      updatedAt: new Date().toISOString(), // Add/update modification date
+      validationChecksum: 'updated-checksum',
+      validationTime: new Date().toISOString()
+    };
+    
+    // Replace the template at the found index
+    templates[templateIndex] = updatedTemplate;
+    
+    console.log('💾 Writing updated templates to volume...');
+    await volumeService.writeFile(templatesFile, templates);
+    console.log('✅ Templates file updated successfully');
+    
+    // Also sync to legacy data path for backward compatibility
+    try {
+      const fs = require('fs-extra');
+      const path = require('path');
+      const legacyPath = path.join('data', 'templates.json');
+      await fs.ensureDir(path.dirname(legacyPath));
+      await fs.writeJson(legacyPath, templates, { spaces: 2 });
+      console.log('✅ Templates synced to legacy storage after update');
+    } catch (syncError) {
+      console.warn('⚠️ Failed to sync templates to legacy storage after update:', syncError.message);
+    }
+    
+    // Snapshot after update
+    await snapshotTemplatesToBackups(volumeService, templates, 'update');
+    
+    // Create backup after successful update
+    try {
+      console.log('💾 Creating backup after template update...');
+      await railwayBackupService.createBackup(`Template update backup - ${updatedTemplate.name} - ${Date.now()}`);
+      console.log('✅ Backup created after template update');
+    } catch (backupError) {
+      console.error('⚠️ Failed to create backup after template update:', backupError);
+      // Don't fail the update if backup fails
+    }
+    
+    console.log('✅ Template update completed successfully');
+    res.json({ 
+      success: true, 
+      message: 'Template updated successfully',
+      template: updatedTemplate
+    });
+  } catch (error) {
+    console.error('❌ Error updating template:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to update template' });
   }
 });
 
@@ -4676,6 +4893,10 @@ async function initializeServices() {
     // Initialize backup service (Railway file-based or PostgreSQL)
     console.log('🔄 Initializing backup service...');
     await initializeBackupService();
+    
+    // Synchronize template data after backup service is ready
+    console.log('🔄 Synchronizing template data...');
+    await synchronizeTemplateData();
     
     // Only initialize cloud backup service if not in Railway environment
     if (!process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
