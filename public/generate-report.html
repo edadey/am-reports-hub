@@ -423,7 +423,14 @@
             if (selId && Array.isArray(window.__templates)) {
               const tpl = window.__templates.find(t => String(t.id) === String(selId));
               if (tpl && Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
-                localStorage.setItem('excelEditorData', JSON.stringify({ headers: tpl.headers, rows: tpl.tableData }));
+                localStorage.setItem('excelEditorData', JSON.stringify({ 
+                  headers: tpl.headers, 
+                  rows: tpl.tableData,
+                  templateId: tpl.id,
+                  templateName: tpl.name,
+                  templateDescription: tpl.description,
+                  isTemplate: true
+                }));
               }
             } else if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
               const rows = tableData.map(r => r);
@@ -435,7 +442,7 @@
             const editorUrl = new URL('report-editor-xs.html', window.location.origin);
             // Ensure newest data is used: clear stale cache, then set fresh
             try { localStorage.removeItem('excelEditorData'); } catch(_) {}
-            try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows })); } catch(_) {}
+            try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows, isTemplate: false })); } catch(_) {}
             // Add cache-bust param in case the editor tab gets reused
             editorUrl.searchParams.set('t', String(Date.now()));
             if (window.currentCollegeId) {
@@ -595,6 +602,10 @@
         const response = await axios.get('/api/templates');
         const apiData = response.data;
         const list = Array.isArray(apiData) ? apiData : (Array.isArray(apiData.templates) ? apiData.templates : []);
+        
+        // Store templates globally so they can be accessed by other functions
+        window.__templates = list;
+        
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
           templateSelect.innerHTML = '<option value="">No template - Use new data structure</option>' +

@@ -197,20 +197,48 @@ async function synchronizeTemplateData() {
       console.log('📝 No templates found in legacy storage');
     }
     
-    // Determine which dataset to use (prefer volume, fallback to legacy)
+    // Determine which dataset to use with improved logic
     let finalTemplates = [];
     if (volumeTemplates.length > 0 && legacyTemplates.length > 0) {
-      // Both exist - use the one with more recent data or more templates
-      const volumeNewest = Math.max(...volumeTemplates.map(t => new Date(t.createdAt || t.validationTime || '2020-01-01').getTime()));
-      const legacyNewest = Math.max(...legacyTemplates.map(t => new Date(t.createdAt || t.validationTime || '2020-01-01').getTime()));
+      // Both exist - merge them intelligently
+      console.log('🔄 Both volume and legacy templates exist - merging datasets');
       
-      if (volumeNewest >= legacyNewest) {
-        finalTemplates = volumeTemplates;
-        console.log('🎯 Using volume templates (newer or equal timestamp)');
-      } else {
-        finalTemplates = legacyTemplates;
-        console.log('🎯 Using legacy templates (newer timestamp)');
-      }
+      // Create a map to track unique templates by ID
+      const templatesMap = new Map();
+      
+      // Add legacy templates first (as base)
+      legacyTemplates.forEach(template => {
+        templatesMap.set(template.id, { ...template, source: 'legacy' });
+      });
+      
+      // Add/update with volume templates (volume takes priority)
+      volumeTemplates.forEach(template => {
+        if (templatesMap.has(template.id)) {
+          // Template exists in both - use the one with more recent updatedAt or createdAt
+          const existing = templatesMap.get(template.id);
+          const existingTime = new Date(existing.updatedAt || existing.createdAt || '2020-01-01').getTime();
+          const newTime = new Date(template.updatedAt || template.createdAt || '2020-01-01').getTime();
+          
+          if (newTime >= existingTime) {
+            templatesMap.set(template.id, { ...template, source: 'volume' });
+            console.log(`📝 Updated template ${template.name} from volume (newer)`);
+          } else {
+            console.log(`📝 Kept template ${existing.name} from legacy (newer)`);
+          }
+        } else {
+          // New template only in volume
+          templatesMap.set(template.id, { ...template, source: 'volume' });
+          console.log(`📝 Added template ${template.name} from volume`);
+        }
+      });
+      
+      finalTemplates = Array.from(templatesMap.values()).map(t => {
+        // Remove the temporary 'source' property
+        const { source, ...template } = t;
+        return template;
+      });
+      
+      console.log(`🎯 Merged ${finalTemplates.length} unique templates from both sources`);
     } else if (volumeTemplates.length > 0) {
       finalTemplates = volumeTemplates;
       console.log('🎯 Using volume templates (only source)');
@@ -224,16 +252,44 @@ async function synchronizeTemplateData() {
     
     // Ensure both storages have the final dataset
     if (finalTemplates.length > 0) {
-      await volumeService.writeFile(templatesFile, finalTemplates);
-      await fs.ensureDir(path.dirname(legacyPath));
-      await fs.writeJson(legacyPath, finalTemplates, { spaces: 2 });
+      try {
+        await volumeService.writeFile(templatesFile, finalTemplates);
+        console.log(`✅ Templates written to volume storage`);
+      } catch (error) {
+        console.error('❌ Failed to write templates to volume storage:', error);
+      }
+      
+      try {
+        await fs.ensureDir(path.dirname(legacyPath));
+        await fs.writeJson(legacyPath, finalTemplates, { spaces: 2 });
+        console.log(`✅ Templates written to legacy storage`);
+      } catch (error) {
+        console.error('❌ Failed to write templates to legacy storage:', error);
+      }
+      
       console.log(`✅ Synchronized ${finalTemplates.length} templates to both storage layers`);
       
       // Create initial backup snapshot if templates exist
-      await snapshotTemplatesToBackups(volumeService, finalTemplates, 'sync');
+      try {
+        await snapshotTemplatesToBackups(volumeService, finalTemplates, 'sync');
+        console.log(`✅ Templates backup snapshot created`);
+      } catch (error) {
+        console.error('❌ Failed to create templates backup snapshot:', error);
+      }
     }
     
     console.log('✅ Template synchronization completed');
+    
+    // Log final template state for debugging
+    try {
+      const finalCheck = await volumeService.readFile(templatesFile);
+      console.log(`🔍 Final template count in volume storage: ${finalCheck.length}`);
+      if (finalCheck.length > 0) {
+        console.log('🔍 Template names:', finalCheck.map(t => t.name));
+      }
+    } catch (error) {
+      console.log('🔍 Could not read templates for final check:', error.message);
+    }
   } catch (error) {
     console.error('❌ Template synchronization failed:', error);
   }
@@ -2520,12 +2576,18 @@ app.delete('/api/reports/:collegeId/:reportId', authService.requireAuth(), async
 
 app.get('/api/templates', authService.requireAuth(), async (req, res) => {
   try {
+    console.log('📖 Templates API endpoint called');
+    
     // Always read from persistent volume path
     const templatesFile = 'templates.json';
     let templates = [];
+    
     try {
       templates = await volumeService.readFile(templatesFile);
-    } catch (e) {
+      console.log(`✅ Read ${templates.length} templates from volume storage`);
+    } catch (volumeError) {
+      console.log('📝 No templates in volume storage, checking legacy path...');
+      
       // Attempt migration from legacy data path
       try {
         const fs = require('fs-extra');
@@ -2533,13 +2595,63 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
         const legacyPath = path.join('data', 'templates.json');
         if (await fs.pathExists(legacyPath)) {
           templates = await fs.readJson(legacyPath);
+          console.log(`📋 Read ${templates.length} templates from legacy storage`);
+          
+          // Migrate to volume storage
           await volumeService.writeFile(templatesFile, templates);
+          console.log('✅ Templates migrated to volume storage');
+        } else {
+          console.log('📝 No templates found in legacy storage either');
         }
-      } catch (_) { templates = []; }
+      } catch (legacyError) { 
+        console.log('❌ Error reading from legacy storage:', legacyError.message);
+        templates = []; 
+      }
     }
+    
+    // If no templates found, try to recover from backup
+    if (templates.length === 0) {
+      console.log('⚠️ No templates found, attempting recovery from backups...');
+      try {
+        // Check if Railway backup service has any template backups
+        const fs = require('fs-extra');
+        const path = require('path');
+        
+        // Check Railway backup directory
+        const backupDir = path.join('/data', 'backups');
+        if (await fs.pathExists(backupDir)) {
+          const backupFolders = await fs.readdir(backupDir);
+          
+          // Find most recent backup with templates
+          for (const folder of backupFolders.reverse()) { // Check newest first
+            const templatesBackupPath = path.join(backupDir, folder, 'templates.json');
+            if (await fs.pathExists(templatesBackupPath)) {
+              const backupTemplates = await fs.readJson(templatesBackupPath);
+              if (Array.isArray(backupTemplates) && backupTemplates.length > 0) {
+                console.log(`🔄 Recovered ${backupTemplates.length} templates from backup: ${folder}`);
+                
+                // Restore to both volume and legacy storage
+                await volumeService.writeFile(templatesFile, backupTemplates);
+                const legacyPath = path.join('data', 'templates.json');
+                await fs.ensureDir(path.dirname(legacyPath));
+                await fs.writeJson(legacyPath, backupTemplates, { spaces: 2 });
+                
+                templates = backupTemplates;
+                console.log('✅ Templates successfully recovered from backup');
+                break;
+              }
+            }
+          }
+        }
+      } catch (recoveryError) {
+        console.error('❌ Template recovery failed:', recoveryError.message);
+      }
+    }
+    
+    console.log(`📤 Returning ${templates.length} templates to frontend`);
     res.json({ templates });
   } catch (error) {
-    console.error('Error loading templates:', error);
+    console.error('❌ Error loading templates:', error);
     res.status(500).json({ error: 'Failed to load templates' });
   }
 });
@@ -2605,7 +2717,15 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       createdAt: req.body.createdAt || new Date().toISOString()
     };
     
-    console.log('🔄 Transformed template data:', templateData);
+    console.log('🔄 Transformed template data:', {
+      id: templateData.id,
+      name: templateData.name,
+      description: templateData.description,
+      headersLength: templateData.headers.length,
+      tableDataLength: templateData.tableData.length,
+      createdAt: templateData.createdAt
+    });
+    console.log('🔍 Template ID received from frontend:', req.body.id, 'Type:', typeof req.body.id);
     
     // Temporarily disable validation to fix memory issues
     const validationResult = {
@@ -2630,7 +2750,11 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     }
     
     // Check if this is an update of an existing template
+    console.log('🔍 Looking for existing template with ID:', templateData.id);
+    console.log('🔍 Available template IDs:', templates.map(t => ({ id: t.id, name: t.name, type: typeof t.id })));
+    
     const existingTemplateIndex = templates.findIndex(t => String(t.id) === String(templateData.id));
+    console.log('🔍 Existing template index found:', existingTemplateIndex);
     
     if (existingTemplateIndex !== -1) {
       // This is an update of an existing template
@@ -2698,10 +2822,20 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     }
     
     console.log('✅ Template save completed successfully');
+    
+    // Return the appropriate template based on whether it was an update or new template
+    let savedTemplate;
+    if (existingTemplateIndex !== -1) {
+      savedTemplate = templates[existingTemplateIndex];
+    } else {
+      savedTemplate = templates[templates.length - 1];
+    }
+    
     res.json({ 
       success: true, 
-      template: templates[templates.length - 1],
-      validation: validationResult
+      template: savedTemplate,
+      validation: validationResult,
+      action: existingTemplateIndex !== -1 ? 'updated' : 'created'
     });
   } catch (error) {
     console.error('❌ Error saving template:', error);

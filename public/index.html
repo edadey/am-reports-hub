@@ -2037,7 +2037,16 @@
       console.log('Available templates:', templates);
       const template = templateId ? templates.find(t => String(t.id) === String(templateId)) : null;
       if (template && Array.isArray(template.headers) && Array.isArray(template.tableData)) {
-        try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: template.headers, rows: template.tableData })); } catch (_) {}
+        try { 
+          localStorage.setItem('excelEditorData', JSON.stringify({ 
+            headers: template.headers, 
+            rows: template.tableData,
+            templateId: template.id,
+            templateName: template.name,
+            templateDescription: template.description,
+            isTemplate: true
+          })); 
+        } catch (_) {}
       }
       console.log('Found template:', template);
       return template;

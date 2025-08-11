@@ -138,6 +138,14 @@
           const parsed = JSON.parse(cached);
           const headers = parsed.headers || [];
           const rows = parsed.rows || [];
+          
+          // Store template metadata globally for use in save operations
+          window.__currentTemplate = {
+            id: parsed.templateId || null,
+            name: parsed.templateName || null,
+            description: parsed.templateDescription || null,
+            isTemplate: parsed.isTemplate === true
+          };
           const data = toXSheetData(headers, rows);
           spreadsheet.loadData(data);
           setStatus('Loaded from upload');
@@ -146,6 +154,14 @@
           console.error(e);
         }
       }
+      
+      // Initialize empty template state for new/empty editors
+      window.__currentTemplate = {
+        id: null,
+        name: null,
+        description: null,
+        isTemplate: false
+      };
       setStatus('No source data provided', 'error');
     }
 
@@ -251,18 +267,66 @@
       btn.onclick = async () => {
         try {
           const { headers, rows } = fromXSheet();
-          const name = prompt('Enter template name:');
-          if (!name) return;
-          const description = prompt('Optional description:') || '';
+          
+          // Check if we're updating an existing template
+          const isUpdatingTemplate = window.__currentTemplate && window.__currentTemplate.isTemplate && window.__currentTemplate.id;
+          
+          let name, description, templateId;
+          
+          if (isUpdatingTemplate) {
+            // Updating existing template - pre-populate with current values
+            name = prompt('Enter template name:', window.__currentTemplate.name || '');
+            if (!name) return;
+            description = prompt('Optional description:', window.__currentTemplate.description || '') || '';
+            templateId = window.__currentTemplate.id;
+          } else {
+            // Creating new template
+            name = prompt('Enter template name:');
+            if (!name) return;
+            description = prompt('Optional description:') || '';
+            templateId = null;
+          }
+          
+          const payload = { 
+            name, 
+            description, 
+            headers, 
+            tableData: rows
+          };
+          
+          // Include template ID if updating
+          if (templateId) {
+            payload.id = templateId;
+            payload.createdAt = window.__currentTemplate.createdAt; // Preserve creation date
+          }
+          
           const res = await fetch('/api/save-template', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ name, description, headers, tableData: rows })
+            body: JSON.stringify(payload)
           });
           const json = await res.json();
           if (!json.success) throw new Error(json.error || 'Template save failed');
-          setStatus('Template saved', 'success');
+          
+          // Use the action from backend response, fallback to frontend detection
+          const action = json.action === 'updated' ? 'updated' : 
+                        json.action === 'created' ? 'created' : 
+                        (isUpdatingTemplate ? 'updated' : 'saved');
+          
+          setStatus(`Template ${action} successfully`, 'success');
+          
+          // Update the current template state with the saved template info
+          if (json.template) {
+            window.__currentTemplate = {
+              id: json.template.id,
+              name: json.template.name,
+              description: json.template.description || '',
+              isTemplate: true,
+              createdAt: json.template.createdAt,
+              updatedAt: json.template.updatedAt
+            };
+          }
         } catch (e) {
           console.error(e);
           setStatus(`Template save failed: ${e.message}`, 'error');
