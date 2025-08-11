@@ -476,7 +476,7 @@ app.post('/api/auth/login', async (req, res) => {
       // Set HTTP-only cookie with improved configuration for production
       const cookieOptions = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production' && req.secure,
+        secure: process.env.NODE_ENV === 'production' ? true : false,
         sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/',
