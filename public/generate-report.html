@@ -1210,7 +1210,11 @@
       tableHeaders.forEach((h, colIdx) => {
         completeHeaders.push(h);
         // Add change indicator column if this is a numeric column (not Department)
-        if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || !isNaN(parseFloat('0')))) {
+        // Only add for percentage columns and numeric metric columns
+        if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || 
+            h.toLowerCase().includes('total') || h.toLowerCase().includes('students') || 
+            h.toLowerCase().includes('hours') || h.toLowerCase().includes('score') || 
+            h.toLowerCase().includes('activities'))) {
           completeHeaders.push(`${h} +/-`);
           changeColumnIndices.push(completeHeaders.length - 1);
         }
@@ -1301,7 +1305,11 @@
           `);
           
           // Add change indicator cell if this column should have one
-          if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+          // Only add for percentage columns and numeric metric columns
+          if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || 
+              header.toLowerCase().includes('total') || header.toLowerCase().includes('students') || 
+              header.toLowerCase().includes('hours') || header.toLowerCase().includes('score') || 
+              header.toLowerCase().includes('activities'))) {
             let changeIndicator = '';
             
             // Calculate change from previous report
