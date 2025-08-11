@@ -2205,6 +2205,7 @@
         totalActivityHoursEnrichment: 0,
         totalActivityHoursEmployer: 0,
         studentsWithoutAssessments: 0,
+        studentsWithAssessments: 0,
         totalStudentsCareers: 0,
         studentsCompletedCareerQuiz: 0,
         percentCompletedCareerQuiz: 0,
@@ -2258,7 +2259,23 @@
         const activityHoursEmployerIndex = headers.findIndex(h => h.toLowerCase().includes('activity') && h.toLowerCase().includes('hour') && h.toLowerCase().includes('employer'));
         
 
-        // Prefer explicit "Students without Assessments" column if present; otherwise fall back to derived
+        // Prefer explicit Students with/without Assessments columns if present; otherwise fall back to derived
+        const studentsWithAssessmentsIndex = (() => {
+          const lowered = headers.map(h => h.toLowerCase());
+          const phrases = [
+            'students with 1 assessment',
+            'students with at least 1 assessment',
+            'students with 1+ assessment',
+            'students with at least one assessment',
+            'students with ≥1 assessment',
+            'students with 1 assessments'
+          ];
+          for (const p of phrases) {
+            const idx = lowered.findIndex(h => h.includes(p));
+            if (idx !== -1) return idx;
+          }
+          return lowered.findIndex(t => ((t.includes('students with') || t.includes('with')) && t.includes('assessment') && !t.includes('percent') && !t.includes('%') && !t.includes('hour') && !t.includes('avg') && !t.includes('average') && !t.includes('mean') && !t.includes('score') && !t.includes('(')));
+        })();
         const studentsWithoutAssessmentsIndex = headers.findIndex(h =>
           h.toLowerCase().includes('students without') && h.toLowerCase().includes('assessment')
         );
@@ -2350,6 +2367,12 @@
             totals.totalActivities += value;
           }
         }
+        if (studentsWithAssessmentsIndex >= 0 && row[studentsWithAssessmentsIndex] !== undefined) {
+          const value = parseFloat(row[studentsWithAssessmentsIndex]);
+          if (!isNaN(value)) {
+            totals.studentsWithAssessments += value;
+          }
+        }
         
         // Calculate total activities (enrichment + employer) if not already calculated
         if (totals.totalActivitiesEnrichment > 0 || totals.totalActivitiesEmployer > 0) {
@@ -2386,12 +2409,13 @@
           }
         } else if (totalStudentsIndex >= 0) {
           // Fallback: derive from completed assessments if column exists
-          const completedIdx = headers.findIndex(h => h.toLowerCase().includes('students with assessments'));
+          const completedIdx = (studentsWithAssessmentsIndex >= 0) ? studentsWithAssessmentsIndex : headers.findIndex(h => h.toLowerCase().includes('students with assessments'));
           if (completedIdx >= 0 && row[completedIdx] !== undefined) {
             const total = parseFloat(row[totalStudentsIndex]);
             const completed = parseFloat(row[completedIdx]);
             if (!isNaN(total) && !isNaN(completed)) {
               totals.studentsWithoutAssessments += Math.max(0, total - completed);
+              totals.studentsWithAssessments += completed;
             }
           }
         }
@@ -2605,7 +2629,7 @@
           assessmentsCard.style.display = 'block';
         }
         if (assessmentsValue) {
-          const completedAssessments = totals.totalStudents - totals.studentsWithoutAssessments;
+          const completedAssessments = totals.studentsWithAssessments > 0 ? totals.studentsWithAssessments : (totals.totalStudents - totals.studentsWithoutAssessments);
           const assessmentPercentage = totals.totalStudents > 0 ? ((completedAssessments / totals.totalStudents) * 100).toFixed(1) : 0;
           assessmentsValue.textContent = `${completedAssessments.toLocaleString()} (${assessmentPercentage}%)`;
         }
@@ -2972,7 +2996,7 @@
       const details = assessmentsDetails.querySelectorAll('.flex.justify-between.items-center');
       
       // Calculate real metrics from data
-      const studentsWithAssessments = totals.totalStudents - totals.studentsWithoutAssessments;
+      const studentsWithAssessments = totals.studentsWithAssessments > 0 ? totals.studentsWithAssessments : (totals.totalStudents - totals.studentsWithoutAssessments);
       const completionRate = totals.totalStudents > 0 ? ((studentsWithAssessments / totals.totalStudents) * 100) : 0;
       
       if (details[0]) {
@@ -4927,7 +4951,7 @@
         percentStudentsWithActivities: totals.totalStudents > 0 ? (totals.studentsWithActivities / totals.totalStudents) * 100 : 0,
         percentStudentsWithActivitiesEnrichment: totals.totalStudents > 0 ? (totals.studentsWithActivitiesEnrichment / totals.totalStudents) * 100 : 0,
         percentStudentsWithActivitiesEmployer: totals.totalStudents > 0 ? (totals.studentsWithActivitiesEmployer / totals.totalStudents) * 100 : 0,
-        assessmentCompletionRate: totals.totalStudents > 0 ? ((totals.totalStudents - totals.studentsWithoutAssessments) / totals.totalStudents) * 100 : 0,
+        assessmentCompletionRate: totals.totalStudents > 0 ? (((totals.studentsWithAssessments > 0 ? totals.studentsWithAssessments : (totals.totalStudents - totals.studentsWithoutAssessments)) / totals.totalStudents) * 100) : 0,
         availableSections: availableSections
       };
       
