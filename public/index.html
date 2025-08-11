@@ -106,6 +106,19 @@
         <div id="collegeSystemsOverview" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
       </div>
 
+      <!-- System Colleges Modal -->
+      <div id="systemCollegesModal" class="fixed inset-0 bg-black bg-opacity-30 hidden z-50 flex items-center justify-center" onclick="hideSystemColleges()">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl mx-4" onclick="event.stopPropagation()">
+          <div class="flex justify-between items-center mb-4">
+            <h3 id="systemCollegesTitle" class="text-lg font-semibold text-gray-900">Colleges</h3>
+            <button onclick="hideSystemColleges()" class="text-gray-500 hover:text-gray-700">✕</button>
+          </div>
+          <div id="systemCollegesList" class="divide-y divide-gray-200">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Actions -->
       <div class="bg-white rounded-lg shadow p-6 mb-8">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
@@ -778,6 +791,47 @@
     let selectedAccountManagerId = null;
     
     let allColleges = []; // Initialize allColleges here to prevent undefined errors
+  
+  // Show modal listing colleges for a given system
+  function showSystemColleges(systemName) {
+    const name = (systemName || '').trim() || 'Unspecified';
+    const modal = document.getElementById('systemCollegesModal');
+    const title = document.getElementById('systemCollegesTitle');
+    const list = document.getElementById('systemCollegesList');
+    if (!modal || !title || !list) return;
+
+    title.textContent = `Colleges using: ${name}`;
+    const filtered = (allColleges.length ? allColleges : colleges).filter(c => {
+      const key = (c.collegeSystem || '').trim() || 'Unspecified';
+      return key === name;
+    });
+
+    if (filtered.length === 0) {
+      list.innerHTML = `<div class="py-6 text-center text-gray-500">No colleges found</div>`;
+    } else {
+      list.innerHTML = filtered
+        .sort((a,b)=> (a.name||'').localeCompare(b.name||''))
+        .map(c => `
+          <div class="py-3 flex items-center justify-between">
+            <div>
+              <p class="font-medium text-gray-900">${c.name}</p>
+              <p class="text-xs text-gray-500">Account Manager: ${((accountManagers||[]).find(am => String(am.id)===String(c.accountManagerId))||{}).name || 'Unassigned'}</p>
+            </div>
+            <div class="flex gap-3">
+              <button class="text-blue-600 hover:underline" onclick="window.location.href='/college-dashboard?id=${c.id}'">Dashboard</button>
+              <button class="text-green-600 hover:underline" onclick="window.location.href='/college-dashboard?id=${c.id}&tab=details'">Edit</button>
+            </div>
+          </div>
+        `).join('');
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  function hideSystemColleges() {
+    const modal = document.getElementById('systemCollegesModal');
+    if (modal) modal.classList.add('hidden');
+  }
     // Debug function to check global state
     function debugGlobalState() {
       console.log('=== Global State Debug ===');
@@ -3237,10 +3291,11 @@ let deletedAccountManagers = [];
           if (container) {
             const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]);
             container.innerHTML = entries.map(([name, count]) => `
-              <div class="border rounded-lg p-4">
+              <div class="border rounded-lg p-4 hover:bg-gray-50 transition cursor-pointer" onclick="showSystemColleges('${name.replace(/'/g, "&#39;")}')">
                 <p class="text-sm text-gray-500">System</p>
                 <p class="text-lg font-semibold text-gray-900">${name}</p>
-                <p class="text-2xl font-bold text-blue-600 mt-2">${count}</p>
+                <p class="text-2xl font-bold text-blue-600 mt-2 underline">${count}</p>
+                <p class="text-xs text-gray-500">Click to view colleges</p>
               </div>
             `).join('');
           }
