@@ -203,7 +203,81 @@ class DatabaseUserManager {
   // College Management
   async createCollege(collegeData) {
     try {
-      const college = await College.create(collegeData);
+      // Normalise incoming field names and shapes to match database attributes
+      const normalised = { ...collegeData };
+
+      // Transform simple fields into structured ones where necessary
+      // superUsers from comma-separated string → array of objects
+      if (typeof normalised.superUsers === 'string') {
+        normalised.superUsers = normalised.superUsers
+          .split(',')
+          .map(name => ({ name: (name || '').trim(), position: '', email: '' }))
+          .filter(user => user.name);
+      } else if (Array.isArray(normalised.superUsers)) {
+        normalised.superUsers = normalised.superUsers
+          .map(user => {
+            if (typeof user === 'string') {
+              return { name: user.trim(), position: '', email: '' };
+            }
+            return {
+              name: (user?.name || '').trim(),
+              position: (user?.position || '').trim(),
+              email: (user?.email || '').trim(),
+            };
+          })
+          .filter(user => user.name);
+      }
+
+      // Single keyStakeholder → keyStakeholders array
+      if (
+        typeof normalised.keyStakeholder === 'string' &&
+        (!normalised.keyStakeholders || normalised.keyStakeholders.length === 0)
+      ) {
+        const ksName = normalised.keyStakeholder.trim();
+        if (ksName) {
+          normalised.keyStakeholders = [{ name: ksName, position: '', email: '' }];
+        }
+      }
+
+      // Map frontend camelCase fields to DB attribute names used by the model
+      const fieldMap = {
+        reportFrequency: 'reportfrequency',
+        lastReportDate: 'lastreportdate',
+        collegeSystem: 'collegesystem',
+        dataTransferMethod: 'datatransfermethod',
+        ofstedRating: 'ofstedrating',
+        misContactName: 'miscontactname',
+        misContactEmail: 'miscontactemail',
+        renewalDate: 'renewaldate',
+        keyStakeholders: 'keystakeholders',
+        engagementLevel: 'engagementlevel',
+        swotStrengths: 'swotstrengths',
+        swotWeaknesses: 'swotweaknesses',
+        swotOpportunities: 'swotopportunities',
+        swotThreats: 'swotthreats',
+        initialConcerns: 'initialconcerns',
+      };
+
+      // Special case: the Add form uses `misContact` for an email field
+      if (typeof normalised.misContact === 'string' && !normalised.misContactEmail) {
+        normalised.misContactEmail = normalised.misContact;
+      }
+
+      Object.entries(fieldMap).forEach(([from, to]) => {
+        if (Object.prototype.hasOwnProperty.call(normalised, from)) {
+          normalised[to] = normalised[from];
+          delete normalised[from];
+        }
+      });
+
+      // Defaults
+      if (!normalised.reportfrequency) normalised.reportfrequency = 'weekly';
+      if (!normalised.template) normalised.template = 'standard';
+      if (!normalised.status) normalised.status = 'A';
+      if (!normalised.ofstedrating) normalised.ofstedrating = 'G';
+      if (!normalised.modules) normalised.modules = [];
+
+      const college = await College.create(normalised);
       return college.toJSON();
     } catch (error) {
       console.error('Error creating college:', error);
@@ -291,6 +365,29 @@ class DatabaseUserManager {
       // Normalise incoming field names to match database column attributes
       const normalised = { ...updates };
 
+      // Ensure superUsers are saved in the expected array-of-objects shape
+      if (Object.prototype.hasOwnProperty.call(normalised, 'superUsers')) {
+        if (typeof normalised.superUsers === 'string') {
+          normalised.superUsers = normalised.superUsers
+            .split(',')
+            .map(name => ({ name: (name || '').trim(), position: '', email: '' }))
+            .filter(user => user.name);
+        } else if (Array.isArray(normalised.superUsers)) {
+          normalised.superUsers = normalised.superUsers
+            .map(user => {
+              if (typeof user === 'string') {
+                return { name: user.trim(), position: '', email: '' };
+              }
+              return {
+                name: (user?.name || '').trim(),
+                position: (user?.position || '').trim(),
+                email: (user?.email || '').trim(),
+              };
+            })
+            .filter(user => user.name);
+        }
+      }
+
       // Mapping of frontend camelCase fields → database attribute names
       const fieldMap = {
         // Dates / frequency and system
@@ -301,6 +398,7 @@ class DatabaseUserManager {
         misContact: 'miscontact',
         dataTransferMethod: 'datatransfermethod',
         ofstedRating: 'ofstedrating',
+        initialConcerns: 'initialconcerns',
         // Extra metadata
         misContactName: 'miscontactname',
         misContactEmail: 'miscontactemail',

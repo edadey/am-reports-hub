@@ -1203,6 +1203,14 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">Number of Providers</label>
             <input type="number" id="numberOfProviders" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Report Template</label>
+            <select id="collegeTemplate" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+              <option value="standard">Standard</option>
+              <option value="minimal">Minimal</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1279,6 +1287,15 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">College System</label>
             <input type="text" id="collegeSystem" placeholder="e.g Pro Monitor" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
           </div>
+        </div>
+      </div>
+
+      <!-- Notes & Concerns -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Notes & Concerns</h3>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Initial Concerns or Notes</label>
+          <textarea id="initialConcerns" rows="4" class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Any initial concerns, special requirements, or notes about this college" onchange="formDataChanged = true"></textarea>
         </div>
       </div>
 
@@ -1764,6 +1781,10 @@
 
       // Update SWOT analysis
       updateSWOTDisplay();
+
+      // Update template and notes
+      const tplEl = document.getElementById('collegeTemplate'); if (tplEl) tplEl.value = collegeData.template || 'standard';
+      const notesEl = document.getElementById('initialConcerns'); if (notesEl) notesEl.value = collegeData.initialConcerns || '';
 
       // Update metrics with data from latest report
       updateMetricsFromLatestReport();
@@ -5321,6 +5342,7 @@
           name: document.getElementById('collegeName').value,
           numberOfProviders: document.getElementById('numberOfProviders').value,
           reportFrequency: document.getElementById('reportFrequency').value,
+          template: (document.getElementById('collegeTemplate') || {}).value || 'standard',
           dataTransferMethod: document.getElementById('dataTransferMethod').value,
           misContactName: document.getElementById('misContactName').value,
           misContactEmail: document.getElementById('misContactEmail').value,
@@ -5329,7 +5351,8 @@
           status: document.getElementById('status').value,
           ofstedRating: document.getElementById('ofstedRating').value,
           engagementLevel: document.getElementById('engagementLevel').value,
-          collegeSystem: (document.getElementById('collegeSystem') || {}).value || ''
+          collegeSystem: (document.getElementById('collegeSystem') || {}).value || '',
+          initialConcerns: (document.getElementById('initialConcerns') || {}).value || ''
         };
 
         // Collect modules data
