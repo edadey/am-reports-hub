@@ -389,6 +389,13 @@
           <h2 class="text-2xl font-semibold text-gray-900">Template Management</h2>
           <p class="text-gray-600 mt-2">Templates are created from uploaded and edited data. Go to "Generate Report" to upload data, make edits, and save as a template.</p>
         </div>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button id="downloadTemplatesBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm text-sm">Download Templates</button>
+          <label class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm text-sm cursor-pointer">
+            Restore Templates
+            <input id="restoreTemplatesInput" type="file" accept="application/json" class="hidden">
+          </label>
+        </div>
         
         <div id="templatesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <!-- Templates will be populated here -->
@@ -1973,6 +1980,55 @@
         console.log('Templates not loaded yet or not an array:', templates);
       }
     }
+
+    // Download/Restore templates controls
+    (function setupTemplateBackupControls(){
+      const downloadBtn = document.getElementById('downloadTemplatesBtn');
+      if (downloadBtn) {
+        downloadBtn.addEventListener('click', async () => {
+          try {
+            const res = await fetch('/api/templates/download', { credentials: 'include' });
+            if (!res.ok) throw new Error('Failed to download templates');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'templates.json';
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(url);
+            showStatus('Templates downloaded', 'success');
+          } catch (e) {
+            showStatus('Download failed: ' + e.message, 'error');
+          }
+        });
+      }
+      const restoreInput = document.getElementById('restoreTemplatesInput');
+      if (restoreInput) {
+        restoreInput.addEventListener('change', async (ev) => {
+          const file = ev.target.files && ev.target.files[0];
+          if (!file) return;
+          try {
+            const text = await file.text();
+            let payload;
+            try { payload = JSON.parse(text); } catch (_) { throw new Error('Invalid JSON'); }
+            const res = await fetch('/api/templates/restore', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            if (!res.ok || !json.success) throw new Error(json.error || 'Restore failed');
+            await loadTemplates();
+            populateTemplateSelect();
+            showStatus(`Templates restored (${json.count})`, 'success');
+          } catch (e) {
+            showStatus('Restore failed: ' + e.message, 'error');
+          } finally {
+            ev.target.value = '';
+          }
+        });
+      }
+    })();
 
     function getSelectedTemplate() {
       const select = document.getElementById('templateSelect');

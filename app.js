@@ -4,6 +4,7 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs-extra');
+const path = require('path');
 const ExcelJS = require('exceljs');
 const cookieParser = require('cookie-parser');
 
@@ -2472,6 +2473,24 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
   }
 });
 
+// Helper: snapshot templates to backups directory on the persistent volume
+async function snapshotTemplatesToBackups(volumeService, templates, reason = 'manual') {
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const snapshotPath = path.join('backups', `templates-${reason}-${timestamp}.json`);
+    const payload = {
+      reason,
+      createdAt: new Date().toISOString(),
+      count: Array.isArray(templates) ? templates.length : 0,
+      templates: Array.isArray(templates) ? templates : []
+    };
+    await volumeService.writeFile(snapshotPath, payload);
+    console.log('💾 Template snapshot written to', snapshotPath);
+  } catch (e) {
+    console.warn('⚠️ Failed to write template snapshot:', e.message);
+  }
+}
+
 app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📋 Template save request received');
@@ -2566,6 +2585,8 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('💾 Writing templates to volume...');
     await volumeService.writeFile(templatesFile, templates);
     console.log('✅ Templates file written to volume successfully');
+    // Local snapshot to persistent backups
+    await snapshotTemplatesToBackups(volumeService, templates, 'save');
     
     // Create backup after successful save
     try {
@@ -2618,6 +2639,8 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     
     const deletedTemplate = templates.splice(templateIndex, 1)[0];
     await volumeService.writeFile(templatesFile, templates);
+    // Snapshot after delete
+    await snapshotTemplatesToBackups(volumeService, templates, 'delete');
     
     // Create backup after deletion
     try {
@@ -2631,6 +2654,37 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
   } catch (error) {
     console.error('Error deleting template:', error);
     res.status(500).json({ error: 'Failed to delete template' });
+  }
+});
+
+// Download current templates.json
+app.get('/api/templates/download', authService.requireAuth(), async (req, res) => {
+  try {
+    let templates = [];
+    try { templates = await volumeService.readFile('templates.json'); } catch (_) { templates = []; }
+    const payload = { templates };
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', 'attachment; filename="templates.json"');
+    res.send(JSON.stringify(payload, null, 2));
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to download templates' });
+  }
+});
+
+// Restore templates from uploaded JSON
+app.post('/api/templates/restore', authService.requireAuth(), async (req, res) => {
+  try {
+    const body = req.body;
+    const templates = Array.isArray(body) ? body : (Array.isArray(body?.templates) ? body.templates : []);
+    if (!Array.isArray(templates) || templates.length === 0) {
+      return res.status(400).json({ error: 'No templates provided to restore' });
+    }
+    await volumeService.writeFile('templates.json', templates);
+    await snapshotTemplatesToBackups(volumeService, templates, 'restore');
+    res.json({ success: true, count: templates.length });
+  } catch (e) {
+    console.error('Restore templates error:', e);
+    res.status(500).json({ error: 'Failed to restore templates' });
   }
 });
 
