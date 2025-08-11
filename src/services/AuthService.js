@@ -23,36 +23,58 @@ class AuthService {
   async initializeDefaultUsers() {
     try {
       const users = await this.getUsers();
+      const defaultAdminPassword = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
+      const defaultUsers = [
+        {
+          id: 1,
+          username: 'admin',
+          email: 'admin@amreports.com',
+          password: await bcrypt.hash(defaultAdminPassword, 10),
+          role: 'admin',
+          name: 'System Administrator',
+          accountManagerId: null,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastLogin: null
+        },
+        {
+          id: 2,
+          username: 'demo',
+          email: 'demo@amreports.com',
+          password: await bcrypt.hash('demo123', 10),
+          role: 'account_manager',
+          name: 'Demo Account Manager',
+          accountManagerId: 1,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastLogin: null
+        }
+      ];
+
       if (users.length === 0) {
-        // Create default admin user
-        const defaultUsers = [
-          {
-            id: 1,
-            username: 'admin',
-            email: 'admin@amreports.com',
-            password: await bcrypt.hash('admin123', 10),
-            role: 'admin',
-            name: 'System Administrator',
-            accountManagerId: null,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            lastLogin: null
-          },
-          {
-            id: 2,
-            username: 'demo',
-            email: 'demo@amreports.com',
-            password: await bcrypt.hash('demo123', 10),
-            role: 'account_manager',
-            name: 'Demo Account Manager',
-            accountManagerId: 1,
-            isActive: true,
-            createdAt: new Date().toISOString(),
-            lastLogin: null
-          }
-        ];
         await fs.writeJson(this.usersFile, defaultUsers, { spaces: 2 });
         console.log('Default users created');
+        return;
+      }
+
+      // Ensure admin user always exists and is active. Optionally reset password if ADMIN_FORCE_RESET=1
+      const adminIndex = users.findIndex(u => u.username === 'admin');
+      const forceReset = (process.env.ADMIN_FORCE_RESET === '1' || process.env.ADMIN_FORCE_RESET === 'true');
+      if (adminIndex === -1) {
+        users.unshift(defaultUsers[0]);
+        await fs.writeJson(this.usersFile, users, { spaces: 2 });
+        console.log('Admin user recreated');
+      } else {
+        let mutated = false;
+        if (users[adminIndex].isActive === false) { users[adminIndex].isActive = true; mutated = true; }
+        if (forceReset) {
+          users[adminIndex].password = await bcrypt.hash(defaultAdminPassword, 10);
+          mutated = true;
+          console.log('Admin password reset from env default');
+        }
+        if (mutated) {
+          await fs.writeJson(this.usersFile, users, { spaces: 2 });
+        }
       }
     } catch (error) {
       console.error('Error initializing default users:', error);
@@ -84,25 +106,27 @@ class AuthService {
 
   async authenticateUser(username, password, ipAddress, userAgent) {
     try {
-      // Check if IP is blocked
-      const isIPBlocked = await this.securityService.shouldBlockIP(ipAddress);
-      if (isIPBlocked) {
-        await this.securityService.trackLoginAttempt(username, false, ipAddress, userAgent);
-        return { success: false, message: 'Too many failed attempts from this IP. Please try again later.' };
-      }
-
-      // Check if account is locked
-      const isAccountLocked = await this.securityService.shouldLockAccount(username, ipAddress);
-      if (isAccountLocked) {
-        await this.securityService.trackLoginAttempt(username, false, ipAddress, userAgent);
-        return { success: false, message: 'Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes.' };
-      }
-
       const user = await this.getUserByUsername(username);
       
       if (!user || !user.isActive) {
         await this.securityService.trackLoginAttempt(username, false, ipAddress, userAgent);
         return { success: false, message: 'Invalid credentials' };
+      }
+
+      // Bypass IP/account lock for admin to avoid lockouts in emergencies
+      if (username !== 'admin') {
+        // Check if IP is blocked
+        const isIPBlocked = await this.securityService.shouldBlockIP(ipAddress);
+        if (isIPBlocked) {
+          await this.securityService.trackLoginAttempt(username, false, ipAddress, userAgent);
+          return { success: false, message: 'Too many failed attempts from this IP. Please try again later.' };
+        }
+        // Check if account is locked
+        const isAccountLocked = await this.securityService.shouldLockAccount(username, ipAddress);
+        if (isAccountLocked) {
+          await this.securityService.trackLoginAttempt(username, false, ipAddress, userAgent);
+          return { success: false, message: 'Account temporarily locked due to multiple failed attempts. Please try again in 15 minutes.' };
+        }
       }
 
       const isValidPassword = await bcrypt.compare(password, user.password);
