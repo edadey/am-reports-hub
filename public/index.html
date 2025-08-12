@@ -1431,7 +1431,18 @@
           allColleges = [];
         }
         
-        displayColleges();
+        // Check if we have active filters before displaying colleges
+        const hasActiveFilters = checkForActiveFilters();
+        
+        if (hasActiveFilters) {
+          // Reapply the current filters instead of showing all colleges
+          console.log('Auto-refresh detected active filters, reapplying...');
+          performAdvancedSearch();
+        } else {
+          // No active filters, display all colleges normally
+          displayColleges();
+        }
+        
         updateCollegeSelect();
         displayAccountManagers(); // Refresh account manager display with updated college counts
         
@@ -4410,6 +4421,23 @@ let deletedAccountManagers = [];
         notification.classList.add('translate-x-full', 'opacity-0');
         setTimeout(() => notification.remove(), 300);
       }, 5000);
+    }
+    
+    function checkForActiveFilters() {
+      // Check if any filters are currently active
+      const searchInput = document.getElementById('collegeSearchInput')?.value || '';
+      const filterType = document.getElementById('collegeFilterType')?.value || 'all';
+      const managerFilter = document.getElementById('managerFilter')?.value || '';
+      const frequencyFilter = document.getElementById('frequencyFilter')?.value || '';
+      const lastReportFilter = document.getElementById('lastReportFilter')?.value || '';
+      
+      return !!(
+        searchInput.trim() ||
+        filterType !== 'all' ||
+        managerFilter ||
+        frequencyFilter ||
+        lastReportFilter
+      );
     }
     
     function handleSearchKeydown(event) {
