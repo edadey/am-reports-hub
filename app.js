@@ -205,58 +205,33 @@ async function synchronizeTemplateData() {
       console.log('📝 No templates found in legacy storage');
     }
     
-    // Determine which dataset to use with improved logic
+    // Merge from all available sources with precedence: volume > volumeDataFolder > legacy
     let finalTemplates = [];
-    if ((volumeTemplates.length > 0 || volumeDataFolderTemplates.length > 0) && legacyTemplates.length > 0) {
-      // Both exist - merge them intelligently
-      console.log('🔄 Both volume and legacy templates exist - merging datasets');
-      
-      // Create a map to track unique templates by ID
+    const sourcesToMerge = [];
+    if (legacyTemplates.length > 0) sourcesToMerge.push({ name: 'legacy', list: legacyTemplates });
+    if (volumeDataFolderTemplates.length > 0) sourcesToMerge.push({ name: 'volumeDataFolder', list: volumeDataFolderTemplates });
+    if (volumeTemplates.length > 0) sourcesToMerge.push({ name: 'volume', list: volumeTemplates });
+
+    if (sourcesToMerge.length > 0) {
+      console.log(`🔄 Merging templates from ${sourcesToMerge.map(s => s.name).join(', ')}`);
       const templatesMap = new Map();
-      
-      // Add legacy templates first (as base)
-      legacyTemplates.forEach(template => {
-        templatesMap.set(template.id, { ...template, source: 'legacy' });
-      });
-      
-      // Helper to merge with timestamp precedence
-      const mergeFromSource = (list, sourceName) => {
-        list.forEach(template => {
-          if (templatesMap.has(template.id)) {
-            const existing = templatesMap.get(template.id);
+      for (const src of sourcesToMerge) {
+        for (const template of src.list) {
+          const existing = templatesMap.get(template.id);
+          if (!existing) {
+            templatesMap.set(template.id, { ...template, source: src.name });
+          } else {
             const existingTime = new Date(existing.updatedAt || existing.createdAt || '2020-01-01').getTime();
             const newTime = new Date(template.updatedAt || template.createdAt || '2020-01-01').getTime();
             if (newTime >= existingTime) {
-              templatesMap.set(template.id, { ...template, source: sourceName });
-              console.log(`📝 Updated template ${template.name} from ${sourceName} (newer)`);
+              templatesMap.set(template.id, { ...template, source: src.name });
+              console.log(`📝 Updated template ${template.name} from ${src.name} (newer)`);
             }
-          } else {
-            templatesMap.set(template.id, { ...template, source: sourceName });
-            console.log(`📝 Added template ${template.name} from ${sourceName}`);
           }
-        });
-      };
-      
-      // Apply precedence: volume > volumeDataFolder > legacy
-      mergeFromSource(volumeDataFolderTemplates, 'volumeDataFolder');
-      mergeFromSource(volumeTemplates, 'volume');
-      
-      finalTemplates = Array.from(templatesMap.values()).map(t => {
-        // Remove the temporary 'source' property
-        const { source, ...template } = t;
-        return template;
-      });
-      
-      console.log(`🎯 Merged ${finalTemplates.length} unique templates from both sources`);
-    } else if (volumeTemplates.length > 0) {
-      finalTemplates = volumeTemplates;
-      console.log('🎯 Using volume templates (only source)');
-    } else if (volumeDataFolderTemplates.length > 0) {
-      finalTemplates = volumeDataFolderTemplates;
-      console.log('🎯 Using volume data folder templates (only source)');
-    } else if (legacyTemplates.length > 0) {
-      finalTemplates = legacyTemplates;
-      console.log('🎯 Using legacy templates (only source)');
+        }
+      }
+      finalTemplates = Array.from(templatesMap.values()).map(t => { const { source, ...tpl } = t; return tpl; });
+      console.log(`🎯 Merged ${finalTemplates.length} unique templates from available sources`);
     } else {
       finalTemplates = [];
       console.log('📝 No templates found in any storage - starting fresh');
@@ -2661,12 +2636,8 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
               if (Array.isArray(backupTemplates) && backupTemplates.length > 0) {
                 console.log(`🔄 Recovered ${backupTemplates.length} templates from backup: ${folder}`);
                 
-                // Restore to both volume and legacy storage
-                await volumeService.writeFile(templatesFile, backupTemplates);
-                await volumeService.writeFile(path.join('data', 'templates.json'), backupTemplates);
-                const legacyPath = path.join('data', 'templates.json');
-                await fs.ensureDir(path.dirname(legacyPath));
-                await fs.writeJson(legacyPath, backupTemplates, { spaces: 2 });
+                // Restore to all locations
+                await writeTemplatesAllLocations(backupTemplates);
                 
                 templates = backupTemplates;
                 console.log('✅ Templates successfully recovered from backup');
@@ -2684,11 +2655,7 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
               try {
                 const payload = await fs.readJson(p);
                 if (payload && Array.isArray(payload.templates) && payload.templates.length > 0) {
-                  await volumeService.writeFile(templatesFile, payload.templates);
-                  await volumeService.writeFile(path.join('data', 'templates.json'), payload.templates);
-                  const legacyPath = path.join('data', 'templates.json');
-                  await fs.ensureDir(path.dirname(legacyPath));
-                  await fs.writeJson(legacyPath, payload.templates, { spaces: 2 });
+                  await writeTemplatesAllLocations(payload.templates);
                   templates = payload.templates;
                   console.log(`✅ Restored templates from snapshot ${file}`);
                   break;
