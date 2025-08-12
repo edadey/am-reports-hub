@@ -2736,6 +2736,9 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('📋 Headers:', req.headers.authorization ? 'Authorization header present' : 'No Authorization header');
     console.log('📄 Template data:', { name: req.body.name, columns: req.body.headers?.length || 0, rows: req.body.tableData?.length || 0 });
     
+    // DEBUG: Log volume service status
+    console.log('🔍 Volume service status:', volumeService.getStatus());
+    
     // Ensure data directory exists
     console.log('📁 Ensuring data directory exists...');
     await fs.ensureDir('data');
@@ -2847,27 +2850,43 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     }
     
     console.log('💾 Writing templates to volume...');
+    console.log('🔍 About to write to volume path:', volumeService.getDataPath());
+    console.log('🔍 Full path will be:', path.join(volumeService.getDataPath(), templatesFile));
+    
     await volumeService.writeFile(templatesFile, templates);
+    console.log('✅ Templates file written to volume successfully');
+    
     // Also write to /data/data/templates.json for backup services that read there
     try {
       const path = require('path');
-      await volumeService.writeFile(path.join('data', 'templates.json'), templates);
+      const dataFolderPath = path.join('data', 'templates.json');
+      console.log('🔍 Also writing to data folder path:', path.join(volumeService.getDataPath(), dataFolderPath));
+      await volumeService.writeFile(dataFolderPath, templates);
       console.log('✅ Templates file written to volume data folder successfully');
     } catch (e) {
       console.warn('⚠️ Failed writing templates to volume data folder:', e.message);
     }
-    console.log('✅ Templates file written to volume successfully');
     
     // Also sync to legacy data path for backward compatibility
     try {
       const fs = require('fs-extra');
       const path = require('path');
       const legacyPath = path.join('data', 'templates.json');
+      console.log('🔍 Also writing to legacy path:', legacyPath);
       await fs.ensureDir(path.dirname(legacyPath));
       await fs.writeJson(legacyPath, templates, { spaces: 2 });
       console.log('✅ Templates synced to legacy storage');
     } catch (syncError) {
       console.warn('⚠️ Failed to sync templates to legacy storage:', syncError.message);
+    }
+    
+    // DEBUG: Verify the write worked
+    try {
+      const verifyTemplates = await volumeService.readFile(templatesFile);
+      console.log(`🔍 Verification: Read back ${verifyTemplates.length} templates from volume`);
+      console.log('🔍 Template names after write:', verifyTemplates.map(t => t.name));
+    } catch (verifyError) {
+      console.error('❌ Verification failed - could not read back templates:', verifyError.message);
     }
     
     // Local snapshot to persistent backups
