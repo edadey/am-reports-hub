@@ -3841,39 +3841,50 @@ let deletedAccountManagers = [];
     }
     
     function performSearch(searchTerm, filterType, tableBody, resultsCount) {
-      
+      // Normalise the term once
+      const term = (searchTerm || '').trim().toLowerCase();
+
       let filteredColleges = allColleges;
-      
-      if (searchTerm.trim() !== '') {
+
+      if (term !== '') {
         filteredColleges = allColleges.filter(college => {
-          const name = college.name.toLowerCase();
-          const manager = (college.accountManager || 'Unassigned').toLowerCase();
-          const frequency = (college.reportFrequency || '').toLowerCase();
-          
+          const name = (college.name || '').toLowerCase();
+          const managerName = (
+            (accountManagers.find(am => String(am.id) === String(college.accountManagerId)) || {}
+          ).name || 'Unassigned';
+          const manager = managerName.toLowerCase();
+          const frequencyRaw = (college.reportFrequency || '').toLowerCase();
+          // Allow matching regardless of hyphen in bi-weekly
+          const frequency = frequencyRaw.replace(/-/g, '');
+          const termNoHyphen = term.replace(/-/g, '');
+
           switch (filterType) {
             case 'name':
-              return name.includes(searchTerm);
+              return name.includes(term);
             case 'manager':
-              return manager.includes(searchTerm);
+              return manager.includes(term);
             case 'frequency':
-              return frequency.includes(searchTerm);
+              return frequencyRaw.includes(term) || frequency.includes(termNoHyphen);
             case 'all':
             default:
-              return name.includes(searchTerm) || 
-                     manager.includes(searchTerm) || 
-                     frequency.includes(searchTerm);
+              return (
+                name.includes(term) ||
+                manager.includes(term) ||
+                frequencyRaw.includes(term) ||
+                frequency.includes(termNoHyphen)
+              );
           }
         });
       }
-      
+
       // Update the table with filtered results
       displayFilteredColleges(filteredColleges);
-      
+
       // Update results count
       const totalColleges = allColleges.length;
       const shownColleges = filteredColleges.length;
-      
-      if (searchTerm.trim() === '') {
+
+      if (term === '') {
         resultsCount.textContent = `Showing all ${totalColleges} colleges`;
       } else {
         resultsCount.textContent = `Showing ${shownColleges} of ${totalColleges} colleges`;
@@ -3901,17 +3912,20 @@ let deletedAccountManagers = [];
       }
       
       let tableHTML = '';
-      
+
       colleges.forEach(college => {
-        const lastReport = college.lastReport ? new Date(college.lastReport).toLocaleDateString() : 'No reports';
+        const managerName = (
+          (accountManagers.find(am => String(am.id) === String(college.accountManagerId)) || {}
+        ).name || 'Unassigned';
+        const lastReportText = college.lastReportDate ? new Date(college.lastReportDate).toLocaleDateString() : 'Never';
         const nextReport = getNextReportDate(college);
-        
+
         tableHTML += `
           <tr class="hover:bg-gray-50 transition-colors duration-150">
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${college.name}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.accountManager || 'Unassigned'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${managerName}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${college.reportFrequency || 'Not set'}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${lastReport}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${lastReportText}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${nextReport}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
               <div class="flex space-x-2">
@@ -3923,7 +3937,7 @@ let deletedAccountManagers = [];
           </tr>
         `;
       });
-      
+
       tableBody.innerHTML = tableHTML;
     }
     
