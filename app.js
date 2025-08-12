@@ -5233,7 +5233,7 @@ if (require.main === module) {
     console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
     console.log('✅ Server is ready to accept requests');
     console.log('🏥 Healthcheck endpoint available at /');
-    console.log('🔧 Template persistence fix deployed - testing mode');
+    console.log('🔧 Template persistence via database (Report model) - TEST DEPLOYMENT');
     
     // Initialize services in background (non-blocking) after server starts
     setTimeout(() => {
