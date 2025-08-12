@@ -3919,9 +3919,13 @@ let deletedAccountManagers = [];
       let tableHTML = '';
 
       colleges.forEach(college => {
-        const managerName = (
-          (accountManagers.find(am => String(am.id) === String(college.accountManagerId)) || {}
-        ).name || 'Unassigned';
+        let managerName = 'Unassigned';
+        if (Array.isArray(accountManagers)) {
+          const amMatch = accountManagers.find(function(am){
+            return String(am.id) === String(college.accountManagerId);
+          });
+          if (amMatch && amMatch.name) managerName = amMatch.name;
+        }
         const lastReportText = college.lastReportDate ? new Date(college.lastReportDate).toLocaleDateString() : 'Never';
         const nextReport = getNextReportDate(college);
 
