@@ -1,12 +1,18 @@
 const DatabaseService = require('./DatabaseService');
-const { User, AccountManager, College, Report, Session, SecurityLog, Template } = require('../database/models');
+const models = require('../database/models');
+const { User, AccountManager, College, Report, Session, SecurityLog } = models;
+// Template model may not exist yet during migration
+const Template = models.Template || null;
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 class DatabaseUserManager {
   constructor() {
     this.db = DatabaseService;
-    this.models = { User, AccountManager, College, Report, Session, SecurityLog, Template };
+    this.models = { User, AccountManager, College, Report, Session, SecurityLog };
+    if (Template) {
+      this.models.Template = Template;
+    }
   }
 
   async initialize() {
@@ -600,6 +606,9 @@ class DatabaseUserManager {
 
   // Template Management
   async getTemplates() {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       const templates = await Template.findAll({
         where: { status: 'active' },
@@ -613,6 +622,9 @@ class DatabaseUserManager {
   }
 
   async createTemplate(templateData) {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       const template = await Template.create(templateData);
       return template.toJSON();
@@ -623,6 +635,9 @@ class DatabaseUserManager {
   }
 
   async getTemplateById(id) {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       const template = await Template.findByPk(id);
       return template ? template.toJSON() : null;
@@ -633,6 +648,9 @@ class DatabaseUserManager {
   }
 
   async updateTemplate(id, updates) {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       const [updatedRowsCount] = await Template.update(updates, {
         where: { id },
@@ -650,6 +668,9 @@ class DatabaseUserManager {
   }
 
   async deleteTemplate(id) {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       const deletedRowsCount = await Template.destroy({
         where: { id },
@@ -667,6 +688,9 @@ class DatabaseUserManager {
   }
 
   async saveTemplates(templates) {
+    if (!Template) {
+      throw new Error('Template model not available - database migration may be needed');
+    }
     try {
       // Use upsert to create or update templates
       const results = [];
