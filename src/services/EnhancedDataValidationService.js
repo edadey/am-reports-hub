@@ -46,7 +46,7 @@ class EnhancedDataValidationService {
           numberOfProviders: { type: 'string', pattern: /^\d+$/ },
           reportFrequency: { type: 'string', enum: ['weekly', 'bi-weekly', 'monthly'] },
           status: { type: 'string', enum: ['A', 'B', 'C'] },
-          ofstedRating: { type: 'string', enum: ['O', 'G', 'R', 'I'] }
+          ofstedRating: { type: 'string', enum: ['O', 'G', 'R', 'I', 'Other'] }
         },
         businessRules: [
           'validateCollegeData',
