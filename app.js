@@ -2728,6 +2728,39 @@ async function snapshotTemplatesToBackups(volumeService, templates, reason = 'ma
   }
 }
 
+// Helper: aggressively write templates to every plausible persistent location
+async function writeTemplatesAllLocations(templates) {
+  const fs = require('fs-extra');
+  const path = require('path');
+  const writtenTo = [];
+  try {
+    await volumeService.writeFile('templates.json', templates);
+    writtenTo.push('volume:/data/templates.json');
+  } catch (e) { console.warn('⚠️ Failed writing via volumeService to templates.json:', e.message); }
+  try {
+    await volumeService.writeFile(path.join('data', 'templates.json'), templates);
+    writtenTo.push('volume:/data/data/templates.json');
+  } catch (e) { console.warn('⚠️ Failed writing via volumeService to data/templates.json:', e.message); }
+  try {
+    const legacyPath = path.join('data', 'templates.json');
+    await fs.ensureDir(path.dirname(legacyPath));
+    await fs.writeJson(legacyPath, templates, { spaces: 2 });
+    writtenTo.push('legacy:data/templates.json');
+  } catch (e) { console.warn('⚠️ Failed writing to legacy data/templates.json:', e.message); }
+  // Absolute Railway paths (bypass volumeService in case it mis-detects)
+  try {
+    await fs.ensureDir('/data');
+    await fs.writeJson('/data/templates.json', templates, { spaces: 2 });
+    writtenTo.push('abs:/data/templates.json');
+  } catch (e) { console.warn('⚠️ Failed writing to /data/templates.json:', e.message); }
+  try {
+    await fs.ensureDir('/data/data');
+    await fs.writeJson('/data/data/templates.json', templates, { spaces: 2 });
+    writtenTo.push('abs:/data/data/templates.json');
+  } catch (e) { console.warn('⚠️ Failed writing to /data/data/templates.json:', e.message); }
+  console.log('💾 Templates written to locations:', writtenTo.join(', '));
+}
+
 app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📋 Template save request received');
@@ -2853,32 +2886,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
     console.log('🔍 About to write to volume path:', volumeService.getDataPath());
     console.log('🔍 Full path will be:', path.join(volumeService.getDataPath(), templatesFile));
     
-    await volumeService.writeFile(templatesFile, templates);
-    console.log('✅ Templates file written to volume successfully');
-    
-    // Also write to /data/data/templates.json for backup services that read there
-    try {
-      const path = require('path');
-      const dataFolderPath = path.join('data', 'templates.json');
-      console.log('🔍 Also writing to data folder path:', path.join(volumeService.getDataPath(), dataFolderPath));
-      await volumeService.writeFile(dataFolderPath, templates);
-      console.log('✅ Templates file written to volume data folder successfully');
-    } catch (e) {
-      console.warn('⚠️ Failed writing templates to volume data folder:', e.message);
-    }
-    
-    // Also sync to legacy data path for backward compatibility
-    try {
-      const fs = require('fs-extra');
-      const path = require('path');
-      const legacyPath = path.join('data', 'templates.json');
-      console.log('🔍 Also writing to legacy path:', legacyPath);
-      await fs.ensureDir(path.dirname(legacyPath));
-      await fs.writeJson(legacyPath, templates, { spaces: 2 });
-      console.log('✅ Templates synced to legacy storage');
-    } catch (syncError) {
-      console.warn('⚠️ Failed to sync templates to legacy storage:', syncError.message);
-    }
+    await writeTemplatesAllLocations(templates);
     
     // DEBUG: Verify the write worked
     try {
@@ -2959,12 +2967,7 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     }
     
     const deletedTemplate = templates.splice(templateIndex, 1)[0];
-    await volumeService.writeFile(templatesFile, templates);
-    // Also update volume data folder copy
-    try {
-      const path = require('path');
-      await volumeService.writeFile(path.join('data', 'templates.json'), templates);
-    } catch (_) {}
+    await writeTemplatesAllLocations(templates);
     
     // Also sync to legacy data path for backward compatibility
     try {
@@ -3059,12 +3062,7 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
     templates[templateIndex] = updatedTemplate;
     
     console.log('💾 Writing updated templates to volume...');
-    await volumeService.writeFile(templatesFile, templates);
-    // Also update volume data folder copy
-    try {
-      const path = require('path');
-      await volumeService.writeFile(path.join('data', 'templates.json'), templates);
-    } catch (_) {}
+    await writeTemplatesAllLocations(templates);
     console.log('✅ Templates file updated successfully');
     
     // Also sync to legacy data path for backward compatibility
@@ -3131,8 +3129,7 @@ app.post('/api/templates/restore', authService.requireAuth(), async (req, res) =
     if (!Array.isArray(templates) || templates.length === 0) {
       return res.status(400).json({ error: 'No templates provided to restore' });
     }
-    await volumeService.writeFile('templates.json', templates);
-    try { const path = require('path'); await volumeService.writeFile(path.join('data','templates.json'), templates); } catch (_) {}
+    await writeTemplatesAllLocations(templates);
     await snapshotTemplatesToBackups(volumeService, templates, 'restore');
     res.json({ success: true, count: templates.length });
   } catch (e) {
