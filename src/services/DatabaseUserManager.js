@@ -589,12 +589,112 @@ class DatabaseUserManager {
         colleges: stats.collegeCount || 0,
         reports: stats.reportCount || 0,
         sessions: stats.sessionCount || 0,
-        templates: stats.templateCount || 0,
         databaseSize: stats.databaseSize || 'Unknown',
       };
     } catch (error) {
       console.error('Error getting stats:', error);
       return {};
+    }
+  }
+
+  // Template Management using Report model with reportType: 'template'
+  async getTemplates() {
+    try {
+      const templateReports = await Report.findAll({
+        where: { 
+          reportType: 'template',
+          status: 'completed'
+        },
+        order: [['createdAt', 'DESC']],
+      });
+      
+      // Transform report data back to template format
+      return templateReports.map(report => ({
+        id: report.data.id || report.id,
+        name: report.name,
+        description: report.data.description || '',
+        headers: report.data.headers || [],
+        tableData: report.data.tableData || [],
+        createdAt: report.createdAt,
+        updatedAt: report.updatedAt,
+        createdBy: report.createdBy,
+        ...report.data // Include any additional template data
+      }));
+    } catch (error) {
+      console.error('Error getting templates from database:', error);
+      throw error;
+    }
+  }
+
+  async saveTemplate(templateData) {
+    try {
+      const reportData = {
+        name: templateData.name,
+        reportType: 'template',
+        data: templateData,
+        createdBy: templateData.createdBy || 'system',
+        status: 'completed',
+        collegeId: null // Templates don't belong to specific colleges
+      };
+
+      // Check if template exists (by template ID in data field)
+      const existingTemplate = await Report.findOne({
+        where: {
+          reportType: 'template',
+          'data.id': templateData.id
+        }
+      });
+
+      if (existingTemplate) {
+        // Update existing template
+        await existingTemplate.update(reportData);
+        console.log(`✅ Template '${templateData.name}' updated in database`);
+        return existingTemplate.toJSON();
+      } else {
+        // Create new template
+        const newTemplate = await Report.create(reportData);
+        console.log(`✅ Template '${templateData.name}' created in database`);
+        return newTemplate.toJSON();
+      }
+    } catch (error) {
+      console.error('Error saving template to database:', error);
+      throw error;
+    }
+  }
+
+  async deleteTemplate(templateId) {
+    try {
+      const deletedCount = await Report.destroy({
+        where: {
+          reportType: 'template',
+          'data.id': templateId
+        }
+      });
+      
+      if (deletedCount === 0) {
+        throw new Error('Template not found');
+      }
+      
+      console.log(`✅ Template with ID '${templateId}' deleted from database`);
+      return true;
+    } catch (error) {
+      console.error('Error deleting template from database:', error);
+      throw error;
+    }
+  }
+
+  async saveTemplates(templates) {
+    try {
+      const results = [];
+      for (const template of templates) {
+        const result = await this.saveTemplate(template);
+        results.push(result);
+      }
+      console.log(`✅ Batch saved ${results.length} templates to database`);
+      return results;
+    } catch (error) {
+      console.error('Error batch saving templates to database:', error);
+      throw error;
     }
   }
 
