@@ -170,39 +170,11 @@ const dataValidationService = new EnhancedDataValidationService();
 // Template data synchronization helper
 async function synchronizeTemplateData() {
   try {
-    console.log('🔄 Synchronizing template data between database, volume and data layers...');
+    console.log('🔄 Synchronizing template data between volume and data layers...');
     
     const templatesFile = 'templates.json';
     const fs = require('fs-extra');
     const path = require('path');
-    
-    // Priority 1: Try to read from database first (most reliable on Railway)
-    let finalTemplates = [];
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Loading templates from database...');
-        await databaseUserManager.initialize();
-        const dbTemplates = await databaseUserManager.getTemplates();
-        console.log(`📖 Found ${dbTemplates.length} templates in database`);
-        
-        if (dbTemplates.length > 0) {
-          finalTemplates = dbTemplates;
-          console.log('✅ Using database templates as primary source');
-          
-          // Sync database templates to file system as backup
-          await writeTemplatesAllLocations(finalTemplates);
-          console.log('💾 Database templates synced to file system');
-          
-          console.log('✅ Template synchronization completed (database primary)');
-          return;
-        }
-      } catch (dbError) {
-        console.log('⚠️ Database template read failed, falling back to file system:', dbError.message);
-      }
-    }
-    
-    // Priority 2: Fall back to file system if database is not available or empty
-    console.log('📝 Loading templates from file system...');
     
     // Read from volume service
     let volumeTemplates = [];
@@ -260,17 +232,6 @@ async function synchronizeTemplateData() {
       }
       finalTemplates = Array.from(templatesMap.values()).map(t => { const { source, ...tpl } = t; return tpl; });
       console.log(`🎯 Merged ${finalTemplates.length} unique templates from available sources`);
-      
-      // If we found templates in file system but database is available, sync them to database
-      if (process.env.DATABASE_URL && finalTemplates.length > 0) {
-        try {
-          await databaseUserManager.initialize();
-          await databaseUserManager.saveTemplates(finalTemplates);
-          console.log(`🔄 ${finalTemplates.length} templates synced from file system to database`);
-        } catch (syncError) {
-          console.log('⚠️ Failed to sync file system templates to database:', syncError.message);
-        }
-      }
     } else {
       finalTemplates = [];
       console.log('📝 No templates found in any storage - starting fresh');
@@ -2602,20 +2563,7 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📖 Templates API endpoint called');
     
-    // Priority 1: Try database first (most reliable on Railway)
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Loading templates from database...');
-        await databaseUserManager.initialize();
-        const dbTemplates = await databaseUserManager.getTemplates();
-        console.log(`✅ Found ${dbTemplates.length} templates in database`);
-        return res.json(dbTemplates);
-      } catch (dbError) {
-        console.log('⚠️ Database read failed, falling back to file system:', dbError.message);
-      }
-    }
-    
-    // Priority 2: File system fallback
+    // Read from file system (database integration temporarily disabled for stability)
     const templatesFile = 'templates.json';
     let templates = [];
     
@@ -2892,31 +2840,7 @@ app.post('/api/save-template', authService.requireAuth(), async (req, res) => {
       templates.push(newTemplate);
     }
     
-    // Priority 1: Save to database first (most reliable on Railway)
-    let savedTemplate = null;
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Saving template to database first...');
-        await databaseUserManager.initialize();
-        
-        if (existingTemplateIndex !== -1) {
-          // Update existing template
-          const templateToUpdate = templates[existingTemplateIndex];
-          savedTemplate = await databaseUserManager.updateTemplate(templateToUpdate.id, templateToUpdate);
-          console.log('✅ Template updated in database');
-        } else {
-          // Create new template
-          const templateToCreate = templates[templates.length - 1]; // Get the newly added template
-          savedTemplate = await databaseUserManager.createTemplate(templateToCreate);
-          console.log('✅ Template created in database');
-        }
-      } catch (dbError) {
-        console.error('⚠️ Failed to save template to database:', dbError.message);
-        console.log('📝 Continuing with file system save as fallback...');
-      }
-    }
-    
-    // Priority 2: Save to file system as backup
+    // Save to file system (database integration temporarily disabled for stability)
     console.log('💾 Writing templates to file system...');
     console.log('🔍 About to write to volume path:', volumeService.getDataPath());
     console.log('🔍 Full path will be:', path.join(volumeService.getDataPath(), templatesFile));
@@ -3002,21 +2926,6 @@ app.delete('/api/templates/:id', authService.requireAuth(), async (req, res) => 
     }
     
     const deletedTemplate = templates.splice(templateIndex, 1)[0];
-    
-    // Priority 1: Delete from database first
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Deleting template from database...');
-        await databaseUserManager.initialize();
-        await databaseUserManager.deleteTemplate(deletedTemplate.id);
-        console.log('✅ Template deleted from database');
-      } catch (dbError) {
-        console.error('⚠️ Failed to delete template from database:', dbError.message);
-        console.log('📝 Continuing with file system delete...');
-      }
-    }
-    
-    // Priority 2: Delete from file system
     await writeTemplatesAllLocations(templates);
     
     // Also sync to legacy data path for backward compatibility
