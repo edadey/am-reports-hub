@@ -1,12 +1,12 @@
 const DatabaseService = require('./DatabaseService');
-const { User, AccountManager, College, Report, Session, SecurityLog } = require('../database/models');
+const { User, AccountManager, College, Report, Session, SecurityLog, Template } = require('../database/models');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 class DatabaseUserManager {
   constructor() {
     this.db = DatabaseService;
-    this.models = { User, AccountManager, College, Report, Session, SecurityLog };
+    this.models = { User, AccountManager, College, Report, Session, SecurityLog, Template };
   }
 
   async initialize() {
@@ -589,11 +589,97 @@ class DatabaseUserManager {
         colleges: stats.collegeCount || 0,
         reports: stats.reportCount || 0,
         sessions: stats.sessionCount || 0,
+        templates: stats.templateCount || 0,
         databaseSize: stats.databaseSize || 'Unknown',
       };
     } catch (error) {
       console.error('Error getting stats:', error);
       return {};
+    }
+  }
+
+  // Template Management
+  async getTemplates() {
+    try {
+      const templates = await Template.findAll({
+        where: { status: 'active' },
+        order: [['createdAt', 'DESC']],
+      });
+      return templates.map(template => template.toJSON());
+    } catch (error) {
+      console.error('Error getting templates:', error);
+      throw error;
+    }
+  }
+
+  async createTemplate(templateData) {
+    try {
+      const template = await Template.create(templateData);
+      return template.toJSON();
+    } catch (error) {
+      console.error('Error creating template:', error);
+      throw error;
+    }
+  }
+
+  async getTemplateById(id) {
+    try {
+      const template = await Template.findByPk(id);
+      return template ? template.toJSON() : null;
+    } catch (error) {
+      console.error('Error getting template by ID:', error);
+      throw error;
+    }
+  }
+
+  async updateTemplate(id, updates) {
+    try {
+      const [updatedRowsCount] = await Template.update(updates, {
+        where: { id },
+      });
+      
+      if (updatedRowsCount === 0) {
+        throw new Error('Template not found');
+      }
+      
+      return await this.getTemplateById(id);
+    } catch (error) {
+      console.error('Error updating template:', error);
+      throw error;
+    }
+  }
+
+  async deleteTemplate(id) {
+    try {
+      const deletedRowsCount = await Template.destroy({
+        where: { id },
+      });
+      
+      if (deletedRowsCount === 0) {
+        throw new Error('Template not found');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      throw error;
+    }
+  }
+
+  async saveTemplates(templates) {
+    try {
+      // Use upsert to create or update templates
+      const results = [];
+      for (const templateData of templates) {
+        const [template, created] = await Template.upsert(templateData, {
+          returning: true,
+        });
+        results.push({ template: template.toJSON(), created });
+      }
+      return results;
+    } catch (error) {
+      console.error('Error saving templates:', error);
+      throw error;
     }
   }
 }
