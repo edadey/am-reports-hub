@@ -30,8 +30,17 @@ class VolumeService {
       console.log("📁 Local data path:", this.localDataPath);
       console.log("🌍 Environment:", process.env.NODE_ENV || 'development');
       
-      // Check if Railway volume is mounted
-      this.isVolumeMounted = await fs.pathExists(this.volumePath);
+      // Proactively ensure volume directory exists and test write access
+      try {
+        await fs.ensureDir(this.volumePath);
+        const testFile = path.join(this.volumePath, '.volume-write-test');
+        await fs.writeFile(testFile, `ok-${Date.now()}`);
+        await fs.remove(testFile);
+        this.isVolumeMounted = true;
+      } catch (e) {
+        console.warn('⚠️ Railway volume not writable at', this.volumePath, '-', e.message);
+        this.isVolumeMounted = false;
+      }
       
       if (this.isVolumeMounted) {
         console.log("✅ Railway volume mounted at:", this.volumePath);

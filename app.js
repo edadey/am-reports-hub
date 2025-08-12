@@ -3079,6 +3079,13 @@ app.get('/api/templates/download', authService.requireAuth(), async (req, res) =
       try { const path = require('path'); templates = await volumeService.readFile(path.join('data','templates.json')); }
       catch (_) { templates = []; }
     }
+    // If still empty, try absolute paths
+    if ((!Array.isArray(templates) || templates.length === 0)) {
+      try { const fs = require('fs-extra'); if (await fs.pathExists('/data/templates.json')) templates = await fs.readJson('/data/templates.json'); } catch (_) {}
+      if ((!Array.isArray(templates) || templates.length === 0)) {
+        try { const fs = require('fs-extra'); if (await fs.pathExists('/data/data/templates.json')) templates = await fs.readJson('/data/data/templates.json'); } catch (_) {}
+      }
+    }
     const payload = { templates };
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', 'attachment; filename="templates.json"');
@@ -5098,6 +5105,24 @@ async function initializeServices() {
     // Synchronize template data after backup service is ready
     console.log('🔄 Synchronizing template data...');
     await synchronizeTemplateData();
+  
+  // Safety: if templates still missing after sync, try reading and promoting from absolute paths
+  try {
+    const fs = require('fs-extra');
+    const absPaths = ['/data/templates.json', '/data/data/templates.json'];
+    for (const p of absPaths) {
+      if (await fs.pathExists(p)) {
+        const data = await fs.readJson(p);
+        if (Array.isArray(data) && data.length > 0) {
+          console.log(`🔁 Promoting templates from absolute path ${p}`);
+          await writeTemplatesAllLocations(data);
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('⚠️ Post-sync template promotion skipped:', e.message);
+  }
     
     // Only initialize cloud backup service if not in Railway environment
     if (!process.env.RAILWAY_ENVIRONMENT && process.env.NODE_ENV !== 'production') {
