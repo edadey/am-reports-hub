@@ -237,41 +237,30 @@ async function synchronizeTemplateData() {
       console.log('📝 No templates found in any storage - starting fresh');
     }
     
-    // Read-only by default on startup. Only write if volume clearly has no templates
-    // AND no absolute paths exist yet. This prevents overwriting newer data during deploys.
+    // Always ensure templates are written to all persistent locations during startup sync
+    // This ensures templates persist across redeployments by writing to all storage layers
     if (finalTemplates.length > 0) {
-      let shouldWrite = false;
+      console.log('💾 Writing templates to all persistent storage locations...');
       try {
-        const absExists1 = await fs.pathExists('/data/templates.json');
-        const absExists2 = await fs.pathExists('/data/data/templates.json');
-        const volumeHasTemplates = volumeTemplates.length > 0 || volumeDataFolderTemplates.length > 0;
-        shouldWrite = !volumeHasTemplates && !absExists1 && !absExists2;
-      } catch (_) { shouldWrite = false; }
-
-      if (shouldWrite) {
-        try {
-          await volumeService.writeFile(templatesFile, finalTemplates);
-          console.log(`✅ Templates written to volume storage (initial bootstrap)`);
-        } catch (error) {
-          console.error('❌ Failed to write templates to volume storage:', error);
-        }
-        try {
-          await volumeService.writeFile(path.join('data', 'templates.json'), finalTemplates);
-          console.log(`✅ Templates written to volume data folder storage (initial bootstrap)`);
-        } catch (error) {
-          console.error('❌ Failed to write templates to volume data folder storage:', error);
-        }
-        try {
-          await fs.ensureDir(path.dirname(legacyPath));
-          await fs.writeJson(legacyPath, finalTemplates, { spaces: 2 });
-          console.log(`✅ Templates written to legacy storage (initial bootstrap)`);
-        } catch (error) {
-          console.error('❌ Failed to write templates to legacy storage:', error);
-        }
-        console.log(`✅ Bootstrapped ${finalTemplates.length} templates to storage layers`);
-      } else {
-        console.log('ℹ️ Startup sync is read-only (no bootstrap write needed)');
+        await volumeService.writeFile(templatesFile, finalTemplates);
+        console.log(`✅ Templates written to volume storage (initial bootstrap)`);
+      } catch (error) {
+        console.error('❌ Failed to write templates to volume storage:', error);
       }
+      try {
+        await volumeService.writeFile(path.join('data', 'templates.json'), finalTemplates);
+        console.log(`✅ Templates written to volume data folder storage (initial bootstrap)`);
+      } catch (error) {
+        console.error('❌ Failed to write templates to volume data folder storage:', error);
+      }
+      try {
+        await fs.ensureDir(path.dirname(legacyPath));
+        await fs.writeJson(legacyPath, finalTemplates, { spaces: 2 });
+        console.log(`✅ Templates written to legacy storage (initial bootstrap)`);
+      } catch (error) {
+        console.error('❌ Failed to write templates to legacy storage:', error);
+      }
+      console.log(`✅ Bootstrapped ${finalTemplates.length} templates to storage layers`);
     }
     
     console.log('✅ Template synchronization completed');
