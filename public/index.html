@@ -3849,10 +3849,15 @@ let deletedAccountManagers = [];
       if (term !== '') {
         filteredColleges = allColleges.filter(college => {
           const name = (college.name || '').toLowerCase();
-          const managerName = (
-            (accountManagers.find(am => String(am.id) === String(college.accountManagerId)) || {}
-          ).name || 'Unassigned';
-          const manager = managerName.toLowerCase();
+          // Resolve account manager name safely
+          let managerName = 'Unassigned';
+          if (Array.isArray(accountManagers)) {
+            const amMatch = accountManagers.find(function(am){
+              return String(am.id) === String(college.accountManagerId);
+            });
+            if (amMatch && amMatch.name) managerName = amMatch.name;
+          }
+          const manager = (managerName || 'Unassigned').toLowerCase();
           const frequencyRaw = (college.reportFrequency || '').toLowerCase();
           // Allow matching regardless of hyphen in bi-weekly
           const frequency = frequencyRaw.replace(/-/g, '');
