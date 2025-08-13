@@ -387,7 +387,7 @@ app.get('/admin-dashboard', authService.requireAuth(), authService.requireRole([
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
 
-app.get('/railway-backup-dashboard', (req, res) => {
+app.get('/railway-backup-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/railway-backup-dashboard.html'));
 });
 
