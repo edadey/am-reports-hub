@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shared Reports - View Only</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css">
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background:#f7f9fc; color:#111; }
+    .container { max-width: 1100px; margin: 24px auto; padding: 16px; background:#fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px; }
+    h1 { font-size: 20px; margin: 0; }
+    .meta { color:#555; font-size: 14px; }
+    .banner { background: #eaf5ff; border: 1px solid #cfe8ff; padding: 10px 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
+    .controls { display:flex; gap:8px; margin: 12px 0; }
+    .controls input, .controls select { padding: 8px 10px; border:1px solid #d0d7de; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eef2f7; font-size: 14px; }
+    th { background:#fafbfc; font-weight: 600; color:#333; }
+    .tag { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; background:#f1f5f9; color:#334155; }
+    .btn { appearance:none; border:1px solid #cbd5e1; background:#fff; color:#111; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:14px; }
+    .btn:hover { background:#f8fafc; }
+    .btn.primary { background:#2563eb; border-color:#1d4ed8; color:#fff; }
+    .btn.primary:hover { background:#1d4ed8; }
+    .muted { color:#64748b; font-size: 12px; }
+    .hidden { display:none; }
+    .pill { padding: 2px 8px; border-radius: 999px; background: #eef2ff; color:#3730a3; font-size: 12px; border:1px solid #e0e7ff; }
+    .error { background:#fff1f2; border:1px solid #fecdd3; color:#9f1239; padding: 10px 12px; border-radius:8px; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <script>
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+
+    async function init() {
+      const token = getQueryParam('token');
+      const collegeId = getQueryParam('collegeId');
+      const statusEl = document.getElementById('status');
+      const tableBody = document.getElementById('reports-body');
+      const filterInput = document.getElementById('filter');
+      const collegeNameEl = document.getElementById('college-name');
+
+      if (!token || !collegeId) {
+        statusEl.innerHTML = '<div class="error">Missing token or collegeId.</div>';
+        return;
+      }
+
+      try {
+        const v = await axios.get(`/api/shared/validate`, { params: { token } });
+        const payload = v.data?.payload;
+        if (!v.data.success || !payload) throw new Error('Invalid token');
+        collegeNameEl.textContent = `College ID: ${collegeId}`;
+      } catch (e) {
+        statusEl.innerHTML = '<div class="error">This link is invalid or has expired.</div>';
+        return;
+      }
+
+      let allReports = [];
+      async function loadReports() {
+        statusEl.textContent = 'Loading reports...';
+        const res = await axios.get(`/api/shared/colleges/${collegeId}/reports`, { params: { token, _t: Date.now() } });
+        if (!res.data.success) throw new Error('Failed');
+        allReports = res.data.reports || [];
+        render(allReports);
+        statusEl.textContent = '';
+      }
+
+      function render(list) {
+        tableBody.innerHTML = '';
+        const filtered = list;
+        for (const r of filtered) {
+          const tr = document.createElement('tr');
+          const created = new Date(r.createdAt).toLocaleString();
+          tr.innerHTML = `
+            <td>${r.name || 'Report'}</td>
+            <td><span class="tag">${created}</span></td>
+            <td>${r.summary ? r.summary : '<span class="muted">No summary</span>'}</td>
+            <td style="text-align:right;">
+              <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}?token=${encodeURIComponent(getQueryParam('token'))}" target="_blank" rel="noopener">View</a>
+              <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
+            </td>
+          `;
+          tableBody.appendChild(tr);
+        }
+      }
+
+      filterInput.addEventListener('input', () => {
+        const q = filterInput.value.toLowerCase().trim();
+        if (!q) return render(allReports);
+        const filtered = allReports.filter(r =>
+          (r.name || '').toLowerCase().includes(q) ||
+          (r.summary || '').toLowerCase().includes(q)
+        );
+        render(filtered);
+      });
+
+      try {
+        await loadReports();
+      } catch (e) {
+        statusEl.innerHTML = '<div class="error">Failed to load reports. The link may be invalid or expired.</div>';
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>AM Reports Hub</h1>
+      <div class="pill">View-only access</div>
+    </header>
+
+    <div class="banner">
+      This is a view-only link. You can search, filter, and download reports, but editing is disabled.
+    </div>
+
+    <div class="meta" id="college-name">College</div>
+    <div id="status" class="muted" style="margin-top:8px;">Loading...</div>
+
+    <div class="controls">
+      <input id="filter" type="search" placeholder="Filter reports by name or summary" />
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30%">Name</th>
+          <th style="width:20%">Created</th>
+          <th>Summary</th>
+          <th style="width:220px; text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="reports-body"></tbody>
+    </table>
+  </div>
+</body>
+</html>
+
+

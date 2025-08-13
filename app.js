@@ -107,6 +107,7 @@ console.log('AI_ANALYSIS_ENABLED:', process.env.AI_ANALYSIS_ENABLED);
 
 // Import services
 const UserManager = require('./src/services/UserManager');
+const ShareLinkService = require('./src/services/ShareLinkService');
 const databaseUserManagerInstance = require('./src/services/DatabaseUserManager');
 const DatabaseService = require('./src/services/DatabaseService');
 const AIAnalyzer = require('./src/services/AIAnalyzer');
@@ -324,6 +325,7 @@ const dataImporter = new DataImporter();
 const authService = new AuthService();
 const analyticsService = new AnalyticsService();
 const enhancedAnalyticsService = new EnhancedAnalyticsService();
+const shareLinkService = new ShareLinkService();
 // Enable cloud backup API service
 // const backupAPIService = new BackupAPIService(app, authService);
 
@@ -1582,6 +1584,140 @@ app.get('/api/colleges/:collegeId/reports', authService.requireAuth(), async (re
   }
 });
 
+// Generate a shareable read-only link to a college's reports
+app.post('/api/colleges/:collegeId/reports/share', authService.requireAuth(), async (req, res) => {
+  try {
+    const { collegeId } = req.params;
+    const { expiresInHours = 168, allowDownload = true, live = false } = req.body || {};
+    const result = await shareLinkService.createShareLink({
+      collegeId: parseInt(collegeId),
+      expiresInHours: parseInt(expiresInHours),
+      allowDownload: !!allowDownload,
+      live: !!live,
+      createdByUser: req.user?.userId || null
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('Create share link error:', error);
+    res.status(500).json({ success: false, error: 'Failed to create share link' });
+  }
+});
+
+// Public: validate a share token (no auth)
+app.get('/api/shared/validate', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    const verification = shareLinkService.verifyShareToken(token);
+    if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    const { shareId, collegeId } = verification.payload;
+    if (await shareLinkService.isRevoked(shareId)) return res.status(403).json({ success: false, error: 'Share link revoked' });
+    res.json({ success: true, payload: verification.payload });
+  } catch (error) {
+    console.error('Validate share token error:', error);
+    res.status(500).json({ success: false, error: 'Failed to validate token' });
+  }
+});
+
+// Public: list reports via share token (no auth)
+app.get('/api/shared/colleges/:collegeId/reports', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    const verification = shareLinkService.verifyShareToken(token);
+    if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    const { collegeId: tokenCollegeId, shareId } = verification.payload;
+    if (await shareLinkService.isRevoked(shareId)) return res.status(403).json({ success: false, error: 'Share link revoked' });
+    if (String(tokenCollegeId) !== String(req.params.collegeId)) return res.status(403).json({ success: false, error: 'Token not valid for this college' });
+    const reports = await getCollegeReports(parseInt(req.params.collegeId));
+    // Return without any edit controls
+    res.json({ success: true, reports });
+  } catch (error) {
+    console.error('Shared list reports error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load shared reports' });
+  }
+});
+
+// Public: get a single report via share token (no auth)
+app.get('/api/shared/colleges/:collegeId/reports/:reportId', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    const verification = shareLinkService.verifyShareToken(token);
+    if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    const { collegeId: tokenCollegeId, shareId } = verification.payload;
+    if (await shareLinkService.isRevoked(shareId)) return res.status(403).json({ success: false, error: 'Share link revoked' });
+    if (String(tokenCollegeId) !== String(req.params.collegeId)) return res.status(403).json({ success: false, error: 'Token not valid for this college' });
+    const report = await getCollegeReport(parseInt(req.params.collegeId), req.params.reportId);
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+    res.json({ success: true, report });
+  } catch (error) {
+    console.error('Shared get report error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load report' });
+  }
+});
+
+// Public: download Excel via share token (respects allowDownload)
+app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    const verification = shareLinkService.verifyShareToken(token);
+    if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    const { collegeId: tokenCollegeId, shareId, permissions } = verification.payload;
+    if (await shareLinkService.isRevoked(shareId)) return res.status(403).json({ success: false, error: 'Share link revoked' });
+    if (String(tokenCollegeId) !== String(req.params.collegeId)) return res.status(403).json({ success: false, error: 'Token not valid for this college' });
+    if (!permissions?.download) return res.status(403).json({ success: false, error: 'Download not allowed on this share link' });
+
+    // Reuse the internal excel export logic by loading the report and building workbook here
+    const { collegeId, reportId } = req.params;
+    const report = await getCollegeReport(parseInt(collegeId), reportId);
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+
+    const colleges = await (await getInitializedUserManager()).getColleges();
+    const college = colleges.find(c => c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId);
+    const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Report Data');
+    const { headers, rows } = report.data;
+    worksheet.getCell('A1').value = `Report: ${report.name}`;
+    worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.getCell('A2').value = `Generated: ${new Date(report.createdAt).toLocaleString()}`;
+    let startRow = 4;
+    if (report.summary && report.summary.trim() !== '' && report.summary !== 'No summary provided') {
+      worksheet.getCell('A3').value = `Summary: ${report.summary}`;
+      startRow = 5;
+    }
+    // Headers
+    headers.forEach((h, i) => worksheet.getCell(startRow, i + 1).value = h);
+    // Rows
+    rows.forEach((r, ri) => r.forEach((v, ci) => worksheet.getCell(startRow + 1 + ri, ci + 1).value = v));
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${collegeName}-${report.name}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (error) {
+    console.error('Shared excel download error:', error);
+    res.status(500).json({ success: false, error: 'Failed to export excel' });
+  }
+});
+
+// Revoke a share link (requires auth)
+app.post('/api/shared/:shareId/revoke', authService.requireAuth(), async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    const result = await shareLinkService.revokeShare(shareId);
+    if (!result.success) {
+      return res.status(404).json({ success: false, error: result.message || 'Share not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Revoke share link error:', error);
+    res.status(500).json({ success: false, error: 'Failed to revoke share link' });
+  }
+});
 app.post('/api/colleges/:collegeId/reports', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;

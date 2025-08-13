@@ -1136,9 +1136,24 @@
       <div class="bg-white rounded-lg shadow p-6">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900">All Reports</h3>
-          <button onclick="generateNewReport()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
-            Generate New Report
-          </button>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 border rounded-md px-2 py-1">
+              <label for="shareLiveToggle" class="text-sm text-gray-600">Live</label>
+              <input id="shareLiveToggle" type="checkbox" class="h-4 w-4">
+            </div>
+            <button id="copyShareLinkBtn" class="p-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" title="Copy live/share link">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path d="M8 2a2 2 0 00-2 2v8a2 2 0 002 2h5a2 2 0 002-2V7.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 009.586 2H8z" />
+                <path d="M3 8a2 2 0 012-2h1v2H5v8h6v1a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+              </svg>
+            </button>
+            <button id="createShareLinkBtn" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors duration-200 font-medium shadow-sm touch-button">
+              Create Share Link
+            </button>
+            <button onclick="generateNewReport()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+              Generate New Report
+            </button>
+          </div>
         </div>
         
         <!-- Desktop Table View -->
@@ -1612,6 +1627,7 @@
     let collegeReports = [];
     let accountManagerData = null;
     let allColleges = []; // Initialize allColleges here to prevent undefined errors
+    let activeShare = null; // { shareId, url, permissions, live }
     let allAccountManagers = []; // Initialize allAccountManagers here to prevent undefined errors
     let currentUser = null; // Initialize currentUser here to prevent undefined errors
     let formDataChanged = false; // Flag to track if form data has been modified
@@ -1736,6 +1752,9 @@
         if (reportsResult.reports) {
           collegeReports = reportsResult.reports;
         }
+
+        // Initialise share UI state
+        initShareControls();
 
         // Update the dashboard with real data
         updateDashboardData();
@@ -3065,6 +3084,117 @@
           </div>
         </div>
       `).join('');
+    }
+
+    // Share link controls
+    function initShareControls() {
+      const toggle = document.getElementById('shareLiveToggle');
+      const btn = document.getElementById('createShareLinkBtn');
+      const copyBtn = document.getElementById('copyShareLinkBtn');
+      const collegeId = getCollegeId();
+
+      // Load saved state from sessionStorage so it persists during session
+      try {
+        const saved = sessionStorage.getItem(`share:${collegeId}`);
+        if (saved) {
+          const state = JSON.parse(saved);
+          activeShare = state;
+          toggle.checked = !!state.live;
+          if (state.url) btn.dataset.url = state.url;
+        }
+      } catch (_) {}
+
+      toggle.addEventListener('change', async () => {
+        try {
+          if (!activeShare || !activeShare.shareId) {
+            // If no share exists yet and toggled on, create one as live (no expiry)
+            if (toggle.checked) {
+              btn.disabled = true; btn.textContent = 'Creating...';
+              const res = await fetch(`/api/colleges/${collegeId}/reports/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ expiresInHours: 24 * 365 * 5, allowDownload: true, live: true })
+              });
+              const json = await res.json();
+              if (!json.success) throw new Error(json.error || 'Failed to create share link');
+              activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: true };
+              sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
+              btn.dataset.url = json.url;
+              showNotification('Live share link created and enabled', 'success');
+            }
+            return;
+          }
+
+          if (toggle.checked) {
+            // Re-enable an existing share by un-revoking is not supported; create fresh
+            btn.disabled = true; btn.textContent = 'Creating...';
+            const res = await fetch(`/api/colleges/${collegeId}/reports/share`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ expiresInHours: 24 * 365 * 5, allowDownload: true, live: true })
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error || 'Failed to create share link');
+            activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: true };
+            sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
+            btn.dataset.url = json.url;
+            showNotification('Live share link enabled', 'success');
+          } else {
+            // Disable by revoking
+            const shareId = activeShare.shareId;
+            const res = await fetch(`/api/shared/${shareId}/revoke`, { method: 'POST', credentials: 'include' });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error || 'Failed to disable link');
+            activeShare.live = false;
+            sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
+            showNotification('Share link disabled', 'success');
+          }
+        } catch (err) {
+          showNotification(err.message || 'Failed to update share link state', 'error');
+          toggle.checked = !toggle.checked;
+        } finally {
+          btn.disabled = false; btn.textContent = 'Create Share Link';
+        }
+      });
+
+      btn.addEventListener('click', async () => {
+        try {
+          btn.disabled = true; btn.textContent = 'Creating...';
+          const res = await fetch(`/api/colleges/${collegeId}/reports/share`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ expiresInHours: 168, allowDownload: true })
+          });
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || 'Failed to create share link');
+          activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: toggle.checked };
+          sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
+          btn.dataset.url = json.url;
+          await navigator.clipboard.writeText(json.url).catch(() => {});
+          showNotification('Share link created and copied to clipboard', 'success');
+        } catch (err) {
+          showNotification(err.message || 'Failed to create share link', 'error');
+        } finally {
+          btn.disabled = false; btn.textContent = 'Create Share Link';
+        }
+      });
+
+      copyBtn.addEventListener('click', async () => {
+        try {
+          const url = btn.dataset.url || activeShare?.url;
+          if (!url) {
+            showNotification('No share link available yet. Create one first.', 'error');
+            return;
+          }
+          await navigator.clipboard.writeText(url).catch(() => {});
+          showNotification('Share link copied to clipboard', 'success');
+        } catch (err) {
+          showNotification('Failed to copy link', 'error');
+        }
+      });
     }
     // Update reports table in Reports tab
     function updateReportsTable() {
