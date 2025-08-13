@@ -1043,5 +1043,5 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
 
 app.listen(PORT, () => {
   console.log(`AM Reports Automation Server running on port ${PORT}`);
-  console.log(`Visit https://reports.kobicreative.com to access the application`);
+  console.log(`Visit ${process.env.BASE_URL || 'https://am-reports-hub-production.up.railway.app'} to access the application`);
 });

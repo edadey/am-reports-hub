@@ -54,5 +54,5 @@
     "type": "git",
     "url": "https://github.com/your-username/am-reports-hub.git"
   },
-  "homepage": "https://reports.kobicreative.com"
+  "homepage": "https://am-reports-hub-production.up.railway.app"
 }

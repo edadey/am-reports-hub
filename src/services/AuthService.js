@@ -336,7 +336,7 @@ class AuthService {
       const verificationToken = this.emailService.generateResetToken();
       this.emailService.storeResetToken(userData.email, verificationToken);
       
-      const verificationUrl = `${process.env.BASE_URL || 'https://reports.kobicreative.com'}/verify-email.html`;
+      const verificationUrl = `${process.env.BASE_URL || ''}/verify-email.html`;
       await this.emailService.sendVerificationEmail(userData.email, verificationToken, verificationUrl);
 
       return {
@@ -488,7 +488,7 @@ class AuthService {
       this.emailService.storeResetToken(email, resetToken);
       
       // Send reset email
-      const resetUrl = `${process.env.BASE_URL || 'https://reports.kobicreative.com'}/reset-password.html`;
+      const resetUrl = `${process.env.BASE_URL || ''}/reset-password.html`;
       const emailResult = await this.emailService.sendPasswordResetEmail(email, resetToken, resetUrl);
       
       if (emailResult.success) {

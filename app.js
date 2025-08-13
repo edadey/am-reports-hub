@@ -1,4 +1,4 @@
-// app.js - cPanel entry point for reports.kobicreative.com
+// app.js - Application entry point
 const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
@@ -327,9 +327,9 @@ const enhancedAnalyticsService = new EnhancedAnalyticsService();
 
 // Middleware
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://reports.kobicreative.com', 'https://www.reports.kobicreative.com', 'https://am-reports-hub-production.up.railway.app']
-    : ['http://localhost:3000', 'https://reports.kobicreative.com'],
+  origin: process.env.NODE_ENV === 'production'
+    ? [process.env.CORS_ORIGIN || 'https://am-reports-hub-production.up.railway.app']
+    : [process.env.CORS_ORIGIN || 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -603,7 +603,8 @@ app.post('/api/auth/login', async (req, res) => {
         sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         path: '/',
-        domain: process.env.NODE_ENV === 'production' && req.headers.host !== 'localhost:3000' && !req.headers.host.includes('railway.app') ? '.kobicreative.com' : undefined
+        // Do not pin cookie to a custom domain; rely on host
+        domain: undefined
       };
       
       res.cookie('token', result.token, cookieOptions);
@@ -5230,7 +5231,7 @@ if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`AM Reports Hub running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://reports.kobicreative.com'}`);
+    console.log(`CORS Origin: ${process.env.CORS_ORIGIN || 'https://am-reports-hub-production.up.railway.app'}`);
     console.log('✅ Server is ready to accept requests');
     console.log('🏥 Healthcheck endpoint available at /');
     console.log('🔧 Template persistence via database (Report model) - TEST DEPLOYMENT #2');
