@@ -3587,8 +3587,8 @@
         const isChangeColumn = h.endsWith(' +/-');
         const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
         const sectionInfo = getColumnSection(originalHeader);
-        
-        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider border-r border-gray-200 ${sectionInfo.color}" style="${sectionInfo.inlineColor}">${h}</th>`;
+        const sticky = originalHeader === 'Department' ? 'position: sticky; left: 0; z-index: 3; min-width: 260px; background: #fff;' : '';
+        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider border-r border-gray-200 ${sectionInfo.color}" style="${sectionInfo.inlineColor}${sticky}">${h}</th>`;
       }).join('');
       
       // Calculate totals for the report (same logic as Excel export)
@@ -3679,8 +3679,9 @@
           }
           
           // Add the main data cell
+          const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : '';
           completeRowCells.push(`
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100 ${cellAlignment}">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100 ${cellAlignment}" style="${sticky}">
               <div>${displayValue}</div>
               ${percentageBar}
             </td>
@@ -3789,7 +3790,7 @@
 
       const tableHTML = `
         <div class="overflow-x-auto border border-gray-200 rounded-lg">
-          <table class="min-w-full divide-y divide-gray-200">
+          <table class="min-w-full divide-y divide-gray-200" style="border-collapse:separate;border-spacing:0;">
             <thead>
               <tr>${headerCells}</tr>
             </thead>
