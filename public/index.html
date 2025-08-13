@@ -228,24 +228,24 @@
             </div>
             <div class="flex flex-wrap gap-2">
               <select id="collegeFilterType" class="border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[120px]" onchange="filterColleges()">
-                <option value="all">🔍 All Fields</option>
-                <option value="name">🏫 College Name</option>
-                <option value="manager">👤 Account Manager</option>
-                <option value="frequency">📅 Report Frequency</option>
-                <option value="location">📍 Location</option>
-                <option value="status">⚡ Status</option>
+                <option value="all">All Fields</option>
+                <option value="name">College Name</option>
+                <option value="manager">Account Manager</option>
+                <option value="frequency">Report Frequency</option>
+                <option value="location">Location</option>
+                <option value="status">Status</option>
               </select>
-              <button onclick="showAdvancedFilters()" id="advancedFiltersBtn" class="bg-blue-100 text-blue-700 px-4 py-3 rounded-lg text-sm hover:bg-blue-200 transition-colors duration-200 font-medium border border-blue-200">
-                <svg class="h-4 w-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.707A1 1 0 013 7V4z"></path>
+              <span class="inline-flex items-center bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium border border-blue-200 select-none">
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M6 8h12M9 12h6M11 16h2" />
                 </svg>
                 Filters
-              </button>
+              </span>
             </div>
           </div>
 
-          <!-- Advanced Filters (Initially Hidden) -->
-          <div id="advancedFilters" class="hidden border-t border-gray-300 pt-4 mt-4">
+          <!-- Advanced Filters (Always Visible) -->
+          <div id="advancedFilters" class="border-t border-gray-300 pt-4 mt-4">
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
               <!-- Account Manager Filter -->
               <div>
@@ -3957,7 +3957,7 @@ let deletedAccountManagers = [];
     
     function filterColleges() {
       const searchTerm = document.getElementById('collegeSearchInput').value.toLowerCase();
-      const filterType = document.getElementById('collegeFilterType').value;
+      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
       const tableBody = document.getElementById('collegesTableBody');
       const resultsCount = document.getElementById('searchResultsCount');
       
@@ -3980,25 +3980,8 @@ let deletedAccountManagers = [];
       }, 300);
     }
     
-    function showAdvancedFilters() {
-      const filtersDiv = document.getElementById('advancedFilters');
-      const button = document.getElementById('advancedFiltersBtn');
-      
-      advancedFiltersVisible = !advancedFiltersVisible;
-      
-      if (advancedFiltersVisible) {
-        filtersDiv.classList.remove('hidden');
-        button.classList.add('bg-blue-200', 'border-blue-300');
-        button.classList.remove('bg-blue-100', 'border-blue-200');
-        
-        // Populate account managers dropdown
-        populateManagerFilter();
-      } else {
-        filtersDiv.classList.add('hidden');
-        button.classList.remove('bg-blue-200', 'border-blue-300');
-        button.classList.add('bg-blue-100', 'border-blue-200');
-      }
-    }
+    // Advanced filters are always visible now. Keep function for backward-compat but just ensure manager options present.
+    function showAdvancedFilters() { populateManagerFilter(); }
     
     function populateManagerFilter() {
       const managerSelect = document.getElementById('managerFilter');
@@ -4047,7 +4030,7 @@ let deletedAccountManagers = [];
     
     function updateActiveFiltersCount() {
       const searchInput = document.getElementById('collegeSearchInput').value;
-      const filterType = document.getElementById('collegeFilterType').value;
+      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
       const managerFilter = document.getElementById('managerFilter').value;
       const frequencyFilter = document.getElementById('frequencyFilter').value;
       const lastReportFilter = document.getElementById('lastReportFilter').value;
@@ -4279,7 +4262,7 @@ let deletedAccountManagers = [];
     // Missing enhanced filter functions
     function performAdvancedSearch() {
       const searchTerm = document.getElementById('collegeSearchInput').value.toLowerCase();
-      const filterType = document.getElementById('collegeFilterType').value;
+      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
       const managerFilter = document.getElementById('managerFilter').value;
       const frequencyFilter = document.getElementById('frequencyFilter').value;
       const lastReportFilter = document.getElementById('lastReportFilter').value;
