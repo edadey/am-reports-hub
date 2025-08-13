@@ -1126,20 +1126,26 @@
       }
     }
 
-    // College Dashboard function
-    function showCollegeDashboard() {
+    // College Dashboard function (now supports direct navigation)
+    function showCollegeDashboard(collegeId) {
+      // If a specific collegeId is provided, navigate directly without a modal
+      if (collegeId) {
+        window.location.href = `/college-dashboard?id=${collegeId}`;
+        return;
+      }
+
       if (colleges.length === 0) {
         showStatus('No colleges available. Please add a college first.', 'error');
         return;
       }
-      
+
       // If there's only one college, open it directly
       if (colleges.length === 1) {
-        window.open(`/college-dashboard?id=${colleges[0].id}`, '_blank');
+        window.location.href = `/college-dashboard?id=${colleges[0].id}`;
         return;
       }
-      
-      // If there are multiple colleges, show a selection dialog
+
+      // If there are multiple colleges and no id was provided, show a selection dialog
       const collegeOptions = colleges.map(college => 
         `<option value="${college.id}">${college.name}</option>`
       ).join('');
@@ -1176,7 +1182,7 @@
         return;
       }
       
-              window.open(`/college-dashboard?id=${collegeId}`, '_blank');
+      window.location.href = `/college-dashboard?id=${collegeId}`;
       document.querySelector('.fixed').remove();
     }
 
