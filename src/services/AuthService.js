@@ -45,7 +45,7 @@ class AuthService {
           role: 'account_manager',
           name: 'Demo Account Manager',
           accountManagerId: 1,
-          isActive: true,
+          isActive: process.env.NODE_ENV === 'production' ? false : true,
           createdAt: new Date().toISOString(),
           lastLogin: null
         }

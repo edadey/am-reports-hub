@@ -383,7 +383,7 @@ app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
 });
 
-app.get('/admin-dashboard', (req, res) => {
+app.get('/admin-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
 
@@ -396,7 +396,7 @@ app.get('/simple-backup-dashboard', authService.requireAuth(), (req, res) => {
 });
 
 // Persistent backup API endpoints - NO AUTHENTICATION REQUIRED
-app.post('/api/backup/create', async (req, res) => {
+app.post('/api/backup/create', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     const { description } = req.body;
     console.log('🔄 Creating persistent backup...');
@@ -417,7 +417,7 @@ app.post('/api/backup/create', async (req, res) => {
   }
 });
 
-app.get('/api/backup/list', async (req, res) => {
+app.get('/api/backup/list', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     const backups = await railwayBackupService.listBackups();
     const stats = await railwayBackupService.getStorageStats();
@@ -433,7 +433,7 @@ app.get('/api/backup/list', async (req, res) => {
   }
 });
 
-app.post('/api/backup/restore/:backupId', async (req, res) => {
+app.post('/api/backup/restore/:backupId', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     const { backupId } = req.params;
     console.log(`🔄 Restoring persistent backup: ${backupId}`);
@@ -461,7 +461,7 @@ app.post('/api/backup/restore/:backupId', async (req, res) => {
 });
 
 // Restore latest backup (for admin dashboard)
-app.post('/api/backup/restore', async (req, res) => {
+app.post('/api/backup/restore', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     console.log('🔄 Restoring latest persistent backup...');
     console.log(`🔄 Backup service type:`, typeof railwayBackupService);
@@ -497,7 +497,7 @@ app.post('/api/backup/restore', async (req, res) => {
   }
 });
 
-app.get('/api/backup/stats', async (req, res) => {
+app.get('/api/backup/stats', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     const stats = await railwayBackupService.getStorageStats();
     res.json({
@@ -511,7 +511,7 @@ app.get('/api/backup/stats', async (req, res) => {
 });
 
 // Debug endpoint to inspect backup data
-app.get('/api/backup/debug/:backupId', async (req, res) => {
+app.get('/api/backup/debug/:backupId', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
   try {
     const { backupId } = req.params;
     console.log(`🔍 Debugging backup: ${backupId}`);

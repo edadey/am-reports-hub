@@ -92,7 +92,7 @@ class EmailService {
   async sendPasswordResetEmail(email, resetToken, resetUrl) {
     const mailOptions = {
       from: process.env.SMTP_FROM || 'noreply@amreports.com',
-      to: [email, 'emmanuel.dadey@navigate.uk.com'].join(','),
+      to: email,
       subject: 'Password Reset Request - Navigate Reports Hub',
       html: this.getPasswordResetEmailTemplate(resetUrl, resetToken)
     };
