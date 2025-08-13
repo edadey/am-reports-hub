@@ -187,7 +187,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                 </svg>
               </button>
-              <div class="flex items-center gap-1">
+              <div class="flex items-center gap-1 cursor-pointer" onclick="toggleAutoRefresh()" title="Toggle auto-refresh">
                 <span id="autoRefreshStatus" class="text-green-600">●</span>
                 <span id="autoRefreshText">Auto-refresh on</span>
               </div>
@@ -1045,6 +1045,11 @@
         setupEventListeners();
         populateTemplateSelect();
         
+        // Apply auto-refresh preference
+        const stored = localStorage.getItem('autoRefreshEnabled');
+        const enabled = stored === null ? getAutoRefreshDefault() : stored === 'true';
+        if (enabled && currentTab === 'colleges') startAutoRefresh(); else stopAutoRefresh();
+
         console.log('App initialization complete');
       } catch (error) {
         console.error('Error initializing app:', error);
@@ -1103,8 +1108,10 @@
         showCollegesLoading();
         // Reload colleges data when colleges tab is shown
         loadColleges();
-        // Start auto-refresh for colleges
-        startAutoRefresh();
+        // Start/pause auto-refresh based on preference
+        const stored = localStorage.getItem('autoRefreshEnabled');
+        const enabled = stored === null ? getAutoRefreshDefault() : stored === 'true';
+        if (enabled) startAutoRefresh(); else stopAutoRefresh();
               } else if (tabName === 'dashboard') {
           // Reload dashboard data when dashboard tab is shown
           stopAutoRefresh(); // Stop auto-refresh when switching to other tabs
@@ -1525,19 +1532,19 @@
         clearInterval(autoRefreshInterval);
       }
       
-      // Set up auto-refresh every 30 seconds
+      // Set up auto-refresh every 5 minutes
       autoRefreshInterval = setInterval(async () => {
         console.log('🔄 Auto-refreshing college data...');
         await loadColleges();
-      }, 30000); // 30 seconds
+      }, 300000); // 5 minutes
       
-      console.log('✅ Auto-refresh started (30 second interval)');
+      console.log('✅ Auto-refresh started (5 minute interval)');
       
       // Update visual indicators
       const statusIndicator = document.getElementById('autoRefreshStatus');
       const statusText = document.getElementById('autoRefreshText');
       if (statusIndicator) statusIndicator.className = 'text-green-600';
-      if (statusText) statusText.textContent = 'Auto-refresh on';
+      if (statusText) statusText.textContent = 'Auto-refresh on (5m)';
     }
 
     function stopAutoRefresh() {
@@ -1546,6 +1553,23 @@
         autoRefreshInterval = null;
         console.log('⏹️ Auto-refresh stopped');
       }
+
+// Auto-refresh toggle with persistence (default off in production)
+function getAutoRefreshDefault() {
+  const isProd = location.hostname.includes('railway.app');
+  return isProd ? false : true;
+}
+
+function toggleAutoRefresh() {
+  const enabled = localStorage.getItem('autoRefreshEnabled') === 'true';
+  const newValue = !enabled;
+  localStorage.setItem('autoRefreshEnabled', String(newValue));
+  if (newValue) {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
+}
       
       // Update visual indicators
       const statusIndicator = document.getElementById('autoRefreshStatus');
@@ -4812,6 +4836,18 @@ let deletedAccountManagers = [];
     // Start auto-refresh when the page loads
     document.addEventListener('DOMContentLoaded', () => {
       startDashboardAutoRefresh();
+      // Pause/Resume colleges auto-refresh on tab visibility changes
+      document.addEventListener('visibilitychange', () => {
+        const stored = localStorage.getItem('autoRefreshEnabled');
+        const enabled = stored === null ? getAutoRefreshDefault() : stored === 'true';
+        if (document.hidden) {
+          stopAutoRefresh();
+          console.log('Colleges auto-refresh paused (page hidden)');
+        } else if (currentTab === 'colleges' && enabled) {
+          startAutoRefresh();
+          console.log('Colleges auto-refresh resumed (page visible)');
+        }
+      });
     });
 
     // Stop auto-refresh when page becomes hidden (user switches tabs)

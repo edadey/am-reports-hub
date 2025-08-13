@@ -289,10 +289,9 @@
                 
                 if (data.success) {
                     showToast('Backup created successfully!');
-                    // Refresh the page after a short delay to show updated data
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                    // Refresh in-place: reload backups and system info
+                    await loadBackups();
+                    await loadSystemData();
                 } else {
                     showToast('Failed to create backup', 'error');
                 }
