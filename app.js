@@ -117,6 +117,7 @@ const VolumeService = require('./src/services/VolumeService');
 const DataPreservationService = require('./src/services/DataPreservationService');
 const CloudBackupService = require('./src/services/CloudBackupService');
 const BackupAPIService = require('./src/services/BackupAPIService');
+const SecurityService = require('./src/services/SecurityService');
 
 // Initialize services
 const volumeService = new VolumeService();
@@ -165,6 +166,7 @@ const railwayBackupService = new Proxy({}, {
 
 const dataPreservationService = new DataPreservationService(volumeService);
 const cloudBackupService = new CloudBackupService();
+const securityService = new SecurityService();
 const dataValidationService = new EnhancedDataValidationService();
 
 // Template data synchronization helper
@@ -337,6 +339,14 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static('public'));
+
+// GDPR: schedule daily cleanup of old security logs and login attempts
+const retentionDays = parseInt(process.env.SECURITY_LOG_RETENTION_DAYS || '90', 10);
+setInterval(() => {
+  securityService.cleanupOldData(retentionDays).catch(() => {});
+}, 24 * 60 * 60 * 1000);
+// Run once on startup as well
+securityService.cleanupOldData(retentionDays).catch(() => {});
 
 // Multer setup for uploads
 const storage = multer.diskStorage({
@@ -693,32 +703,7 @@ app.post('/api/auth/logout', async (req, res) => {
   }
 });
 
-// Debug endpoint to check session state (temporary)
-app.get('/api/debug/sessions', async (req, res) => {
-  try {
-    const sessions = await authService.getSessions();
-    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
-    
-    res.json({
-      totalSessions: sessions.length,
-      hasToken: !!token,
-      tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
-      cookieDomain: req.headers.host,
-      userAgent: req.headers['user-agent'],
-      ip: req.ip,
-      sessions: sessions.map(s => ({
-        id: s.id,
-        userId: s.userId,
-        tokenPreview: s.token.substring(0, 20) + '...',
-        expiresAt: s.expiresAt,
-        isExpired: new Date() > new Date(s.expiresAt)
-      }))
-    });
-  } catch (error) {
-    console.error('Debug sessions error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// Removed insecure debug endpoint /api/debug/sessions
 
 // Debug endpoint to check environment and configuration
 app.get('/api/debug/config', (req, res) => {
@@ -4621,28 +4606,7 @@ app.get('/api/enhanced-analytics/:collegeId/gap-analysis', authService.requireAu
   }
 });
 
-// Debug endpoint to check session state
-app.get('/api/debug/session-state', async (req, res) => {
-  try {
-    const token = req.cookies.token || req.headers.authorization?.replace('Bearer ', '');
-    const sessions = await authService.getSessions();
-    const jwtSecret = process.env.JWT_SECRET ? 'SET' : 'NOT_SET';
-    
-    res.json({
-      token: token ? token.substring(0, 20) + '...' : 'NO_TOKEN',
-      sessionCount: sessions.length,
-      jwtSecret: jwtSecret,
-      sessions: sessions.map(s => ({
-        id: s.id,
-        userId: s.userId,
-        createdAt: s.createdAt,
-        expiresAt: s.expiresAt
-      }))
-    });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
+// Removed insecure debug endpoint /api/debug/session-state
 
 // Debug endpoint to check volume status
 app.get('/api/debug/volume-status', async (req, res) => {
