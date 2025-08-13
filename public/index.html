@@ -3104,7 +3104,8 @@
     }
 
     function editAccountManager(accountManagerId) {
-      const accountManager = accountManagers.find(am => am.id === accountManagerId);
+      // Be robust to id being string/number
+      const accountManager = (accountManagers || []).find(am => String(am.id) === String(accountManagerId));
       if (!accountManager) {
         showStatus('Account manager not found', 'error');
         return;
