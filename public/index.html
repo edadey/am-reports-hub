@@ -1553,29 +1553,28 @@
         autoRefreshInterval = null;
         console.log('⏹️ Auto-refresh stopped');
       }
-
-// Auto-refresh toggle with persistence (default off in production)
-function getAutoRefreshDefault() {
-  const isProd = location.hostname.includes('railway.app');
-  return isProd ? false : true;
-}
-
-function toggleAutoRefresh() {
-  const enabled = localStorage.getItem('autoRefreshEnabled') === 'true';
-  const newValue = !enabled;
-  localStorage.setItem('autoRefreshEnabled', String(newValue));
-  if (newValue) {
-    startAutoRefresh();
-  } else {
-    stopAutoRefresh();
-  }
-}
-      
       // Update visual indicators
       const statusIndicator = document.getElementById('autoRefreshStatus');
       const statusText = document.getElementById('autoRefreshText');
       if (statusIndicator) statusIndicator.className = 'text-gray-400';
       if (statusText) statusText.textContent = 'Auto-refresh off';
+    }
+
+    // Auto-refresh toggle with persistence (default off in production)
+    function getAutoRefreshDefault() {
+      const isProd = location.hostname.includes('railway.app');
+      return isProd ? false : true;
+    }
+
+    function toggleAutoRefresh() {
+      const enabled = localStorage.getItem('autoRefreshEnabled') === 'true';
+      const newValue = !enabled;
+      localStorage.setItem('autoRefreshEnabled', String(newValue));
+      if (newValue) {
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
     }
 
     function updateLastRefreshTime() {
