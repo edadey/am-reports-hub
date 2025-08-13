@@ -17,15 +17,19 @@
 ### Key Controls Implemented
 - Authentication & Access Control
   - JWT-based auth with HTTP-only cookies, `secure` in production.
+  - SameSite=Lax cookies; cookie domain not pinned (host-based).
+  - Sessions are in-memory with 7-day expiry and server-side cleanup.
   - College-level segregation and role-based access.
-  - `ADMIN_DEFAULT_PASSWORD` set securely in Railway.
-  - `JWT_SECRET` set to a strong value in Railway.
+  - Admin surfaces protected: `/admin-dashboard`, all `/api/backup/*`, and `railway-backup-dashboard` require admin.
+  - Demo user automatically disabled in production.
+  - `ADMIN_DEFAULT_PASSWORD` set securely in Railway (2025), and `JWT_SECRET` set to a strong value.
 
 - Security and Logging
   - Insecure debug endpoints removed.
   - Login attempts and security events recorded with IP/user agent.
   - Automated cleanup of logs (`SECURITY_LOG_RETENTION_DAYS`, default 90 days).
   - Brute-force controls: account lockout and IP blocking heuristics.
+  - Password reset emails no longer CC any external address.
 
 - Data Minimisation & Purpose Limitation
   - Reports do not include personal data; analytics are aggregated per college/time.
@@ -40,6 +44,7 @@
   - Production environment with secure cookies and CORS.
   - Railway-managed PostgreSQL (or storage) with secure access.
   - Least-privilege access for staff; access restricted to assigned colleges.
+  - CORS origin and BASE_URL configured via Railway env vars; Railway public domain used by default.
 
 - Accountability & Documentation
   - Internal Privacy Notice published.
