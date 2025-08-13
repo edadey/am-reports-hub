@@ -226,22 +226,7 @@
                 </button>
               </div>
             </div>
-            <div class="flex flex-wrap gap-2">
-              <select id="collegeFilterType" class="border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white min-w-[120px]" onchange="filterColleges()">
-                <option value="all">All Fields</option>
-                <option value="name">College Name</option>
-                <option value="manager">Account Manager</option>
-                <option value="frequency">Report Frequency</option>
-                <option value="location">Location</option>
-                <option value="status">Status</option>
-              </select>
-              <span class="inline-flex items-center bg-blue-50 text-blue-700 px-3 py-2 rounded-lg text-sm font-medium border border-blue-200 select-none">
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M6 8h12M9 12h6M11 16h2" />
-                </svg>
-                Filters
-              </span>
-            </div>
+            
           </div>
 
           <!-- Advanced Filters (Always Visible) -->
@@ -3957,7 +3942,7 @@ let deletedAccountManagers = [];
     
     function filterColleges() {
       const searchTerm = document.getElementById('collegeSearchInput').value.toLowerCase();
-      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
+      const filterType = 'all';
       const tableBody = document.getElementById('collegesTableBody');
       const resultsCount = document.getElementById('searchResultsCount');
       
@@ -4017,7 +4002,7 @@ let deletedAccountManagers = [];
       document.getElementById('clearSearchBtn').classList.add('hidden');
       
       // Reset all advanced filters
-      document.getElementById('collegeFilterType').value = 'all';
+      // filterType removed; default to 'all'
       document.getElementById('managerFilter').value = '';
       document.getElementById('frequencyFilter').value = '';
       document.getElementById('lastReportFilter').value = '';
@@ -4030,7 +4015,7 @@ let deletedAccountManagers = [];
     
     function updateActiveFiltersCount() {
       const searchInput = document.getElementById('collegeSearchInput').value;
-      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
+      const filterType = 'all';
       const managerFilter = document.getElementById('managerFilter').value;
       const frequencyFilter = document.getElementById('frequencyFilter').value;
       const lastReportFilter = document.getElementById('lastReportFilter').value;
@@ -4123,7 +4108,7 @@ let deletedAccountManagers = [];
       
       const preset = {
         searchTerm: document.getElementById('collegeSearchInput').value,
-        filterType: document.getElementById('collegeFilterType').value,
+        filterType: 'all',
         managerFilter: document.getElementById('managerFilter').value,
         frequencyFilter: document.getElementById('frequencyFilter').value,
         lastReportFilter: document.getElementById('lastReportFilter').value,
@@ -4250,7 +4235,7 @@ let deletedAccountManagers = [];
     
     function clearCollegeSearch() {
       document.getElementById('collegeSearchInput').value = '';
-      document.getElementById('collegeFilterType').value = 'all';
+      // filterType removed; default to 'all'
       document.getElementById('searchResultsCount').textContent = 'Showing all colleges';
       
       // Reset to show all colleges
@@ -4262,7 +4247,7 @@ let deletedAccountManagers = [];
     // Missing enhanced filter functions
     function performAdvancedSearch() {
       const searchTerm = document.getElementById('collegeSearchInput').value.toLowerCase();
-      const filterType = (document.getElementById('collegeFilterType')?.value || 'all');
+      const filterType = 'all';
       const managerFilter = document.getElementById('managerFilter').value;
       const frequencyFilter = document.getElementById('frequencyFilter').value;
       const lastReportFilter = document.getElementById('lastReportFilter').value;
@@ -4439,7 +4424,7 @@ let deletedAccountManagers = [];
     function checkForActiveFilters() {
       // Check if any filters are currently active
       const searchInput = document.getElementById('collegeSearchInput')?.value || '';
-      const filterType = document.getElementById('collegeFilterType')?.value || 'all';
+      const filterType = 'all';
       const managerFilter = document.getElementById('managerFilter')?.value || '';
       const frequencyFilter = document.getElementById('frequencyFilter')?.value || '';
       const lastReportFilter = document.getElementById('lastReportFilter')?.value || '';
