@@ -57,11 +57,14 @@
           const c = await axios.get(`/api/shared/colleges/${collegeId}`, { params: { token } });
           if (c.data?.success && c.data.college?.name) {
             collegeNameEl.textContent = c.data.college.name;
+            document.title = c.data.college.name + ' - Data Report';
           } else {
             collegeNameEl.textContent = `College`;
+            document.title = 'College - Data Report';
           }
         } catch (_) {
           collegeNameEl.textContent = `College`;
+          document.title = 'College - Data Report';
         }
       } catch (e) {
         statusEl.innerHTML = '<div class="error">This link is invalid or has expired.</div>';
