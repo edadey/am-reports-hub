@@ -56,14 +56,14 @@
         try {
           const c = await axios.get(`/api/shared/colleges/${collegeId}`, { params: { token } });
           if (c.data?.success && c.data.college?.name) {
-            collegeNameEl.textContent = c.data.college.name;
+            collegeNameEl.textContent = c.data.college.name + ' - Data Report';
             document.title = c.data.college.name + ' - Data Report';
           } else {
-            collegeNameEl.textContent = `College`;
+            collegeNameEl.textContent = 'College - Data Report';
             document.title = 'College - Data Report';
           }
         } catch (_) {
-          collegeNameEl.textContent = `College`;
+          collegeNameEl.textContent = 'College - Data Report';
           document.title = 'College - Data Report';
         }
       } catch (e) {
