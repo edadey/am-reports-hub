@@ -11,7 +11,7 @@
     header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px; }
     h1 { font-size: 20px; margin: 0; }
     .meta { color:#555; font-size: 14px; }
-    .banner { background: #eaf5ff; border: 1px solid #cfe8ff; padding: 10px 12px; border-radius: 8px; margin: 12px 0; font-size: 14px; }
+    /* banner removed per requirement */
     .controls { display:flex; gap:8px; margin: 12px 0; }
     .controls input, .controls select { padding: 8px 10px; border:1px solid #d0d7de; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -41,6 +41,7 @@
       const tableBody = document.getElementById('reports-body');
       const filterInput = document.getElementById('filter');
       const collegeNameEl = document.getElementById('college-name');
+      const reportView = document.getElementById('report-view');
 
       if (!token || !collegeId) {
         statusEl.innerHTML = '<div class="error">Missing token or collegeId.</div>';
@@ -51,7 +52,17 @@
         const v = await axios.get(`/api/shared/validate`, { params: { token } });
         const payload = v.data?.payload;
         if (!v.data.success || !payload) throw new Error('Invalid token');
-        collegeNameEl.textContent = `College ID: ${collegeId}`;
+        // Fetch the actual college name for display
+        try {
+          const c = await axios.get(`/api/shared/colleges/${collegeId}`, { params: { token } });
+          if (c.data?.success && c.data.college?.name) {
+            collegeNameEl.textContent = c.data.college.name;
+          } else {
+            collegeNameEl.textContent = `College`;
+          }
+        } catch (_) {
+          collegeNameEl.textContent = `College`;
+        }
       } catch (e) {
         statusEl.innerHTML = '<div class="error">This link is invalid or has expired.</div>';
         return;
@@ -78,12 +89,64 @@
             <td><span class="tag">${created}</span></td>
             <td>${r.summary ? r.summary : '<span class="muted">No summary</span>'}</td>
             <td style="text-align:right;">
-              <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}?token=${encodeURIComponent(getQueryParam('token'))}" target="_blank" rel="noopener">View</a>
+              <button class="btn" data-id="${r.id}">View</button>
               <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
             </td>
           `;
           tableBody.appendChild(tr);
         }
+
+        // Attach view handlers
+        Array.from(tableBody.querySelectorAll('button.btn[data-id]')).forEach(btn => {
+          btn.addEventListener('click', () => openReport(btn.dataset.id));
+        });
+      }
+
+      async function openReport(reportId) {
+        try {
+          statusEl.textContent = 'Loading report...';
+          const res = await axios.get(`/api/shared/colleges/${collegeId}/reports/${reportId}`, { params: { token } });
+          const json = res.data;
+          if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
+          renderReport(json.report);
+          statusEl.textContent = '';
+        } catch (e) {
+          statusEl.innerHTML = '<div class="error">Failed to load report.</div>';
+        }
+      }
+
+      function renderReport(report) {
+        // Simple, read-only view similar to dashboard layout
+        const created = new Date(report.createdAt).toLocaleString();
+        const { headers = [], rows = [] } = report.data || {};
+        const tableHead = headers.map(h => `<th>${h}</th>`).join('');
+        const tableRows = rows.map(r => `<tr>${r.map(v => `<td>${(v === null || v === undefined) ? '' : v}</td>`).join('')}</tr>`).join('');
+        const html = `
+          <div class="bg-white rounded-lg shadow p-16" style="padding:16px;margin-top:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+              <div>
+                <h2 style="font-size:20px;margin:0;">${report.name || 'Report'}</h2>
+                <div class="muted" style="margin-top:4px;">Created: ${created}</div>
+                ${report.summary ? `<div class="muted">Summary: ${report.summary}</div>` : ''}
+              </div>
+              <div>
+                <a class="btn" href="/api/shared/colleges/${encodeURIComponent(getQueryParam('collegeId'))}/reports/${encodeURIComponent(report.id)}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
+              </div>
+            </div>
+            <div style="overflow:auto;">
+              <table style="width:100%;border-collapse:collapse;">
+                <thead>
+                  <tr>${tableHead}</tr>
+                </thead>
+                <tbody>
+                  ${tableRows}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `;
+        reportView.innerHTML = html;
+        reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
       filterInput.addEventListener('input', () => {
@@ -109,15 +172,11 @@
 <body>
   <div class="container">
     <header>
-      <h1>AM Reports Hub</h1>
+      <h1 id="college-name">College</h1>
       <div class="pill">View-only access</div>
     </header>
 
-    <div class="banner">
-      This is a view-only link. You can search, filter, and download reports, but editing is disabled.
-    </div>
-
-    <div class="meta" id="college-name">College</div>
+    <div class="meta"></div>
     <div id="status" class="muted" style="margin-top:8px;">Loading...</div>
 
     <div class="controls">
@@ -135,6 +194,8 @@
       </thead>
       <tbody id="reports-body"></tbody>
     </table>
+
+    <div id="report-view"></div>
   </div>
 </body>
 </html>

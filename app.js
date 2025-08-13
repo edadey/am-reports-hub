@@ -1638,6 +1638,26 @@ app.get('/api/shared/colleges/:collegeId/reports', async (req, res) => {
   }
 });
 
+// Public: get college info (name) via share token (no auth)
+app.get('/api/shared/colleges/:collegeId', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    const verification = shareLinkService.verifyShareToken(token);
+    if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    const { collegeId: tokenCollegeId, shareId } = verification.payload;
+    if (await shareLinkService.isRevoked(shareId)) return res.status(403).json({ success: false, error: 'Share link revoked' });
+    if (String(tokenCollegeId) !== String(req.params.collegeId)) return res.status(403).json({ success: false, error: 'Token not valid for this college' });
+    const colleges = await (await getInitializedUserManager()).getColleges();
+    const college = colleges.find(c => c.id === parseInt(req.params.collegeId) || c.id.toString() === String(req.params.collegeId));
+    if (!college) return res.status(404).json({ success: false, error: 'College not found' });
+    res.json({ success: true, college: { id: college.id, name: college.name } });
+  } catch (error) {
+    console.error('Shared get college info error:', error);
+    res.status(500).json({ success: false, error: 'Failed to load college info' });
+  }
+});
+
 // Public: get a single report via share token (no auth)
 app.get('/api/shared/colleges/:collegeId/reports/:reportId', async (req, res) => {
   try {
