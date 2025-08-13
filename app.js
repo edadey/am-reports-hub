@@ -340,6 +340,9 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static('public'));
 
+// Protected internal docs for admins
+app.use('/internal-docs', authService.requireAuth(), authService.requireRole(['admin']), express.static('docs'));
+
 // GDPR: schedule daily cleanup of old security logs and login attempts
 const retentionDays = parseInt(process.env.SECURITY_LOG_RETENTION_DAYS || '90', 10);
 setInterval(() => {
