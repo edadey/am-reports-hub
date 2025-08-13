@@ -1689,7 +1689,7 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     if (String(tokenCollegeId) !== String(req.params.collegeId)) return res.status(403).json({ success: false, error: 'Token not valid for this college' });
     if (!permissions?.download) return res.status(403).json({ success: false, error: 'Download not allowed on this share link' });
 
-    // Reuse the internal excel export logic by loading the report and building workbook here
+    // Build advanced Excel like the internal export route
     const { collegeId, reportId } = req.params;
     const report = await getCollegeReport(parseInt(collegeId), reportId);
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
@@ -1698,24 +1698,185 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const college = colleges.find(c => c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId);
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
 
+    // Load previous report data for change indicators
+    let previousData = null;
+    try {
+      const reports = await getCollegeReports(parseInt(collegeId));
+      if (reports && reports.length > 0) {
+        const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
+        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
+          const previousReport = sortedReports[currentReportIndex + 1];
+          previousData = previousReport.data;
+        }
+      }
+    } catch (_) {
+      previousData = await getPreviousReportData(parseInt(collegeId));
+    }
+
+    // Create Excel workbook with formatting
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report Data');
     const { headers, rows } = report.data;
+
+    // Add report metadata
     worksheet.getCell('A1').value = `Report: ${report.name}`;
     worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.getCell('A1').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6F3FF' } };
     worksheet.getCell('A2').value = `Generated: ${new Date(report.createdAt).toLocaleString()}`;
-    let startRow = 4;
+    worksheet.getCell('A2').font = { size: 10, color: { argb: 'FF666666' } };
+
+    // Prepare header colouring (match UI)
+    function getColumnSection(header) {
+      const SECTION_COLORS_EXCEL = {
+        placements: 'FFDBEAFE',
+        assessments: 'FFBBF7D0',
+        careers: 'FFFEF3C7',
+        activities: 'FFFEF3C7',
+        enrichment: 'FFBFDBFE',
+        employment: 'FFF3E8FF',
+        targets: 'FFFCE7F3',
+        login: 'FFE0E7FF',
+        default: 'FFF3F4F6'
+      };
+      const h = (header || '').toLowerCase();
+      if (header === 'Department') return { section: 'Department', color: 'FFFEF3C7' };
+      if (h.includes('placements') || h.includes('placed') || h.includes('scheduled to date')) return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
+      if (h.includes('enrichment')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
+      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('career') || h.includes('quiz') || h.includes('job profile') || h.includes('mapped')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
+      if (h.includes('assessment') || h.includes('score') || h.includes('students without') || h.includes('assessed')) return { section: 'assessments', color: SECTION_COLORS_EXCEL.assessments };
+      if (h.includes('activity') || (h.includes('hours') && !h.includes('scheduled'))) return { section: 'activities', color: SECTION_COLORS_EXCEL.activities };
+      if (h.includes('target') || h.includes('goal')) return { section: 'targets', color: SECTION_COLORS_EXCEL.targets };
+      if (h.includes('login') || h.includes('access')) return { section: 'login', color: SECTION_COLORS_EXCEL.login };
+      return { section: 'default', color: SECTION_COLORS_EXCEL.default };
+    }
+
+    // Build complete headers with change cols
+    let completeHeaders = [];
+    let changeColumnMap = new Map();
+    headers.forEach((header, colIndex) => {
+      completeHeaders.push(header);
+      if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+        const changeHeader = `${header} +/-`;
+        completeHeaders.push(changeHeader);
+        changeColumnMap.set(colIndex, completeHeaders.length - 1);
+      }
+    });
+
+    const dataStartRow = (report.summary && report.summary.trim() !== '' && report.summary !== 'No summary provided') ? 5 : 4;
     if (report.summary && report.summary.trim() !== '' && report.summary !== 'No summary provided') {
       worksheet.getCell('A3').value = `Summary: ${report.summary}`;
-      startRow = 5;
+      worksheet.getCell('A3').font = { size: 10, color: { argb: 'FF666666' } };
     }
-    // Headers
-    headers.forEach((h, i) => worksheet.getCell(startRow, i + 1).value = h);
-    // Rows
-    rows.forEach((r, ri) => r.forEach((v, ci) => worksheet.getCell(startRow + 1 + ri, ci + 1).value = v));
+
+    // Set header values and style
+    worksheet.getRow(dataStartRow).values = completeHeaders;
+    completeHeaders.forEach((header, index) => {
+      const cell = worksheet.getCell(dataStartRow, index + 1);
+      const isChange = header.endsWith(' +/-');
+      const baseHeader = isChange ? header.replace(' +/-', '') : header;
+      const sectionInfo = getColumnSection(baseHeader);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sectionInfo.color } };
+      cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 11, name: 'Arial' };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = { top: { style: 'thick', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thick', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
+    });
+
+    // Column widths
+    completeHeaders.forEach((header, index) => { worksheet.getColumn(index + 1).width = Math.max(header.length + 5, 15); });
+
+    // Data rows with formatting
+    rows.forEach((row, rowIndex) => {
+      const dataRow = worksheet.getRow(dataStartRow + 1 + rowIndex);
+      let colIndex = 0;
+      headers.forEach((header, originalColIndex) => {
+        const value = row[originalColIndex];
+        const cell = dataRow.getCell(colIndex + 1);
+        cell.value = (value === undefined || value === null) ? '' : value;
+        cell.alignment = { horizontal: 'left', vertical: 'middle' };
+        cell.font = { size: 10, name: 'Arial', color: { argb: 'FF111827' } };
+        if (typeof value === 'number') {
+          if (value < 1 && value > 0) cell.numFmt = '0.00%';
+          else if (value % 1 !== 0) cell.numFmt = '0.00';
+          else cell.numFmt = '0';
+        }
+        if ((header.toLowerCase().includes('percent') || header.includes('%')) && typeof value === 'number' && value >= 0 && value <= 1) {
+          cell.value = value;
+          cell.numFmt = '0.00%';
+        }
+        if (rowIndex % 2 === 1 && !(header.toLowerCase().includes('percent') || header.includes('%'))) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+        }
+        cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
+        colIndex++;
+        if (changeColumnMap.has(originalColIndex)) {
+          const changeCell = dataRow.getCell(colIndex + 1);
+          const changeValue = calculateChange(value, previousData, rowIndex, originalColIndex);
+          if (changeValue !== null) {
+            changeCell.value = changeValue;
+            if (changeValue > 0) { changeCell.font = { color: { argb: 'FF2E7D32' }, bold: true, size: 10 }; changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E8' } }; }
+            else if (changeValue < 0) { changeCell.font = { color: { argb: 'FFC62828' }, bold: true, size: 10 }; changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } }; }
+            else { changeCell.font = { color: { argb: 'FFE65100' }, bold: true, size: 10 }; changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } }; }
+            if (header.toLowerCase().includes('percent') || header.includes('%')) changeCell.numFmt = '+0.00%;-0.00%;0.00%'; else changeCell.numFmt = '+0.00;-0.00;0.00';
+          } else {
+            changeCell.value = '';
+            changeCell.font = { color: { argb: 'FF666666' }, bold: true, size: 10 };
+            changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+          }
+          changeCell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
+          colIndex++;
+        }
+      });
+    });
+
+    // Add data bars for percentage columns
+    headers.forEach((header, colIndex) => {
+      if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+        // Compute position in complete headers with change columns inserted before
+        let actualColIndex = colIndex;
+        for (let i = 0; i < colIndex; i++) {
+          if (headers[i] !== 'Department' && (headers[i].toLowerCase().includes('percent') || headers[i].includes('%') || !isNaN(parseFloat('0')))) {
+            actualColIndex++;
+          }
+        }
+        const columnLetter = worksheet.getColumn(actualColIndex + 1).letter;
+        const dataRange = `${columnLetter}${dataStartRow + 1}:${columnLetter}${dataStartRow + rows.length}`;
+        worksheet.addConditionalFormatting({ ref: dataRange, rules: [{ type: 'dataBar', cfvo: [{ type: 'min' }, { type: 'max' }], color: { argb: 'FF22C55E' }, showValue: true }] });
+      }
+    });
+
+    // Totals row
+    if (rows.length > 1) {
+      const totalsRow = worksheet.getRow(dataStartRow + 1 + rows.length);
+      let colIndex = 0;
+      headers.forEach((header, originalColIndex) => {
+        const cell = totalsRow.getCell(colIndex + 1);
+        if (originalColIndex === 0) { cell.value = 'TOTAL'; cell.font = { bold: true }; }
+        else if (header.toLowerCase().includes('department')) { cell.value = ''; }
+        else {
+          let total = 0, hasValid = false;
+          rows.forEach(row => { if (row[originalColIndex] !== '' && row[originalColIndex] !== null && !isNaN(parseFloat(row[originalColIndex]))) { total += parseFloat(row[originalColIndex]); hasValid = true; } });
+          if (hasValid) {
+            if (header.toLowerCase().includes('percent') || header.includes('%')) { const validRows = rows.filter(r => r[originalColIndex] !== '' && r[originalColIndex] !== null && !isNaN(parseFloat(r[originalColIndex]))); const average = validRows.length > 0 ? total / validRows.length : 0; cell.value = average; cell.numFmt = '0.00%'; cell.font = { bold: true }; }
+            else { cell.value = total; cell.numFmt = (header.toLowerCase().includes('score') ? '0.00' : '0'); cell.font = { bold: true }; }
+          } else { cell.value = ''; }
+        }
+        if (!(header.toLowerCase().includes('percent') || header.includes('%'))) { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } }; cell.font = { bold: true, color: { argb: 'FF666666' } }; }
+        cell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
+        colIndex++;
+        if (changeColumnMap.has(originalColIndex)) { const changeCell = totalsRow.getCell(colIndex + 1); changeCell.value = ''; changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } }; changeCell.font = { bold: true, color: { argb: 'FF1565C0' } }; changeCell.border = { top: { style: 'thin', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thin', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } }; colIndex++; }
+      });
+    }
+
+    // File name
+    const safeReportName = report.name.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+    const safeCollegeName = collegeName.replace(/\s+/g, '_');
+    const cleanReportName = safeReportName.replace(new RegExp(safeCollegeName, 'gi'), '').trim();
+    const filename = `${safeCollegeName}_${cleanReportName}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${collegeName}-${report.name}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     await workbook.xlsx.write(res);
     res.end();
   } catch (error) {
