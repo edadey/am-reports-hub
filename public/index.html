@@ -1204,6 +1204,8 @@
         
         displayAccountManagers();
         updateAccountManagerSelects();
+        // Ensure the Colleges tab advanced filter dropdown is populated
+        populateManagerFilter();
       } catch (error) {
         showStatus('Error loading account managers: ' + error.message, 'error');
       }
