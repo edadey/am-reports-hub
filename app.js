@@ -329,6 +329,36 @@ const shareLinkService = new ShareLinkService();
 // Enable cloud backup API service
 // const backupAPIService = new BackupAPIService(app, authService);
 
+// Environment and debug middleware configuration
+const isProduction = process.env.NODE_ENV === 'production';
+const debugMiddlewares = isProduction ? [authService.requireAuth(), authService.requireRole(['admin'])] : [];
+
+// Runtime security checks (production only)
+(async () => {
+  if (isProduction) {
+    try {
+      const users = await authService.getUsers();
+      const adminUser = users.find(u => u.username === 'admin');
+      const fallbackPwd = process.env.ADMIN_DEFAULT_PASSWORD || 'admin123';
+      if (adminUser) {
+        const bcrypt = require('bcryptjs');
+        const matchesDefault = await bcrypt.compare(fallbackPwd, adminUser.password);
+        if (matchesDefault) {
+          console.warn('⚠️ SECURITY WARNING: Admin password matches default fallback. Set a strong ADMIN_DEFAULT_PASSWORD and reset the admin password.');
+        }
+      }
+      if (!process.env.JWT_SECRET || process.env.JWT_SECRET.includes('your-super-secret') || process.env.JWT_SECRET.length < 24) {
+        console.warn('⚠️ SECURITY WARNING: JWT_SECRET is missing or weak. Set a strong secret in production.');
+      }
+      if (!process.env.CORS_ORIGIN) {
+        console.warn('⚠️ SECURITY WARNING: CORS_ORIGIN is not set. Restrict it to your production origin.');
+      }
+    } catch (e) {
+      console.warn('⚠️ SECURITY CHECKS FAILED:', e.message);
+    }
+  }
+})();
+
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
@@ -711,7 +741,7 @@ app.post('/api/auth/logout', async (req, res) => {
 // Removed insecure debug endpoint /api/debug/sessions
 
 // Debug endpoint to check environment and configuration
-app.get('/api/debug/config', (req, res) => {
+app.get('/api/debug/config', ...debugMiddlewares, (req, res) => {
   res.json({
     nodeEnv: process.env.NODE_ENV,
     port: process.env.PORT,
@@ -1040,7 +1070,7 @@ app.get('/api/auth/me', authService.requireAuth(), async (req, res) => {
 });
 
 // Debug endpoint to check authentication status
-app.get('/api/auth/debug', async (req, res) => {
+app.get('/api/auth/debug', ...debugMiddlewares, async (req, res) => {
   try {
     const token = req.cookies?.token || req.headers.authorization?.replace('Bearer ', '');
     console.log('🔍 Debug auth - Token present:', !!token);
@@ -1071,7 +1101,7 @@ app.get('/api/auth/debug', async (req, res) => {
 });
 
 // Debug endpoint to check reports for a college
-app.get('/api/debug/reports/:collegeId', async (req, res) => {
+app.get('/api/debug/reports/:collegeId', ...debugMiddlewares, async (req, res) => {
   try {
     const { collegeId } = req.params;
     console.log(`🔍 Debug reports for college ${collegeId}...`);
@@ -1118,7 +1148,7 @@ app.get('/api/debug/reports/:collegeId', async (req, res) => {
 });
 
 // Debug endpoint to test data validation service
-app.post('/api/debug/validate-template', async (req, res) => {
+app.post('/api/debug/validate-template', ...debugMiddlewares, async (req, res) => {
   try {
     console.log('🔍 Testing template validation...');
     console.log('📄 Received data:', {
@@ -4068,8 +4098,8 @@ app.post('/api/colleges/:collegeId/generate-kpis', authService.requireAuth(), as
   }
 });
 
-// Temporary debug endpoint for KPI generation (bypasses authentication)
-app.post('/api/debug/colleges/:collegeId/generate-kpis', async (req, res) => {
+// Temporary debug endpoint for KPI generation (secured in production)
+app.post('/api/debug/colleges/:collegeId/generate-kpis', ...debugMiddlewares, async (req, res) => {
   try {
     const { collegeId } = req.params;
     console.log('DEBUG: Generating AI KPIs for college:', collegeId);
@@ -4929,7 +4959,7 @@ app.get('/api/enhanced-analytics/:collegeId/gap-analysis', authService.requireAu
 // Removed insecure debug endpoint /api/debug/session-state
 
 // Debug endpoint to check volume status
-app.get('/api/debug/volume-status', async (req, res) => {
+app.get('/api/debug/volume-status', ...debugMiddlewares, async (req, res) => {
   try {
     const volumeStatus = volumeService.getStatus();
     const dataFiles = await volumeService.listFiles('');
@@ -4945,7 +4975,7 @@ app.get('/api/debug/volume-status', async (req, res) => {
 });
 
 // Debug endpoint to check Railway backup status
-app.get('/api/debug/railway-backup-status', async (req, res) => {
+app.get('/api/debug/railway-backup-status', ...debugMiddlewares, async (req, res) => {
   try {
     const backupStats = await railwayBackupService.getStorageStats();
     const backups = await railwayBackupService.listBackups();
@@ -4968,7 +4998,7 @@ app.get('/api/debug/railway-backup-status', async (req, res) => {
 });
 
 // Temporary debug endpoint to restore college data
-app.post('/api/debug/restore-colleges', async (req, res) => {
+app.post('/api/debug/restore-colleges', ...debugMiddlewares, async (req, res) => {
   try {
     console.log('🔄 Restoring college data via debug endpoint...');
     
