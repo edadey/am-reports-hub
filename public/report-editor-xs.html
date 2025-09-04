@@ -61,20 +61,97 @@
     // Spreadsheet instance
     let spreadsheet = null;
 
+    // Define styles for different sections (matching the dashboard)
+    function getSectionColor(header) {
+      const headerLower = header.toLowerCase();
+      
+      if (headerLower.includes('(enrichment)') || headerLower.includes('enrichment')) {
+        return { bgcolor: '#bfdbfe', color: '#1e3a8a' }; // Blue
+      }
+      if (headerLower.includes('(employer)') || (headerLower.includes('employer') && headerLower.includes('activit'))) {
+        return { bgcolor: '#f3e8ff', color: '#6b21a8' }; // Purple
+      }
+      if (headerLower.includes('(placements)') || headerLower.includes('placement') || headerLower.includes('placed')) {
+        return { bgcolor: '#dbeafe', color: '#1e40af' }; // Light blue
+      }
+      if (headerLower.includes('(careers)') || headerLower.includes('career') || headerLower.includes('quiz')) {
+        return { bgcolor: '#fef3c7', color: '#92400e' }; // Yellow
+      }
+      if (headerLower.includes('(assessments)') || headerLower.includes('assessment')) {
+        return { bgcolor: '#bbf7d0', color: '#14532d' }; // Green
+      }
+      if (headerLower.includes('(targets)') || headerLower.includes('target')) {
+        return { bgcolor: '#fce7f3', color: '#be185d' }; // Pink
+      }
+      if (headerLower.includes('(login)') || headerLower.includes('login')) {
+        return { bgcolor: '#e0e7ff', color: '#3730a3' }; // Indigo
+      }
+      
+      return { bgcolor: '#f3f4f6', color: '#374151' }; // Default gray
+    }
+
+    function getPercentageColor(value) {
+      const numValue = parseFloat(value);
+      if (isNaN(numValue)) return { bgcolor: '#ffffff', color: '#000000' };
+      
+      if (numValue < 0.4) {
+        return { bgcolor: '#ffebee', color: '#c62828' }; // Light red background
+      } else if (numValue >= 0.4 && numValue <= 0.7) {
+        return { bgcolor: '#fff3e0', color: '#e65100' }; // Light orange background
+      } else {
+        return { bgcolor: '#e8f5e8', color: '#2e7d32' }; // Light green background
+      }
+    }
+
     function toXSheetData(headers, rows) {
       const allRows = [headers, ...rows];
       const rowsObj = {};
+      
       for (let r = 0; r < allRows.length; r++) {
         const row = allRows[r] || [];
-        const cells = {};
+        const cellsRow = {};
+        
         for (let c = 0; c < row.length; c++) {
           const val = row[c];
-          // Keep it simple: just text; x-spreadsheet defaults to dark text on white
-          cells[c] = { text: val == null ? '' : String(val) };
+          
+          // Create cell data with styling
+          const cellData = { 
+            text: val == null ? '' : String(val)
+          };
+          
+          if (r === 0) {
+            // Header row - apply section colors
+            const sectionColor = getSectionColor(val || '');
+            cellData.style = {
+              bgcolor: sectionColor.bgcolor,
+              color: sectionColor.color,
+              font: { bold: true, size: 12 },
+              align: 'center'
+            };
+          } else {
+            // Data rows - apply percentage colors for percentage columns
+            const header = headers[c] || '';
+            if ((header.toLowerCase().includes('percent') || header.includes('%')) && 
+                typeof val === 'number' && val >= 0 && val <= 1) {
+              const percentColor = getPercentageColor(val);
+              cellData.style = {
+                bgcolor: percentColor.bgcolor,
+                color: percentColor.color,
+                font: { size: 10 },
+                align: 'center'
+              };
+            }
+          }
+          
+          cellsRow[c] = cellData;
         }
-        rowsObj[r] = { cells };
+        rowsObj[r] = { cells: cellsRow };
       }
-      return [{ name: 'Report', rows: rowsObj }];
+      
+      return [{
+        name: 'Report',
+        rows: rowsObj
+      }];
     }
 
     function fromXSheet() {
@@ -122,6 +199,12 @@
           const { headers = [], rows = [] } = json.report.data;
           const data = toXSheetData(headers, rows);
           spreadsheet.loadData(data);
+          
+          // Apply formatting after data loads
+          setTimeout(() => {
+            applyFormattingToSpreadsheet(headers, rows);
+          }, 100);
+          
           setStatus('Loaded');
           return;
         } catch (e) {

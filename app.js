@@ -2293,7 +2293,15 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     // Set column widths for complete headers
     completeHeaders.forEach((header, index) => {
       const column = worksheet.getColumn(index + 1);
-      column.width = Math.max(header.length + 5, 15);
+      
+      // Make +/- change columns much narrower
+      if (header.endsWith(' +/-')) {
+        column.width = 8; // Much narrower for change indicators
+      } else if (header === 'Department') {
+        column.width = 35; // Wide enough for full department names
+      } else {
+        column.width = Math.max(header.length + 5, 15);
+      }
     });
     
     // Add data rows with change indicators
@@ -2594,12 +2602,44 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     
     // Set column widths for percentage columns
     completeHeaders.forEach((header, colIndex) => {
-      if (header && (header.toLowerCase().includes('percent') || header.includes('%')) && !header.endsWith(' +/-')) {
+      const column = worksheet.getColumn(colIndex + 1);
+      
+      if (header.endsWith(' +/-')) {
+        // Keep +/- columns very narrow
+        column.width = 8;
+      } else if (header === 'Department') {
+        // Keep Department column wide
+        column.width = 35;
+      } else if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
         console.log(`📊 Setting width for percentage column: ${header} (${worksheet.getColumn(colIndex + 1).letter})`);
+        // Set wider columns for percentage data to accommodate bars
+        column.width = Math.max(column.width, 25);
+      }
+    });
+    
+    // Add data bars for percentage columns to main export function
+    completeHeaders.forEach((header, colIndex) => {
+      if (header && (header.toLowerCase().includes('percent') || header.includes('%')) && !header.endsWith(' +/-')) {
+        const columnLetter = worksheet.getColumn(colIndex + 1).letter;
+        const dataRange = `${columnLetter}${dataStartRow + 1}:${columnLetter}${dataStartRow + rows.length}`;
+        console.log(`📊 Adding data bars to column ${columnLetter} (${header}) for range ${dataRange}`);
         
-        // Set column width for percentage columns
-        const column = worksheet.getColumn(colIndex + 1);
-        column.width = Math.max(column.width, 25); // Wider columns for better display
+        try {
+          worksheet.addConditionalFormatting({
+            ref: dataRange,
+            rules: [{
+              type: 'dataBar',
+              cfvo: [
+                { type: 'num', value: 0 }, // Fixed minimum at 0%
+                { type: 'num', value: 1 }  // Fixed maximum at 100%
+              ],
+              color: { argb: 'FF3B82F6' }, // Blue data bars
+              showValue: true
+            }]
+          });
+        } catch (error) {
+          console.error(`Failed to add data bars for column ${header}:`, error);
+        }
       }
     });
     

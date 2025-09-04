@@ -55,9 +55,35 @@ class ShareLinkService {
     }
   }
 
-  async createShareLink({ collegeId, expiresInHours = 168, allowDownload = true, createdByUser = null, live = false }) {
+  async createShareLink({ collegeId, reportId = null, expiresInHours = 168, allowDownload = true, createdByUser = null, live = false }) {
     const shares = await this.readShares();
-    const shareId = Date.now().toString();
+    
+    // Create deterministic shareId for permanent college links
+    const shareId = `college-${collegeId}-permanent`;
+      
+    // Check if permanent link already exists for this college
+    const existingShare = shares.shares.find(s => s.shareId === shareId && !s.revoked);
+    if (existingShare) {
+      // Reuse existing permanent link
+      const token = this.generateShareToken({
+        shareId: existingShare.shareId,
+        collegeId: existingShare.collegeId,
+        scope: existingShare.scope,
+        permissions: existingShare.permissions
+      }, live ? undefined : `${expiresInHours}h`);
+      
+      const baseUrl = process.env.BASE_URL || '';
+      const url = `${baseUrl}/shared-reports.html?collegeId=${encodeURIComponent(collegeId)}&token=${encodeURIComponent(token)}`;
+      return { 
+        token, 
+        url, 
+        shareId: existingShare.shareId, 
+        expiresAt: existingShare.expiresAt, 
+        permissions: existingShare.permissions,
+        reused: true 
+      };
+    }
+    
     const record = {
       shareId,
       collegeId,

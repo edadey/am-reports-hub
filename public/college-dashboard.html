@@ -1141,12 +1141,6 @@
               <label for="shareLiveToggle" class="text-sm text-gray-600">Live</label>
               <input id="shareLiveToggle" type="checkbox" class="h-4 w-4">
             </div>
-            <button id="copyShareLinkBtn" class="p-2 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors" title="Copy live/share link">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                <path d="M8 2a2 2 0 00-2 2v8a2 2 0 002 2h5a2 2 0 002-2V7.414a2 2 0 00-.586-1.414l-3.414-3.414A2 2 0 009.586 2H8z" />
-                <path d="M3 8a2 2 0 012-2h1v2H5v8h6v1a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
-              </svg>
-            </button>
             <button id="createShareLinkBtn" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors duration-200 font-medium shadow-sm touch-button">
               Create Share Link
             </button>
@@ -3090,7 +3084,6 @@
     function initShareControls() {
       const toggle = document.getElementById('shareLiveToggle');
       const btn = document.getElementById('createShareLinkBtn');
-      const copyBtn = document.getElementById('copyShareLinkBtn');
       const collegeId = getCollegeId();
 
       // Load saved state from sessionStorage so it persists during session
@@ -3182,19 +3175,6 @@
         }
       });
 
-      copyBtn.addEventListener('click', async () => {
-        try {
-          const url = btn.dataset.url || activeShare?.url;
-          if (!url) {
-            showNotification('No share link available yet. Create one first.', 'error');
-            return;
-          }
-          await navigator.clipboard.writeText(url).catch(() => {});
-          showNotification('Share link copied to clipboard', 'success');
-        } catch (err) {
-          showNotification('Failed to copy link', 'error');
-        }
-      });
     }
     // Update reports table in Reports tab
     function updateReportsTable() {
@@ -3222,41 +3202,52 @@
 
     // Display report in the page (not modal)
     function displayReportInPage(report) {
-      // Create report display section
+      // Create full-width report display section that breaks out of container
       const reportSectionHTML = `
-        <div id="reportDisplaySection" class="bg-white rounded-lg shadow p-6 mb-6">
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <div class="flex-1">
-              <h2 class="text-xl sm:text-2xl font-semibold text-gray-900">${report.name}</h2>
-              <p class="text-sm text-gray-600 mt-1">Created: ${new Date(report.createdAt).toLocaleString()}</p>
-              <p class="text-sm text-gray-600">Summary: ${report.summary}</p>
+        <div id="reportDisplaySection" class="fixed inset-0 bg-white z-50 overflow-auto">
+          <div class="w-full p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+              <div class="flex-1">
+                <h2 class="text-xl sm:text-2xl font-semibold text-gray-900">${report.name}</h2>
+                <p class="text-sm text-gray-600 mt-1">Created: ${new Date(report.createdAt).toLocaleString()}</p>
+                ${report.summary && report.summary.trim() && !report.summary.toLowerCase().includes('no summary') ? `<p class="text-sm text-gray-600">Summary: ${report.summary}</p>` : ''}
+              </div>
+              <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                <div class="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-2">
+                  <input type="checkbox" id="departmentStickyToggle" checked onchange="toggleDepartmentSticky()" class="h-4 w-4">
+                  <label for="departmentStickyToggle" class="text-sm text-gray-600">Fix Department Column</label>
+                </div>
+                <div class="flex items-center gap-1 border border-gray-300 rounded-md px-3 py-2">
+                  <button onclick="adjustZoom(-10)" class="text-gray-600 hover:text-gray-800 px-2 py-1 text-sm font-bold">-</button>
+                  <span id="zoomLevel" class="text-sm text-gray-600 min-w-12 text-center">100%</span>
+                  <button onclick="adjustZoom(10)" class="text-gray-600 hover:text-gray-800 px-2 py-1 text-sm font-bold">+</button>
+                  <button onclick="resetZoom()" class="text-gray-500 hover:text-gray-700 px-2 py-1 text-xs">Reset</button>
+                </div>
+                <button onclick="downloadReport('${report.id}')" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm text-sm">
+                  Download Excel
+                </button>
+                <button onclick="closeReportDisplay()" class="bg-gray-500 text-white px-3 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm text-sm">
+                  Close
+                </button>
+              </div>
             </div>
-            <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-              <button onclick="downloadReport('${report.id}')" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm text-sm">
-                Download Excel
-              </button>
-              <button onclick="closeReportDisplay()" class="bg-gray-500 text-white px-3 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm text-sm">
-                Close
-              </button>
-            </div>
-          </div>
-          <div id="reportDataContainer" class="overflow-x-auto">
-            <div class="text-center py-8">
-              <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-              <p class="mt-2 text-gray-600">Loading report data...</p>
+            <div id="reportDataContainer" class="overflow-x-auto">
+              <div class="text-center py-8">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-2 text-gray-600">Loading report data...</p>
+              </div>
             </div>
           </div>
         </div>
       `;
 
-      // Insert the report section at the top of the reports tab
-      const reportsTab = document.getElementById('reports');
+      // Insert the report section into the body to break out of container
       const existingSection = document.getElementById('reportDisplaySection');
       if (existingSection) {
         existingSection.remove();
       }
       
-      reportsTab.insertAdjacentHTML('afterbegin', reportSectionHTML);
+      document.body.insertAdjacentHTML('beforeend', reportSectionHTML);
 
       // Load report data
       loadReportData(report.id);
@@ -3587,7 +3578,9 @@
         const isChangeColumn = h.endsWith(' +/-');
         const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
         const sectionInfo = getColumnSection(originalHeader);
-        const sticky = originalHeader === 'Department' ? 'position: sticky; left: 0; top: 0; z-index: 5; min-width: 260px; background: #fff;' : '';
+        const toggle = document.getElementById('departmentStickyToggle');
+        const isSticky = toggle ? toggle.checked : true;
+        const sticky = originalHeader === 'Department' && isSticky ? 'position: sticky; left: 0; top: 0; z-index: 5; min-width: 260px; background: #fff;' : '';
         return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider border-r border-gray-200 ${sectionInfo.color}" style="${sectionInfo.inlineColor}${sticky}">${h}</th>`;
       }).join('');
       
@@ -3679,7 +3672,9 @@
           }
           
           // Add the main data cell
-          const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : '';
+          const toggle = document.getElementById('departmentStickyToggle');
+          const isSticky = toggle ? toggle.checked : true;
+          const sticky = originalColIdx === 0 && isSticky ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : '';
           completeRowCells.push(`
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 border-r border-gray-100 ${cellAlignment}" style="${sticky}">
               <div>${displayValue}</div>
@@ -3803,6 +3798,41 @@
       `;
 
       container.innerHTML = tableHTML;
+      
+      // Apply initial sticky styling to department column
+      setTimeout(() => applyInitialDepartmentSticky(), 100);
+    }
+
+    // Apply initial sticky styling to all department elements after table render
+    function applyInitialDepartmentSticky() {
+      const toggle = document.getElementById('departmentStickyToggle');
+      if (!toggle || !toggle.checked) return;
+      
+      // Apply to headers
+      const departmentHeaders = document.querySelectorAll('#reportDataContainer th');
+      departmentHeaders.forEach(header => {
+        if (header.textContent.includes('Department')) {
+          header.style.setProperty('position', 'sticky', 'important');
+          header.style.setProperty('left', '0', 'important');
+          header.style.setProperty('top', '0', 'important');
+          header.style.setProperty('z-index', '5', 'important');
+          header.style.setProperty('min-width', '260px', 'important');
+          header.style.setProperty('background', '#fff', 'important');
+        }
+      });
+      
+      // Apply to all first column cells (department cells)
+      const tableRows = document.querySelectorAll('#reportDataContainer tr');
+      tableRows.forEach(row => {
+        const firstCell = row.children[0];
+        if (firstCell && firstCell.tagName === 'TD') {
+          firstCell.style.setProperty('position', 'sticky', 'important');
+          firstCell.style.setProperty('left', '0', 'important');
+          firstCell.style.setProperty('z-index', '2', 'important');
+          firstCell.style.setProperty('background', '#fff', 'important');
+          firstCell.style.setProperty('min-width', '260px', 'important');
+        }
+      });
     }
 
     // Close report display
@@ -4996,6 +5026,120 @@
       } else {
         hiddenDiv.classList.add('hidden');
         button.textContent = 'Show more suggestions →';
+      }
+    }
+
+    // Toggle department sticky position
+    function toggleDepartmentSticky() {
+      const toggle = document.getElementById('departmentStickyToggle');
+      const isSticky = toggle.checked;
+      
+      // Update all existing department headers and cells
+      const departmentHeaders = document.querySelectorAll('th');
+      const departmentCells = document.querySelectorAll('td');
+      
+      departmentHeaders.forEach(header => {
+        if (header.textContent.includes('Department')) {
+          if (isSticky) {
+            header.style.setProperty('position', 'sticky', 'important');
+            header.style.setProperty('left', '0', 'important');
+            header.style.setProperty('top', '0', 'important');
+            header.style.setProperty('z-index', '5', 'important');
+            header.style.setProperty('min-width', '260px', 'important');
+            header.style.setProperty('background', '#fff', 'important');
+          } else {
+            header.style.removeProperty('position');
+            header.style.removeProperty('left');
+            header.style.removeProperty('top');
+            header.style.removeProperty('z-index');
+            header.style.removeProperty('min-width');
+            header.style.removeProperty('background');
+          }
+        }
+      });
+      
+      departmentCells.forEach((cell, index) => {
+        // Check if this is the first column (department column)
+        const row = cell.parentElement;
+        const cellIndex = Array.from(row.children).indexOf(cell);
+        if (cellIndex === 0) {
+          if (isSticky) {
+            cell.style.setProperty('position', 'sticky', 'important');
+            cell.style.setProperty('left', '0', 'important');
+            cell.style.setProperty('z-index', '2', 'important');
+            cell.style.setProperty('background', '#fff', 'important');
+            cell.style.setProperty('min-width', '260px', 'important');
+          } else {
+            cell.style.removeProperty('position');
+            cell.style.removeProperty('left');
+            cell.style.removeProperty('z-index');
+            cell.style.removeProperty('background');
+            cell.style.removeProperty('min-width');
+          }
+        }
+      });
+    }
+
+    // Apply initial sticky styling to all department elements after table render
+    function applyInitialDepartmentSticky() {
+      const toggle = document.getElementById('departmentStickyToggle');
+      if (!toggle || !toggle.checked) return;
+      
+      // Apply to headers
+      const departmentHeaders = document.querySelectorAll('th');
+      departmentHeaders.forEach(header => {
+        if (header.textContent.includes('Department')) {
+          header.style.setProperty('position', 'sticky', 'important');
+          header.style.setProperty('left', '0', 'important');
+          header.style.setProperty('top', '0', 'important');
+          header.style.setProperty('z-index', '5', 'important');
+          header.style.setProperty('min-width', '260px', 'important');
+          header.style.setProperty('background', '#fff', 'important');
+        }
+      });
+      
+      // Apply to all first column cells (department cells)
+      const tableRows = document.querySelectorAll('#reportDataContainer tr');
+      tableRows.forEach(row => {
+        const firstCell = row.children[0];
+        if (firstCell && firstCell.tagName === 'TD') {
+          firstCell.style.setProperty('position', 'sticky', 'important');
+          firstCell.style.setProperty('left', '0', 'important');
+          firstCell.style.setProperty('z-index', '2', 'important');
+          firstCell.style.setProperty('background', '#fff', 'important');
+          firstCell.style.setProperty('min-width', '260px', 'important');
+        }
+      });
+    }
+
+    // Global zoom level variable
+    let currentZoomLevel = 100;
+
+    // Adjust zoom level
+    function adjustZoom(change) {
+      currentZoomLevel = Math.max(50, Math.min(200, currentZoomLevel + change));
+      applyZoom();
+    }
+
+    // Reset zoom to 100%
+    function resetZoom() {
+      currentZoomLevel = 100;
+      applyZoom();
+    }
+
+    // Apply zoom to the report container
+    function applyZoom() {
+      const reportContainer = document.getElementById('reportDataContainer');
+      const zoomDisplay = document.getElementById('zoomLevel');
+      
+      if (reportContainer) {
+        reportContainer.style.transform = `scale(${currentZoomLevel / 100})`;
+        reportContainer.style.transformOrigin = 'top left';
+        reportContainer.style.width = `${10000 / currentZoomLevel}%`;
+      }
+      
+      if (zoomDisplay) {
+        zoomDisplay.textContent = `${currentZoomLevel}%`;
       }
     }
 
