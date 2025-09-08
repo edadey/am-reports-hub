@@ -375,6 +375,36 @@
           </div>
         </div>
 
+        <!-- Template Upload Section -->
+        <div class="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+          <h3 class="text-lg font-medium text-yellow-900 mb-3">Create Template from Spreadsheet</h3>
+          <p class="text-sm text-yellow-700 mb-4">Upload a pre-formatted spreadsheet to create a reusable template with the same headers and structure.</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label class="block text-sm font-medium text-yellow-800 mb-2">Template Name *</label>
+              <input id="templateName" type="text" placeholder="e.g., Monthly Report Template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-yellow-800 mb-2">Description (Optional)</label>
+              <input id="templateDescription" type="text" placeholder="Brief description of the template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+            </div>
+          </div>
+          
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-yellow-800 mb-2">Upload Spreadsheet Files</label>
+            <input id="templateFileInput" type="file" multiple class="mb-2 w-full" accept=".xlsx,.xls,.csv">
+            <p class="text-xs text-yellow-600">Upload one or more Excel/CSV files with your desired template structure. The system will extract headers and sample data to create the template.</p>
+          </div>
+          
+          <button id="uploadTemplateBtn" class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition-colors duration-200 font-medium shadow-sm">
+            Create Template from Upload
+          </button>
+          <button id="cancelTemplateUploadBtn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm ml-2 hidden">
+            Cancel
+          </button>
+        </div>
+
         <!-- Filters -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
@@ -2065,6 +2095,107 @@
       document.getElementById('saveTemplateForm').reset();
     }
 
+    // Template upload functions
+    async function uploadTemplate() {
+      const templateNameInput = document.getElementById('templateName');
+      const templateDescriptionInput = document.getElementById('templateDescription');
+      const templateFileInput = document.getElementById('templateFileInput');
+      
+      const templateName = templateNameInput.value.trim();
+      const templateDescription = templateDescriptionInput.value.trim();
+      
+      if (!templateName) {
+        showStatus('Please enter a template name', 'error');
+        templateNameInput.focus();
+        return;
+      }
+      
+      if (!templateFileInput.files || templateFileInput.files.length === 0) {
+        showStatus('Please select spreadsheet files to upload', 'error');
+        return;
+      }
+      
+      // Validate file types
+      const validExtensions = ['.xlsx', '.xls', '.csv'];
+      const invalidFiles = [];
+      
+      for (const file of templateFileInput.files) {
+        const extension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!validExtensions.includes(extension)) {
+          invalidFiles.push(file.name);
+        }
+      }
+      
+      if (invalidFiles.length > 0) {
+        showStatus(`Invalid file types: ${invalidFiles.join(', ')}. Please upload Excel (.xlsx, .xls) or CSV files only.`, 'error');
+        return;
+      }
+      
+      console.log(`Creating template "${templateName}" from ${templateFileInput.files.length} files`);
+      
+      const formData = new FormData();
+      formData.append('templateName', templateName);
+      if (templateDescription) {
+        formData.append('templateDescription', templateDescription);
+      }
+      
+      for (const file of templateFileInput.files) {
+        formData.append('files', file);
+        console.log(`Added file to FormData: ${file.name}`);
+      }
+      
+      showStatus('Creating template...', 'info');
+      
+      try {
+        const response = await axios.post('/api/upload-template', formData);
+        console.log('Template upload response:', response.data);
+        
+        if (response.data.success) {
+          showStatus(response.data.message, 'success');
+          
+          // Clear the form
+          templateNameInput.value = '';
+          templateDescriptionInput.value = '';
+          templateFileInput.value = '';
+          
+          // Reload templates to include the new one
+          await loadTemplates();
+          
+          // Show template details
+          const template = response.data.template;
+          console.log('Template created:', template);
+          
+          // Optionally select the new template
+          const templateSelect = document.getElementById('templateSelect');
+          if (templateSelect && template.id) {
+            templateSelect.value = template.id;
+            showStatus(`Template "${template.name}" is now selected and ready to use`, 'info');
+          }
+          
+        } else {
+          showStatus('Failed to create template: ' + (response.data.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Template upload error:', error);
+        let errorMessage = 'Template upload failed';
+        if (error.response && error.response.data && error.response.data.error) {
+          errorMessage += ': ' + error.response.data.error;
+        } else {
+          errorMessage += ': ' + error.message;
+        }
+        showStatus(errorMessage, 'error');
+      }
+    }
+    
+    function cancelTemplateUpload() {
+      // Clear the form
+      document.getElementById('templateName').value = '';
+      document.getElementById('templateDescription').value = '';
+      document.getElementById('templateFileInput').value = '';
+      
+      showStatus('Template upload cancelled', 'info');
+    }
+
     // Template management
     async function loadTemplates() {
       try {
@@ -2241,9 +2372,11 @@
         'placements': 'bg-blue-100',      // Blue for placements
         'assessments': 'bg-green-200',    // Green-200 for assessments
         'careers': 'bg-yellow-100',       // Yellow for careers
-        'activities': 'bg-yellow-100',    // Yellow for activities
+        'activities': 'bg-orange-100',    // Orange for activities (changed from yellow to distinguish from careers)
         'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
         'employment': 'bg-purple-100',    // Purple for employment
+        'employer-activity': 'bg-red-100', // Red for employer activities (new)
+        'enrichment-activity': 'bg-teal-100', // Teal for enrichment activities (new)
         'targets': 'bg-pink-100',         // Pink for targets
         'login': 'bg-indigo-100',         // Indigo for login
         'default': 'bg-gray-100'          // Gray for unknown sections
@@ -2253,7 +2386,15 @@
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
         
-        // First check for content type suffixes from backend processing
+        // First check for new activity suffixes
+        if (headerLower.includes('(employer activity)')) {
+          return 'employer-activity';
+        }
+        if (headerLower.includes('(enrichment activity)')) {
+          return 'enrichment-activity';
+        }
+        
+        // Then check for content type suffixes from backend processing
         if (headerLower.includes('(enrichment)')) {
           return 'enrichment';
         }
@@ -2358,22 +2499,32 @@
       // add a blank header cell to keep column alignment.
       const reorderHeaderCell = !selectionMode ? `<th style="width:48px;"></th>` : '';
       
-      const headerCells = completeHeaders.map((h, colIdx) => {
-        const checkbox = selectionMode ? 
-          `<input type="checkbox" class="column-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2" data-col="${colIdx}">` : '';
-        
-        // Determine if this is a change column and get section color
+      const headerCells = completeHeaders.map((h, displayColIdx) => {
+        // Determine if this is a change column
         const isChangeColumn = h.endsWith(' +/-');
         const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
+        
+        // Find the actual table column index for non-change columns
+        let actualColIdx = displayColIdx;
+        if (!isChangeColumn) {
+          // Count how many non-change columns come before this one
+          actualColIdx = completeHeaders.slice(0, displayColIdx).filter(header => !header.endsWith(' +/-')).length;
+        }
+        
+        const checkbox = selectionMode && !isChangeColumn ? 
+          `<input type="checkbox" class="column-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500 mr-2" data-col="${actualColIdx}">` : 
+          (selectionMode ? '<span class="mr-2"></span>' : ''); // Placeholder for change columns
+        
+        // Get section color
         let colorClass = getColumnSection(originalHeader).color;
         let reorderBtns = '';
         if (!isChangeColumn && !selectionMode) {
           reorderBtns = `
-            <button type="button" onclick="moveColumn(${colIdx}, -1)" title="Move Left" style="margin-right:2px;">⬅️</button>
-            <button type="button" onclick="moveColumn(${colIdx}, 1)" title="Move Right">➡️</button>
+            <button type="button" onclick="moveColumn(${actualColIdx}, -1)" title="Move Left" style="margin-right:2px;">⬅️</button>
+            <button type="button" onclick="moveColumn(${actualColIdx}, 1)" title="Move Right">➡️</button>
           `;
         }
-        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${colorClass}" data-col-idx="${colIdx}">${checkbox}${h}${reorderBtns}</th>`;
+        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${colorClass}" data-col-idx="${displayColIdx}">${checkbox}${h}${reorderBtns}</th>`;
       }).join('');
       
       header.innerHTML = `<tr>${headerCheckboxes}${reorderHeaderCell}${headerCells}</tr>`;
@@ -2567,6 +2718,17 @@
       document.getElementById('bulkAssignForm').addEventListener('submit', bulkAssignAccountManager);
       
       // Template form - using inline handlers, no additional setup needed
+      
+      // Template upload functionality
+      const uploadTemplateBtn = document.getElementById('uploadTemplateBtn');
+      if (uploadTemplateBtn) {
+        uploadTemplateBtn.addEventListener('click', uploadTemplate);
+      }
+      
+      const cancelTemplateUploadBtn = document.getElementById('cancelTemplateUploadBtn');
+      if (cancelTemplateUploadBtn) {
+        cancelTemplateUploadBtn.addEventListener('click', cancelTemplateUpload);
+      }
     }
 
     // File processing
@@ -2584,20 +2746,57 @@
         const response = await axios.post('/api/upload', formData);
         if (response.data.success) {
           console.log('Raw response data:', response.data.data);
+          console.log('Activities data:', {
+            hasActivities: !!response.data.data.activities,
+            employerDepartments: Object.keys(response.data.data.activities?.employerEngagement || {}),
+            enrichmentDepartments: Object.keys(response.data.data.activities?.enrichment || {})
+          });
+          
           await adaptTableToData(response.data.data);
-          // Cache for Excel editor and show hint
+          
+          // Cache for Excel editor using the improved functions
           try {
-            // Clear stale then set fresh cache so the editor uses the latest
+            const headers = await buildHeadersFromProcessed(response.data.data);
+            const rows = await buildRowsFromProcessed(response.data.data, headers);
             localStorage.removeItem('excelEditorData');
-            localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows: tableData }));
+            localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
             const hint = document.getElementById('excelEditorHint');
             if (hint) hint.classList.remove('hidden');
-          } catch (e) { /* ignore */ }
+          } catch (e) { 
+            console.warn('Failed to cache Excel editor data:', e);
+          }
           showStatus('Files processed successfully', 'success');
         }
       } catch (error) {
         showStatus('Error processing files: ' + error.message, 'error');
       }
+    }
+
+    // Build headers and rows for Excel editor from processed structure
+    async function buildHeadersFromProcessed(data) {
+      const all = new Set(['Department']);
+      (data.departments || []).forEach(dept => {
+        const metrics = (data.metrics || {})[dept] || {};
+        Object.keys(metrics).forEach(k => { if (k !== 'Department') all.add(k); });
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        Object.keys(emp).forEach(k => all.add(k));
+        const enr = data.activities?.enrichment?.[dept] || {};
+        Object.keys(enr).forEach(k => all.add(k));
+      });
+      return Array.from(all);
+    }
+    
+    async function buildRowsFromProcessed(data, headers) {
+      return (data.departments || []).map(dept => {
+        const row = [dept];
+        const metrics = (data.metrics || {})[dept] || {};
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        const enr = data.activities?.enrichment?.[dept] || {};
+        headers.slice(1).forEach(h => {
+          row.push(metrics[h] ?? emp[h] ?? enr[h] ?? '');
+        });
+        return row;
+      });
     }
 
     async function adaptTableToData(data) {
@@ -2612,21 +2811,62 @@
           tableHeaders = [...selectedTemplate.headers];
           console.log('Template headers:', tableHeaders);
           
-          // Build lookup for new data
+          // Build lookup for new data including activities
           const newDataLookup = {};
           data.departments.forEach(dept => {
             const metrics = data.metrics[dept] || {};
-            newDataLookup[dept] = { ...metrics, __rowKey: dept };
+            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+            const enrichment = data.activities?.enrichment?.[dept] || {};
+            
+            // Create a comprehensive lookup that handles both template header formats and raw data formats
+            const combinedData = { ...metrics };
+            
+            // Add employer engagement activities with template naming format
+            Object.keys(employerEngagement).forEach(key => {
+              combinedData[key] = employerEngagement[key]; // Original key
+              combinedData[`${key} (Employer Activity)`] = employerEngagement[key]; // Template format
+            });
+            
+            // Add enrichment activities with template naming format
+            Object.keys(enrichment).forEach(key => {
+              combinedData[key] = enrichment[key]; // Original key
+              combinedData[`${key} (Enrichment Activity)`] = enrichment[key]; // Template format
+            });
+            
+            newDataLookup[dept] = { 
+              ...combinedData,
+              __rowKey: dept 
+            };
           });
           
-          // If template mode is flexible, add any new columns found in data
+          // If template mode is flexible, add any new columns found in data with distinct suffixes
           if (templateMode === 'flexible') {
             const allNewColumns = new Set();
             data.departments.forEach(dept => {
               const metrics = data.metrics[dept] || {};
+              const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+              const enrichment = data.activities?.enrichment?.[dept] || {};
+              
+              // Add regular metrics
               Object.keys(metrics).forEach(key => {
                 if (!tableHeaders.includes(key) && key !== 'Department') {
                   allNewColumns.add(key);
+                }
+              });
+              
+              // Add employer engagement with suffix
+              Object.keys(employerEngagement).forEach(key => {
+                const headerName = `${key} (Employer Activity)`;
+                if (!tableHeaders.includes(headerName)) {
+                  allNewColumns.add(headerName);
+                }
+              });
+              
+              // Add enrichment with suffix
+              Object.keys(enrichment).forEach(key => {
+                const headerName = `${key} (Enrichment Activity)`;
+                if (!tableHeaders.includes(headerName)) {
+                  allNewColumns.add(headerName);
                 }
               });
             });
@@ -2645,9 +2885,32 @@
           // Add template rows first (in template order)
           templateRowKeys.forEach(rowKey => {
             const metrics = newDataLookup[rowKey] || {};
+            console.log(`Template row ${rowKey}:`, metrics);
+            console.log(`Available keys for ${rowKey}:`, Object.keys(metrics));
+            
             const row = tableHeaders.map((header, i) => {
               if (i === 0) return rowKey;
-              return metrics[header] ?? '';
+              
+              // Handle activity suffixes in template mode
+              let value = '';
+              if (header.endsWith(' (Employer Activity)')) {
+                const originalKey = header.replace(' (Employer Activity)', '');
+                const dept = rowKey;
+                const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+                value = employerEngagement[originalKey] ?? '';
+              } else if (header.endsWith(' (Enrichment Activity)')) {
+                const originalKey = header.replace(' (Enrichment Activity)', '');
+                const dept = rowKey;
+                const enrichment = data.activities?.enrichment?.[dept] || {};
+                value = enrichment[originalKey] ?? '';
+              } else {
+                value = metrics[header] ?? '';
+              }
+              
+              if (value === '' && header !== 'Department') {
+                console.log(`Missing data for ${rowKey}.${header}`);
+              }
+              return value;
             });
             tableData.push(row);
             delete newDataLookup[rowKey]; // Remove from lookup to avoid duplicates
@@ -2660,7 +2923,22 @@
               const metrics = newDataLookup[dept] || {};
               const row = tableHeaders.map((header, i) => {
                 if (i === 0) return dept;
-                return metrics[header] ?? '';
+                
+                // Handle activity suffixes for new departments
+                let value = '';
+                if (header.endsWith(' (Employer Activity)')) {
+                  const originalKey = header.replace(' (Employer Activity)', '');
+                  const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+                  value = employerEngagement[originalKey] ?? '';
+                } else if (header.endsWith(' (Enrichment Activity)')) {
+                  const originalKey = header.replace(' (Enrichment Activity)', '');
+                  const enrichment = data.activities?.enrichment?.[dept] || {};
+                  value = enrichment[originalKey] ?? '';
+                } else {
+                  value = metrics[header] ?? '';
+                }
+                
+                return value;
               });
               tableData.push(row);
             });
@@ -2670,21 +2948,67 @@
           console.log('Final headers:', tableHeaders);
           console.log('Final data rows:', tableData.length);
         } else {
-          // ... existing logic for no template ...
+          // No template - build headers from all data sources with distinct activity sections
           const allHeaders = new Set();
+          const employerHeaders = new Set();
+          const enrichmentHeaders = new Set();
+          
           data.departments.forEach(dept => {
             const metrics = data.metrics[dept] || {};
+            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+            const enrichment = data.activities?.enrichment?.[dept] || {};
+            
+            // Add regular metrics
             Object.keys(metrics).forEach(key => {
               if (key !== 'Department') {
                 allHeaders.add(key);
               }
             });
+            
+            // Add employer engagement activity headers with suffix
+            Object.keys(employerEngagement).forEach(key => {
+              const headerName = `${key} (Employer Activity)`;
+              employerHeaders.add(headerName);
+              allHeaders.add(headerName);
+            });
+            
+            // Add enrichment activity headers with suffix  
+            Object.keys(enrichment).forEach(key => {
+              const headerName = `${key} (Enrichment Activity)`;
+              enrichmentHeaders.add(headerName);
+              allHeaders.add(headerName);
+            });
           });
+          
+          console.log('Employer activity headers:', Array.from(employerHeaders));
+          console.log('Enrichment activity headers:', Array.from(enrichmentHeaders));
+          
           tableHeaders = ['Department', ...Array.from(allHeaders)];
+          
           tableData = data.departments.map(dept => {
             const row = [dept];
             const metrics = data.metrics[dept] || {};
-            tableHeaders.slice(1).forEach(h => row.push(metrics[h] ?? ''));
+            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+            const enrichment = data.activities?.enrichment?.[dept] || {};
+            
+            tableHeaders.slice(1).forEach(h => {
+              let value = '';
+              
+              if (h.endsWith(' (Employer Activity)')) {
+                // Extract original key and get from employer engagement
+                const originalKey = h.replace(' (Employer Activity)', '');
+                value = employerEngagement[originalKey] ?? '';
+              } else if (h.endsWith(' (Enrichment Activity)')) {
+                // Extract original key and get from enrichment  
+                const originalKey = h.replace(' (Enrichment Activity)', '');
+                value = enrichment[originalKey] ?? '';
+              } else {
+                // Regular metric
+                value = metrics[h] ?? '';
+              }
+              
+              row.push(value);
+            });
             return row;
           });
         }
@@ -2768,7 +3092,7 @@
         }
       });
       
-      // Delete selected columns
+      // Delete selected columns (indices now correctly mapped to actual table columns)
       columnsToDelete.forEach(colIndex => {
         if (tableHeaders[colIndex] && tableHeaders[colIndex] !== 'Department') {
           deletedItems.push(`Column: ${tableHeaders[colIndex]}`);

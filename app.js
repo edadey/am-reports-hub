@@ -2828,6 +2828,270 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
   }
 });
 
+// Template Upload Route - Upload spreadsheet files to create templates
+app.post('/api/upload-template', authService.requireAuth(), upload.array('files'), async (req, res) => {
+  try {
+    console.log('📋 Template upload request received');
+    console.log('👤 User:', req.user);
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+    
+    const { templateName, templateDescription } = req.body;
+    if (!templateName) {
+      return res.status(400).json({ error: 'Template name is required' });
+    }
+    
+    console.log(`📄 Processing ${req.files.length} files for template:`, templateName);
+    console.log('Files:', req.files.map(f => f.originalname));
+    
+    // Map files to the expected format
+    const mappedFiles = req.files.map(file => ({
+      filename: file.filename,
+      path: file.path,
+      originalName: file.originalname
+    }));
+    
+    // Process files using the existing DataImporter
+    const processedData = await dataImporter.processFiles(mappedFiles);
+    
+    if (!processedData) {
+      return res.status(400).json({ error: 'Failed to process uploaded files' });
+    }
+    
+    // Convert processed data to template format
+    const headers = ['Department'];
+    const tableData = [];
+    
+    console.log('Template upload - processed data structure:', {
+      departments: processedData.departments?.length || 0,
+      metricsKeys: Object.keys(processedData.metrics || {}).length,
+      hasActivities: !!processedData.activities,
+      employerKeys: processedData.activities ? Object.keys(processedData.activities.employerEngagement || {}).length : 0,
+      enrichmentKeys: processedData.activities ? Object.keys(processedData.activities.enrichment || {}).length : 0
+    });
+    
+    // Build headers from all data sources
+    const allHeaders = new Set();
+    
+    processedData.departments.forEach(dept => {
+      // Add regular metrics headers
+      const metrics = processedData.metrics[dept] || {};
+      Object.keys(metrics).forEach(key => {
+        if (key !== 'Department') {
+          allHeaders.add(key);
+        }
+      });
+      
+      // Add activity metrics headers
+      if (processedData.activities) {
+        const employerEngagement = processedData.activities.employerEngagement?.[dept] || {};
+        const enrichment = processedData.activities.enrichment?.[dept] || {};
+        
+        Object.keys(employerEngagement).forEach(key => {
+          allHeaders.add(`${key} (Employer Activity)`);
+        });
+        
+        Object.keys(enrichment).forEach(key => {
+          allHeaders.add(`${key} (Enrichment Activity)`);
+        });
+      }
+    });
+    
+    headers.push(...Array.from(allHeaders));
+    console.log(`Template upload - built headers (${headers.length}):`, headers);
+    
+    // Build table data
+    processedData.departments.forEach(dept => {
+      const row = [dept]; // Department column
+      const metrics = processedData.metrics[dept] || {};
+      const employerEngagement = processedData.activities?.employerEngagement?.[dept] || {};
+      const enrichment = processedData.activities?.enrichment?.[dept] || {};
+      
+      // Add all other columns in header order
+      headers.slice(1).forEach(header => {
+        let value = '';
+        
+        // Check if it's an activity header
+        if (header.includes('(Employer Activity)')) {
+          const originalHeader = header.replace(' (Employer Activity)', '');
+          value = employerEngagement[originalHeader] || '';
+        } else if (header.includes('(Enrichment Activity)')) {
+          const originalHeader = header.replace(' (Enrichment Activity)', '');
+          value = enrichment[originalHeader] || '';
+        } else {
+          // Regular metric
+          value = metrics[header] || '';
+        }
+        
+        row.push(value);
+      });
+      
+      tableData.push(row);
+    });
+    
+    console.log(`Template upload - built table data: ${tableData.length} rows x ${headers.length} columns`);
+    
+    // Check if template with same name already exists
+    let existingTemplates = [];
+    try {
+      existingTemplates = await volumeService.readFile('templates.json');
+    } catch (e) {
+      // File doesn't exist yet, that's fine
+      existingTemplates = [];
+    }
+    
+    const existingTemplate = existingTemplates.find(t => 
+      t.name.toLowerCase() === templateName.toLowerCase()
+    );
+    
+    if (existingTemplate) {
+      return res.status(400).json({ 
+        error: `Template with name "${templateName}" already exists. Please choose a different name.` 
+      });
+    }
+    
+    // Create template object
+    const template = {
+      id: Date.now().toString(),
+      name: templateName,
+      description: templateDescription || `Template created from uploaded files: ${req.files.map(f => f.originalname).join(', ')}`,
+      headers: headers,
+      tableData: tableData,
+      createdBy: req.user.username,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'active',
+      type: 'uploaded',
+      fileInfo: processedData.fileInfo || [],
+      headerFileMap: processedData.headerFileMap || {}
+    };
+    
+    // Save template
+    existingTemplates.push(template);
+    await writeTemplatesAllLocations(existingTemplates);
+    
+    // Create backup snapshot
+    try {
+      await snapshotTemplatesToBackups(volumeService, existingTemplates, 'template-upload');
+    } catch (backupError) {
+      console.warn('Failed to create backup snapshot:', backupError.message);
+    }
+    
+    console.log('✅ Template created successfully:', templateName);
+    res.json({
+      success: true,
+      message: `Template "${templateName}" created successfully from ${req.files.length} files`,
+      template: {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        headers: template.headers,
+        rowCount: template.tableData.length,
+        columnCount: template.headers.length
+      },
+      processedData: {
+        departments: processedData.departments.length,
+        totalMetrics: Object.keys(processedData.metrics).length,
+        files: req.files.map(f => f.originalname)
+      }
+    });
+    
+  } catch (error) {
+    console.error('Template upload error:', error);
+    res.status(500).json({ 
+      error: 'Template upload failed: ' + error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// Template Creation from Preview Route - Create template from previewed data
+app.post('/api/create-template-from-preview', authService.requireAuth(), async (req, res) => {
+  try {
+    console.log('📋 Template creation from preview request received');
+    console.log('👤 User:', req.user);
+    
+    const { templateName, templateDescription, headers, tableData, processedData } = req.body;
+    
+    if (!templateName || !headers || !tableData) {
+      return res.status(400).json({ error: 'Template name, headers, and table data are required' });
+    }
+    
+    console.log(`📄 Creating template "${templateName}" from preview data`);
+    console.log('Headers:', headers.length);
+    console.log('Table data rows:', tableData.length);
+    
+    // Check if template with same name already exists
+    let existingTemplates = [];
+    try {
+      existingTemplates = await volumeService.readFile('templates.json');
+    } catch (e) {
+      // File doesn't exist yet, that's fine
+      existingTemplates = [];
+    }
+    
+    const existingTemplate = existingTemplates.find(t => 
+      t.name.toLowerCase() === templateName.toLowerCase()
+    );
+    
+    if (existingTemplate) {
+      return res.status(400).json({ 
+        error: `Template with name "${templateName}" already exists. Please choose a different name.` 
+      });
+    }
+    
+    // Create template object
+    const template = {
+      id: Date.now().toString(),
+      name: templateName,
+      description: templateDescription || `Template created from preview`,
+      headers: headers,
+      tableData: tableData,
+      createdBy: req.user.username,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'active',
+      type: 'preview',
+      fileInfo: processedData?.fileInfo || [],
+      headerFileMap: processedData?.headerFileMap || {}
+    };
+    
+    // Save template
+    existingTemplates.push(template);
+    await writeTemplatesAllLocations(existingTemplates);
+    
+    // Create backup snapshot
+    try {
+      await snapshotTemplatesToBackups(volumeService, existingTemplates, 'template-preview-creation');
+    } catch (backupError) {
+      console.warn('Failed to create backup snapshot:', backupError.message);
+    }
+    
+    console.log('✅ Template created from preview successfully:', templateName);
+    res.json({
+      success: true,
+      message: `Template "${templateName}" created successfully from preview`,
+      template: {
+        id: template.id,
+        name: template.name,
+        description: template.description,
+        headers: template.headers,
+        rowCount: template.tableData.length,
+        columnCount: template.headers.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Template creation from preview error:', error);
+    res.status(500).json({ 
+      error: 'Template creation failed: ' + error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
 // Report Generation Routes
 app.post('/api/reports/generate', authService.requireAuth(), async (req, res) => {
   try {

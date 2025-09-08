@@ -4,8 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Excel Report Editor</title>
-  <!-- x-data-spreadsheet (x-spreadsheet) CDN -->
-  <link rel="stylesheet" href="https://unpkg.com/x-data-spreadsheet@1.1.5/dist/xspreadsheet.css" />
+  <!-- Univer Spreadsheet CDN -->
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/rxjs/dist/bundles/rxjs.umd.min.js"></script>
+  <script src="https://unpkg.com/@univerjs/umd/lib/univer.full.umd.js"></script>
+  <script src="https://unpkg.com/@univerjs/umd/lib/locale/en-US.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/@univerjs/umd/lib/univer.css">
   <style>
     body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
     .topbar { display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid #e5e7eb; }
@@ -15,8 +20,7 @@
     .btn.secondary { background:#fff; color:#111827; border-color:#d1d5db; }
     .status { margin-left:12px; color:#6b7280; font-size:13px; }
     #sheet { position:absolute; top:54px; left:0; right:0; bottom:0; }
-    /* Ensure light theme */
-    .x-spreadsheet { background:#ffffff; color:#111111; }
+    .univer-container { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
@@ -43,7 +47,6 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/x-data-spreadsheet@1.1.5/dist/xspreadsheet.js"></script>
   <script>
     // Helper: status text
     const qs = new URLSearchParams(location.search);
@@ -58,8 +61,9 @@
       statusEl.style.color = type === 'error' ? '#b91c1c' : (type === 'success' ? '#065f46' : '#6b7280');
     }
 
-    // Spreadsheet instance
-    let spreadsheet = null;
+    // Univer instance
+    let univer = null;
+    let univerAPI = null;
 
     // Define styles for different sections (matching the dashboard)
     function getSectionColor(header) {
@@ -103,91 +107,200 @@
       }
     }
 
-    function toXSheetData(headers, rows) {
-      const allRows = [headers, ...rows];
-      const rowsObj = {};
+    function applyFormattingToSpreadsheet(headers, rows) {
+      if (!spreadsheet) {
+        console.log('Spreadsheet not available for formatting');
+        return;
+      }
       
-      for (let r = 0; r < allRows.length; r++) {
-        const row = allRows[r] || [];
-        const cellsRow = {};
+      console.log('Applying formatting to spreadsheet...', headers.length, 'headers,', rows.length, 'rows');
+      
+      try {
+        // Apply header formatting
+        for (let c = 0; c < headers.length; c++) {
+          const header = headers[c] || '';
+          const sectionColor = getSectionColor(header);
+          console.log(`Header ${c}: "${header}" -> ${sectionColor.bgcolor}`);
+          spreadsheet.cellStyle(0, c, {
+            bgcolor: sectionColor.bgcolor,
+            color: sectionColor.color,
+            font: { bold: true, size: 12 },
+            align: 'center'
+          });
+        }
         
-        for (let c = 0; c < row.length; c++) {
-          const val = row[c];
-          
-          // Create cell data with styling
-          const cellData = { 
-            text: val == null ? '' : String(val)
-          };
-          
-          if (r === 0) {
-            // Header row - apply section colors
-            const sectionColor = getSectionColor(val || '');
-            cellData.style = {
-              bgcolor: sectionColor.bgcolor,
-              color: sectionColor.color,
-              font: { bold: true, size: 12 },
-              align: 'center'
-            };
-          } else {
-            // Data rows - apply percentage colors for percentage columns
+        // Apply data row formatting
+        for (let r = 0; r < rows.length; r++) {
+          const row = rows[r] || [];
+          for (let c = 0; c < row.length; c++) {
+            const val = row[c];
             const header = headers[c] || '';
+            
+            // Apply percentage colors for percentage columns
             if ((header.toLowerCase().includes('percent') || header.includes('%')) && 
                 typeof val === 'number' && val >= 0 && val <= 1) {
               const percentColor = getPercentageColor(val);
-              cellData.style = {
+              console.log(`Cell ${r+1},${c}: ${val} -> ${percentColor.bgcolor}`);
+              spreadsheet.cellStyle(r + 1, c, {
                 bgcolor: percentColor.bgcolor,
                 color: percentColor.color,
                 font: { size: 10 },
                 align: 'center'
-              };
+              });
             }
           }
-          
-          cellsRow[c] = cellData;
         }
-        rowsObj[r] = { cells: cellsRow };
+        console.log('Formatting applied successfully');
+      } catch (e) {
+        console.error('Error applying formatting:', e);
       }
-      
-      return [{
-        name: 'Report',
-        rows: rowsObj
-      }];
     }
 
-    function fromXSheet() {
-      const data = spreadsheet.getData();
-      const first = Array.isArray(data) ? data[0] : data;
-      const rowsObj = (first && first.rows) || {};
-      const rowIndices = Object.keys(rowsObj).map(n => parseInt(n, 10)).sort((a,b) => a-b);
-      if (rowIndices.length === 0) return { headers: [], rows: [] };
-      // Determine max columns
-      let maxCol = 0;
-      for (const r of rowIndices) {
-        const cells = (rowsObj[r] && rowsObj[r].cells) || {};
-        const cols = Object.keys(cells).map(n => parseInt(n, 10));
-        if (cols.length) maxCol = Math.max(maxCol, Math.max(...cols) + 1);
-      }
-      const values = rowIndices.map(r => {
-        const cells = (rowsObj[r] && rowsObj[r].cells) || {};
-        const row = new Array(maxCol).fill('');
-        for (let c = 0; c < maxCol; c++) {
-          const cell = cells[c];
-          row[c] = cell && cell.text != null ? String(cell.text) : '';
-        }
-        return row;
+    function createUniverWorkbook(headers, rows) {
+      const cellData = {};
+      
+      // Convert data to Univer format
+      headers.forEach((header, c) => {
+        cellData[`${c}_0`] = {
+          v: header,
+          t: 1, // text type
+          s: `header_${c}` // style reference
+        };
       });
-      const headers = values[0] || [];
-      const rows = values.slice(1);
-      return { headers, rows };
+      
+      rows.forEach((row, r) => {
+        row.forEach((val, c) => {
+          const cellKey = `${c}_${r + 1}`;
+          cellData[cellKey] = {
+            v: val,
+            t: typeof val === 'number' ? 2 : 1 // number or text type
+          };
+        });
+      });
+      
+      return {
+        id: 'report-workbook',
+        appVersion: '3.0.0-alpha',
+        sheets: {
+          'sheet1': {
+            id: 'sheet1',
+            name: 'Report',
+            tabColor: '',
+            hidden: 0,
+            rowCount: rows.length + 1,
+            columnCount: headers.length,
+            cellData: cellData,
+            scrollTop: 0,
+            scrollLeft: 0,
+            offsetTop: 0,
+            offsetLeft: 0,
+            selection: {
+              row: [0, 0],
+              column: [0, 0]
+            },
+            rightToLeft: 0
+          }
+        },
+        locale: 'en_US',
+        styles: {}
+      };
+    }
+    
+    function applyDataBarsToUniver(headers, rows) {
+      if (!univerAPI) return;
+      
+      console.log('Applying data bars to Univer...');
+      
+      try {
+        const activeWorkbook = univerAPI.getActiveWorkbook();
+        const worksheet = activeWorkbook.getActiveSheet();
+        
+        // Apply header formatting
+        for (let c = 0; c < headers.length; c++) {
+          const header = headers[c] || '';
+          const sectionColor = getSectionColor(header);
+          const range = worksheet.getRange(0, c);
+          
+          range.setBackgroundColor(sectionColor.bgcolor);
+          range.setFontColor(sectionColor.color);
+          range.setFontWeight('bold');
+          range.setHorizontalAlignment(1); // center
+        }
+        
+        // Apply data bars for percentage columns
+        for (let c = 0; c < headers.length; c++) {
+          const header = headers[c] || '';
+          if (header.toLowerCase().includes('percent') || header.includes('%')) {
+            const range = worksheet.getRange(1, c, rows.length, 1);
+            
+            // Create data bar conditional formatting
+            const rule = worksheet.newConditionalFormattingRule()
+              .setRanges([range])
+              .whenCellNotEmpty();
+              
+            // Apply data bar
+            rule.setDataBar('#3B82F6'); // Blue data bars
+            rule.build();
+          }
+        }
+        
+        console.log('Data bars applied successfully');
+      } catch (e) {
+        console.error('Error applying data bars:', e);
+      }
+    }
+
+    function fromUniver() {
+      if (!univerAPI) return { headers: [], rows: [] };
+      
+      try {
+        const activeWorkbook = univerAPI.getActiveWorkbook();
+        const worksheet = activeWorkbook.getActiveSheet();
+        const sheetData = worksheet.getSheetData();
+        
+        // Extract data from Univer format
+        const maxRow = Math.max(...Object.keys(sheetData.cellData).map(key => parseInt(key.split('_')[1])));
+        const maxCol = Math.max(...Object.keys(sheetData.cellData).map(key => parseInt(key.split('_')[0])));
+        
+        const allRows = [];
+        for (let r = 0; r <= maxRow; r++) {
+          const row = [];
+          for (let c = 0; c <= maxCol; c++) {
+            const cellKey = `${c}_${r}`;
+            const cell = sheetData.cellData[cellKey];
+            row[c] = cell ? cell.v : '';
+          }
+          allRows.push(row);
+        }
+        
+        const headers = allRows[0] || [];
+        const rows = allRows.slice(1);
+        return { headers, rows };
+      } catch (e) {
+        console.error('Error extracting data from Univer:', e);
+        return { headers: [], rows: [] };
+      }
     }
 
     async function loadReport() {
-      // Build spreadsheet instance
-      spreadsheet = x_spreadsheet('#sheet', {
-        showToolbar: true,
-        showGrid: true,
-        showContextmenu: true,
+      // Initialize Univer
+      const { Univer, UniverInstanceType, LocaleType } = window.UniverCore;
+      
+      univer = new Univer({
+        theme: window.UniverDesign.defaultTheme,
+        locale: LocaleType.EN_US,
+        locales: {
+          [LocaleType.EN_US]: window.UniverPresetSheetsCore.UniverSheetsUIEnUS,
+        },
       });
+
+      univer.registerPlugin(window.UniverRenderEngine.UniverRenderEnginePlugin);
+      univer.registerPlugin(window.UniverUI.UniverUIPlugin, {
+        container: 'sheet',
+      });
+      univer.registerPlugin(window.UniverSheets.UniverSheetsPlugin);
+      univer.registerPlugin(window.UniverSheetsUI.UniverSheetsUIPlugin);
+      univer.registerPlugin(window.UniverSheetsFormula.UniverSheetsFormulaPlugin);
 
       // 1) Load by IDs if provided
       if (collegeId && reportId) {
@@ -197,13 +310,15 @@
           const json = await res.json();
           if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
           const { headers = [], rows = [] } = json.report.data;
-          const data = toXSheetData(headers, rows);
-          spreadsheet.loadData(data);
+          const workbookData = createUniverWorkbook(headers, rows);
           
-          // Apply formatting after data loads
+          univer.createUnit(UniverInstanceType.UNIVER_SHEET, workbookData);
+          univerAPI = window.FUniver.newAPI(univer);
+          
+          // Apply data bars after loading
           setTimeout(() => {
-            applyFormattingToSpreadsheet(headers, rows);
-          }, 100);
+            applyDataBarsToUniver(headers, rows);
+          }, 500);
           
           setStatus('Loaded');
           return;
@@ -229,8 +344,14 @@
             description: parsed.templateDescription || null,
             isTemplate: parsed.isTemplate === true
           };
-          const data = toXSheetData(headers, rows);
-          spreadsheet.loadData(data);
+          const workbookData = createUniverWorkbook(headers, rows);
+          univer.createUnit(UniverInstanceType.UNIVER_SHEET, workbookData);
+          univerAPI = window.FUniver.newAPI(univer);
+          
+          setTimeout(() => {
+            applyDataBarsToUniver(headers, rows);
+          }, 500);
+          
           setStatus('Loaded from upload');
           return;
         } catch (e) {
@@ -245,13 +366,37 @@
         description: null,
         isTemplate: false
       };
-      setStatus('No source data provided', 'error');
+      
+      // Initialize empty Univer instance
+      const { Univer, UniverInstanceType } = window.UniverCore;
+      
+      if (!univer) {
+        univer = new Univer({
+          theme: window.UniverDesign.defaultTheme,
+          locale: 'en_US',
+        });
+
+        univer.registerPlugin(window.UniverRenderEngine.UniverRenderEnginePlugin);
+        univer.registerPlugin(window.UniverUI.UniverUIPlugin, {
+          container: 'sheet',
+        });
+        univer.registerPlugin(window.UniverSheets.UniverSheetsPlugin);
+        univer.registerPlugin(window.UniverSheetsUI.UniverSheetsUIPlugin);
+        univer.registerPlugin(window.UniverSheetsFormula.UniverSheetsFormulaPlugin);
+        
+        // Create empty workbook
+        const emptyWorkbook = createUniverWorkbook(['Column 1'], [['']]);
+        univer.createUnit(UniverInstanceType.UNIVER_SHEET, emptyWorkbook);
+        univerAPI = window.FUniver.newAPI(univer);
+      }
+      
+      setStatus('Ready - No source data provided');
     }
 
     async function saveReport() {
       try {
         setStatus('Saving...');
-        const { headers, rows } = fromXSheet();
+        const { headers, rows } = fromUniver();
         let targetCollegeId = collegeId;
         if (!targetCollegeId) {
           await populateCollegePicker();
@@ -285,7 +430,7 @@
 
     function revertToClassic() {
       try {
-        const { headers, rows } = fromXSheet();
+        const { headers, rows } = fromUniver();
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
       window.location.href = 'index.html?tab=reports';
@@ -349,7 +494,7 @@
       btn.style.marginLeft = '8px';
       btn.onclick = async () => {
         try {
-          const { headers, rows } = fromXSheet();
+          const { headers, rows } = fromUniver();
           
           // Check if we're updating an existing template
           const isUpdatingTemplate = window.__currentTemplate && window.__currentTemplate.isTemplate && window.__currentTemplate.id;
@@ -447,7 +592,7 @@
     document.getElementById('btnDownload').addEventListener('click', async () => {
       try {
         setStatus('Preparing Excel...', 'info');
-        const { headers, rows } = fromXSheet();
+        const { headers, rows } = fromUniver();
         const payload = { headers, rows, name: 'Edited Report', createdAt: new Date().toISOString() };
         const res = await fetch('/api/export-excel', {
           method: 'POST',

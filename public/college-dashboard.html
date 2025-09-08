@@ -3351,8 +3351,10 @@
         'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
         'employment': 'bg-purple-100',    // Purple for employment
         'careers': 'bg-yellow-100',       // Yellow for careers (changed from orange)
-        'activities': 'bg-yellow-100',    // Yellow for activities
+        'activities': 'bg-orange-100',    // Orange for activities (changed from yellow to distinguish from careers)
         'assessments': 'bg-green-200',    // Green-200 for assessments (changed from teal)
+        'employer-activity': 'bg-red-100', // Red for employer activities (new)
+        'enrichment-activity': 'bg-teal-100', // Teal for enrichment activities (new)
         'targets': 'bg-pink-100',         // Pink for targets
         'login': 'bg-indigo-100',         // Indigo for login data
         'default': 'bg-gray-100'          // Gray for unknown
@@ -3364,8 +3366,10 @@
         'enrichment': 'background-color: #bfdbfe !important; border-color: #bfdbfe !important;',      // Blue-200 for enrichment
         'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',      // Purple for employment
         'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',         // Yellow for careers
-        'activities': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',      // Yellow for activities
+        'activities': 'background-color: #fed7aa !important; border-color: #fed7aa !important;',      // Orange for activities (changed from yellow)
         'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',     // Green-200 for assessments
+        'employer-activity': 'background-color: #fee2e2 !important; border-color: #fee2e2 !important;', // Red for employer activities (new)
+        'enrichment-activity': 'background-color: #f0fdfa !important; border-color: #f0fdfa !important;', // Teal for enrichment activities (new)
         'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',         // Pink for targets
         'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',           // Indigo for login data
         'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'          // Gray for unknown
@@ -3376,6 +3380,16 @@
         // First check if the header itself contains type information (from our renaming)
         const headerLower = header.toLowerCase();
         
+        // Check for new activity suffixes first
+        if (headerLower.includes('(employer activity)')) {
+          return 'employer-activity';
+        }
+        
+        if (headerLower.includes('(enrichment activity)')) {
+          return 'enrichment-activity';
+        }
+        
+        // Then check for older suffixes
         if (headerLower.includes('(enrichment)')) {
           return 'enrichment';
         }

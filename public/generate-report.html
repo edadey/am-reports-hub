@@ -17,6 +17,8 @@
     .bg-indigo-100 { background-color: #e0e7ff !important; }
     .bg-gray-100 { background-color: #f3f4f6 !important; }
     .bg-amber-100 { background-color: #fef3c7 !important; }
+    .bg-teal-100 { background-color: #ccfbf1 !important; }
+    .bg-cyan-100 { background-color: #e0f7fa !important; }
     
     /* Change indicator colors */
     .bg-green-100 { background-color: #dcfce7 !important; }
@@ -147,6 +149,46 @@
               <option value="flexible">Flexible - Add new columns if available</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      <!-- Template Upload Section -->
+      <div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+        <h3 class="text-base sm:text-lg font-medium text-yellow-900 mb-3">Create Template from Spreadsheet</h3>
+        <p class="text-sm text-yellow-700 mb-4">Upload a pre-formatted spreadsheet to preview and create a reusable template with the same headers and structure.</p>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-yellow-800 mb-2">Template Name *</label>
+            <input id="templateName" type="text" placeholder="e.g., Monthly Report Template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-yellow-800 mb-2">Description (Optional)</label>
+            <input id="templateDescription" type="text" placeholder="Brief description of the template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
+          </div>
+        </div>
+        
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-yellow-800 mb-2">Upload Spreadsheet Files</label>
+          <input id="templateFileInput" type="file" multiple class="mb-2 w-full" accept=".xlsx,.xls,.csv">
+          <p class="text-xs text-yellow-600">Upload one or more Excel/CSV files with your desired template structure. You can preview the data before creating the template.</p>
+        </div>
+        
+        <div class="flex flex-wrap gap-2">
+          <button id="previewTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button">
+            Preview Sheet
+          </button>
+          <button id="createTemplateBtn" class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition-colors duration-200 font-medium shadow-sm touch-button hidden">
+            Create Template
+          </button>
+          <button id="cancelTemplateUploadBtn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm touch-button hidden">
+            Cancel
+          </button>
+        </div>
+        
+        <!-- Template Preview Status -->
+        <div id="templatePreviewStatus" class="mt-3 text-sm text-yellow-700 hidden">
+          <p class="font-medium">Preview ready! Review the data in the table below and click "Create Template" when satisfied.</p>
         </div>
       </div>
 
@@ -282,9 +324,11 @@
       'placements': 'bg-blue-100',      // Blue for placements
       'assessments': 'bg-teal-100',     // Teal for assessments  
       'careers': 'bg-orange-100',       // Orange for careers
-      'activities': 'bg-orange-100',    // Orange for activities
+      'activities': 'bg-yellow-100',    // Yellow for activities (changed from orange to distinguish from careers)
       'enrichment': 'bg-green-100',     // Green for enrichment
       'employment': 'bg-purple-100',    // Purple for employment
+      'employer-activity': 'bg-red-100', // Red for employer activities (new)
+      'enrichment-activity': 'bg-cyan-100', // Cyan for enrichment activities (new)
       'targets': 'bg-pink-100',         // Pink for targets
       'login': 'bg-indigo-100',         // Indigo for login
       'default': 'bg-gray-100'          // Gray for unknown sections
@@ -295,9 +339,11 @@
       'placements': 'FFDBEAFE',      // Light blue (matches bg-blue-100)
       'assessments': 'FFCCFBF1',     // Light teal (matches bg-teal-100)
       'careers': 'FFFED7AA',         // Light orange (matches bg-orange-100)
-      'activities': 'FFFED7AA',      // Light orange (matches bg-orange-100)
+      'activities': 'FFFEF3C7',      // Light yellow (matches bg-yellow-100)
       'enrichment': 'FFDCFCE7',      // Light green (matches bg-green-100)
       'employment': 'FFF3E8FF',      // Light purple (matches bg-purple-100)
+      'employer-activity': 'FFFEE2E2', // Light red (matches bg-red-100)
+      'enrichment-activity': 'FFE0F7FA', // Light cyan (matches bg-cyan-100)
       'targets': 'FFFCE7F3',         // Light pink (matches bg-pink-100)
       'login': 'FFE0E7FF',           // Light indigo (matches bg-indigo-100)
       'default': 'FFF3F4F6'          // Light gray (matches bg-gray-100)
@@ -307,7 +353,15 @@
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
         
-        // First check for content type suffixes from backend processing
+        // First check for new activity suffixes
+        if (headerLower.includes('(employer activity)')) {
+          return 'employer-activity';
+        }
+        if (headerLower.includes('(enrichment activity)')) {
+          return 'enrichment-activity';
+        }
+        
+        // Then check for content type suffixes from backend processing
         if (headerLower.includes('(enrichment)')) {
           return 'enrichment';
         }
@@ -566,6 +620,22 @@
         
         updateCollegeSelect();
       }
+      
+      // Template upload functionality
+      const previewTemplateBtn = document.getElementById('previewTemplateBtn');
+      if (previewTemplateBtn) {
+        previewTemplateBtn.addEventListener('click', previewTemplate);
+      }
+      
+      const createTemplateBtn = document.getElementById('createTemplateBtn');
+      if (createTemplateBtn) {
+        createTemplateBtn.addEventListener('click', createTemplate);
+      }
+      
+      const cancelTemplateUploadBtn = document.getElementById('cancelTemplateUploadBtn');
+      if (cancelTemplateUploadBtn) {
+        cancelTemplateUploadBtn.addEventListener('click', cancelTemplateUpload);
+      }
     }
 
     // Data loading functions
@@ -800,6 +870,190 @@
       console.log('Test data created:', testData);
       await adaptTableToData(testData);
       showStatus('Test activity processing completed', 'success');
+    }
+
+    // Template upload functions
+    let templatePreviewData = null;
+    
+    async function previewTemplate() {
+      const templateNameInput = document.getElementById('templateName');
+      const templateFileInput = document.getElementById('templateFileInput');
+      
+      const templateName = templateNameInput.value.trim();
+      
+      if (!templateName) {
+        showStatus('Please enter a template name', 'error');
+        templateNameInput.focus();
+        return;
+      }
+      
+      if (!templateFileInput.files || templateFileInput.files.length === 0) {
+        showStatus('Please select spreadsheet files to preview', 'error');
+        return;
+      }
+      
+      // Validate file types
+      const validExtensions = ['.xlsx', '.xls', '.csv'];
+      const invalidFiles = [];
+      
+      for (const file of templateFileInput.files) {
+        const extension = '.' + file.name.split('.').pop().toLowerCase();
+        if (!validExtensions.includes(extension)) {
+          invalidFiles.push(file.name);
+        }
+      }
+      
+      if (invalidFiles.length > 0) {
+        showStatus(`Invalid file types: ${invalidFiles.join(', ')}. Please upload Excel (.xlsx, .xls) or CSV files only.`, 'error');
+        return;
+      }
+      
+      console.log(`Previewing template "${templateName}" from ${templateFileInput.files.length} files`);
+      
+      const formData = new FormData();
+      for (const file of templateFileInput.files) {
+        formData.append('files', file);
+        console.log(`Added file to FormData: ${file.name}`);
+      }
+      
+      showStatus('Processing files for preview...', 'info');
+      
+      try {
+        // Use the existing upload endpoint to process files
+        const response = await axios.post('/api/upload', formData);
+        console.log('Preview response:', response.data);
+        
+        if (response.data.success) {
+          console.log('Processing successful, showing preview...');
+          
+          // Store the processed data for template creation
+          templatePreviewData = response.data.data;
+          
+          // Display the data in the same table view as generate report
+          await adaptTableToData(response.data.data);
+          
+          // Show status message and buttons
+          showStatus('Preview loaded successfully. Review the data below and click "Create Template" to save it.', 'success');
+          
+          // Show the create template button and status
+          document.getElementById('createTemplateBtn').classList.remove('hidden');
+          document.getElementById('cancelTemplateUploadBtn').classList.remove('hidden');
+          document.getElementById('templatePreviewStatus').classList.remove('hidden');
+          
+          // Scroll to table so user can see the preview
+          document.getElementById('tableHeader').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          
+        } else {
+          showStatus('Failed to preview template: ' + (response.data.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Template preview error:', error);
+        let errorMessage = 'Template preview failed';
+        if (error.response && error.response.data && error.response.data.error) {
+          errorMessage += ': ' + error.response.data.error;
+        } else {
+          errorMessage += ': ' + error.message;
+        }
+        showStatus(errorMessage, 'error');
+      }
+    }
+    
+    async function createTemplate() {
+      if (!templatePreviewData) {
+        showStatus('No preview data available. Please preview first.', 'error');
+        return;
+      }
+      
+      const templateNameInput = document.getElementById('templateName');
+      const templateDescriptionInput = document.getElementById('templateDescription');
+      
+      const templateName = templateNameInput.value.trim();
+      const templateDescription = templateDescriptionInput.value.trim();
+      
+      if (!templateName) {
+        showStatus('Please enter a template name', 'error');
+        templateNameInput.focus();
+        return;
+      }
+      
+      console.log(`Creating template "${templateName}" from preview data`);
+      
+      showStatus('Creating template...', 'info');
+      
+      try {
+        // Build template data from current table state (allows for any edits made during preview)
+        const templateData = {
+          templateName,
+          templateDescription: templateDescription || `Template created from uploaded files`,
+          headers: tableHeaders,
+          tableData: tableData,
+          processedData: templatePreviewData
+        };
+        
+        const response = await axios.post('/api/create-template-from-preview', templateData);
+        console.log('Template creation response:', response.data);
+        
+        if (response.data.success) {
+          showStatus(response.data.message, 'success');
+          
+          // Clear the form and reset state
+          templateNameInput.value = '';
+          templateDescriptionInput.value = '';
+          document.getElementById('templateFileInput').value = '';
+          templatePreviewData = null;
+          
+          // Hide template creation buttons
+          document.getElementById('createTemplateBtn').classList.add('hidden');
+          document.getElementById('cancelTemplateUploadBtn').classList.add('hidden');
+          document.getElementById('templatePreviewStatus').classList.add('hidden');
+          
+          // Reload templates to include the new one
+          await loadTemplates();
+          
+          // Show template details
+          const template = response.data.template;
+          console.log('Template created:', template);
+          
+          // Optionally select the new template
+          const templateSelect = document.getElementById('templateSelect');
+          if (templateSelect && template.id) {
+            templateSelect.value = template.id;
+            showStatus(`Template "${template.name}" is now selected and ready to use`, 'info');
+          }
+          
+        } else {
+          showStatus('Failed to create template: ' + (response.data.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Template creation error:', error);
+        let errorMessage = 'Template creation failed';
+        if (error.response && error.response.data && error.response.data.error) {
+          errorMessage += ': ' + error.response.data.error;
+        } else {
+          errorMessage += ': ' + error.message;
+        }
+        showStatus(errorMessage, 'error');
+      }
+    }
+    
+    function cancelTemplateUpload() {
+      // Clear the form and reset state
+      document.getElementById('templateName').value = '';
+      document.getElementById('templateDescription').value = '';
+      document.getElementById('templateFileInput').value = '';
+      templatePreviewData = null;
+      
+      // Hide template creation buttons
+      document.getElementById('createTemplateBtn').classList.add('hidden');
+      document.getElementById('cancelTemplateUploadBtn').classList.add('hidden');
+      document.getElementById('templatePreviewStatus').classList.add('hidden');
+      
+      // Clear the table if it was showing preview data
+      tableHeaders = [];
+      tableData = [];
+      renderTable();
+      
+      showStatus('Template preview cancelled', 'info');
     }
 
     // Table functions
