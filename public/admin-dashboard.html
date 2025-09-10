@@ -13,6 +13,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
     </style>
+    
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
@@ -108,6 +109,19 @@
                         </svg>
                         Run Database Migration
                     </button>
+                    <a id="manageContactsBtn" href="/admin-contacts" class="w-full inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14c-4.418 0-8 1.79-8 4v2h16v-2c0-2.21-3.582-4-8-4z"/>
+                        </svg>
+                        Manage College Contacts
+                    </a>
+                    <a id="viewBackupsBtn" href="/backup-dashboard" class="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v16h16V8l-6-4H4z"/>
+                        </svg>
+                        View Backups
+                    </a>
                 </div>
             </div>
 
@@ -148,20 +162,11 @@
             <p class="text-xs text-gray-500 mt-3">Note: access restricted to admin users and served from the repository's docs/ directory.</p>
         </div>
 
-        <!-- Recent Backups -->
-        <div class="bg-white rounded-lg card-shadow p-6 mt-8">
-            <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Backups</h2>
-            <div id="backupsList" class="space-y-4">
-                <div class="text-center py-8">
-                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                    <p class="text-gray-500 mt-2">Loading backups...</p>
-                </div>
-            </div>
-        </div>
+        
     </div>
 
     <!-- Toast Notification - Force Railway restart -->
-    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50">
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 hidden">
         <div class="flex items-center">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
@@ -174,7 +179,7 @@
         // Load data on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadSystemData();
-            loadBackups();
+            // Shortcuts only now; remove heavy sections
         });
 
         async function loadSystemData() {
@@ -208,6 +213,176 @@
                 }
             } catch (error) {
                 console.error('Error loading system data:', error);
+            }
+        }
+
+        // College Contacts Section
+        async function initContactsSection() {
+            try {
+                // Populate college filter
+                const collegesResponse = await fetch('/api/colleges');
+                const collegesData = await collegesResponse.json();
+                const colleges = Array.isArray(collegesData) ? collegesData : (Array.isArray(collegesData.colleges) ? collegesData.colleges : []);
+                const collegeSelect = document.getElementById('contactsCollegeFilter');
+                collegeSelect.innerHTML = '<option value="">All Colleges</option>' + colleges.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+                // Bind events
+                document.getElementById('contactsCollegeFilter').addEventListener('change', loadContacts);
+                document.getElementById('contactsCategoryFilter').addEventListener('change', loadContacts);
+                document.getElementById('contactsSearch').addEventListener('input', debounce(loadContacts, 200));
+                document.getElementById('refreshContactsBtn').addEventListener('click', loadContacts);
+                document.getElementById('downloadContactsBtn').addEventListener('click', downloadContactsExcel);
+                document.getElementById('copyEmailsBtn').addEventListener('click', copyFilteredEmails);
+
+                // Initial load
+                await loadContacts();
+            } catch (error) {
+                console.error('Error initialising contacts section:', error);
+            }
+        }
+
+        async function loadContacts() {
+            const tbody = document.getElementById('contactsTableBody');
+            tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">Loading contacts...</td></tr>`;
+            try {
+                const collegeId = document.getElementById('contactsCollegeFilter').value;
+                const category = document.getElementById('contactsCategoryFilter').value;
+                const search = document.getElementById('contactsSearch').value.trim().toLowerCase();
+                const params = new URLSearchParams();
+                if (collegeId) params.append('collegeId', collegeId);
+                if (category) params.append('category', category);
+
+                const response = await fetch(`/api/admin/college-contacts?${params.toString()}`);
+                const data = await response.json();
+                let contacts = data.success ? data.contacts : [];
+
+                // Fallback: build contacts client-side from /api/colleges if backend returns none
+                if (!contacts.length) {
+                    try {
+                        const collegesRes = await fetch('/api/colleges');
+                        const collegesData = await collegesRes.json();
+                        const colleges = Array.isArray(collegesData) ? collegesData : (Array.isArray(collegesData.colleges) ? collegesData.colleges : []);
+                        contacts = [];
+                        colleges.forEach(college => {
+                            if (collegeId && String(college.id) !== String(collegeId) && parseInt(college.id) !== parseInt(collegeId)) return;
+                            const ks = Array.isArray(college.keyStakeholders) ? college.keyStakeholders : [];
+                            ks.forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
+                            const su = Array.isArray(college.superUsers) ? college.superUsers : [];
+                            su.forEach(u => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: u?.name || '', position: u?.position || '', email: u?.email || '' }));
+                            if (college.misContactName || college.misContactEmail) {
+                                contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
+                            }
+                        });
+                        if (category) {
+                            const categoryNormalised = String(category).toLowerCase();
+                            contacts = contacts.filter(c => (c.category || '').toLowerCase() === categoryNormalised);
+                        }
+                    } catch (fallbackErr) {
+                        console.error('Contacts fallback failed:', fallbackErr);
+                    }
+                }
+
+                if (search) {
+                    contacts = contacts.filter(c =>
+                        (c.collegeName || '').toLowerCase().includes(search) ||
+                        (c.category || '').toLowerCase().includes(search) ||
+                        (c.name || '').toLowerCase().includes(search) ||
+                        (c.position || '').toLowerCase().includes(search) ||
+                        (c.email || '').toLowerCase().includes(search)
+                    );
+                }
+
+                if (!contacts.length) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No contacts found</td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = contacts.map(c => `
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900">${c.collegeName || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.category || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.name || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.position || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-blue-700">${c.email || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.dataTransferMethod || ''}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading contacts:', error);
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Failed to load contacts</td></tr>`;
+            }
+        }
+
+        function copyFilteredEmails() {
+            try {
+                const rows = Array.from(document.querySelectorAll('#contactsTableBody tr'));
+                const emails = rows.map(r => r.children[4]?.textContent?.trim()).filter(e => e && e.includes('@'));
+                if (!emails.length) {
+                    showToast('No emails in current view', 'info');
+                    return;
+                }
+                const text = emails.join('; ');
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(`Copied ${emails.length} email(s)`);
+                }).catch(() => {
+                    // Fallback
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
+                    showToast(`Copied ${emails.length} email(s)`);
+                });
+            } catch (err) {
+                console.error('Copy emails error:', err);
+                showToast('Failed to copy emails', 'error');
+            }
+        }
+
+        function debounce(fn, delay) {
+            let t;
+            return (...args) => {
+                clearTimeout(t);
+                t = setTimeout(() => fn.apply(this, args), delay);
+            };
+        }
+
+        async function downloadContactsExcel() {
+            try {
+                const collegeId = document.getElementById('contactsCollegeFilter').value;
+                const category = document.getElementById('contactsCategoryFilter').value;
+                const params = new URLSearchParams();
+                if (collegeId) params.append('collegeId', collegeId);
+                if (category) params.append('category', category);
+
+                // Try backend export first
+                const res = await fetch(`/api/admin/college-contacts/excel?${params.toString()}`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'college-contacts.xlsx';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    return;
+                }
+
+                // Fallback: build Excel from current table data
+                const rows = Array.from(document.querySelectorAll('#contactsTableBody tr'));
+                const tableData = rows.map(r => Array.from(r.children).map(td => td.textContent.trim()));
+                if (!tableData.length || tableData[0].length < 6) throw new Error('No data to export');
+                const headers = ['College','Category','Name','Position','Email','Data Transfer'];
+                const worksheet = XLSX.utils.aoa_to_sheet([headers, ...tableData]);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'College Contacts');
+                XLSX.writeFile(workbook, 'college-contacts.xlsx');
+            } catch (error) {
+                console.error('Error downloading contacts Excel:', error);
+                showToast('Failed to download Excel', 'error');
             }
         }
 
@@ -427,26 +602,24 @@
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMessage = document.getElementById('toastMessage');
-            
             toastMessage.textContent = message;
-            
+            const base = 'fixed top-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 z-50';
             if (type === 'error') {
-                toast.className = 'fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+                toast.className = base + ' bg-red-500 translate-x-full hidden';
             } else if (type === 'info') {
-                toast.className = 'fixed top-4 right-4 bg-blue-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+                toast.className = base + ' bg-blue-500 translate-x-full hidden';
             } else {
-                toast.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50';
+                toast.className = base + ' bg-green-500 translate-x-full hidden';
             }
-            
-            // Show toast
             setTimeout(() => {
-                toast.classList.remove('translate-x-full');
+                toast.classList.remove('translate-x-full', 'hidden');
             }, 100);
-            
-            // Hide toast after 3 seconds
             setTimeout(() => {
                 toast.classList.add('translate-x-full');
             }, 3000);
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3350);
         }
     </script>
 </body>

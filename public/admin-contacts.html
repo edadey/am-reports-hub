@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - College Contacts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <header class="bg-white border-b">
+        <div class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-semibold text-gray-800">College Contacts</h1>
+            <div class="space-x-2">
+                <a href="/admin-dashboard" class="px-4 py-2 rounded-md border text-gray-700">← Back to Admin</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-6 py-6">
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Filter by College</label>
+                    <select id="contactsCollegeFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Filter by Category</label>
+                    <select id="contactsCategoryFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full">
+                        <option value="">All</option>
+                        <option value="Key Stakeholders">Key Stakeholders</option>
+                        <option value="Super Users">Super Users</option>
+                        <option value="MIS Contact">MIS Contact</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                    <input id="contactsSearch" type="text" placeholder="Search name, position or email" class="border border-gray-300 rounded-md px-3 py-2 w-full" />
+                </div>
+                <div class="flex items-end">
+                    <div class="flex space-x-2">
+                        <button id="refreshContactsBtn" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md">Refresh</button>
+                        <button id="copyEmailsBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">Copy Emails</button>
+                        <button id="downloadContactsBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md">Download Excel</button>
+                    </div>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">College</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data Transfer</th>
+                        </tr>
+                    </thead>
+                    <tbody id="contactsTableBody" class="bg-white divide-y divide-gray-200">
+                        <tr>
+                            <td colspan="6" class="px-4 py-6 text-center text-gray-500">Loading contacts...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform duration-300 z-50 hidden">
+        <div class="flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span id="toastMessage">Success!</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => initContactsSection());
+
+        async function initContactsSection() {
+            try {
+                const collegesResponse = await fetch('/api/colleges');
+                const collegesData = await collegesResponse.json();
+                const colleges = Array.isArray(collegesData) ? collegesData : (Array.isArray(collegesData.colleges) ? collegesData.colleges : []);
+                const collegeSelect = document.getElementById('contactsCollegeFilter');
+                collegeSelect.innerHTML = '<option value="">All Colleges</option>' + colleges.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+                document.getElementById('contactsCollegeFilter').addEventListener('change', loadContacts);
+                document.getElementById('contactsCategoryFilter').addEventListener('change', loadContacts);
+                document.getElementById('contactsSearch').addEventListener('input', debounce(loadContacts, 200));
+                document.getElementById('refreshContactsBtn').addEventListener('click', loadContacts);
+                document.getElementById('copyEmailsBtn').addEventListener('click', copyFilteredEmails);
+                document.getElementById('downloadContactsBtn').addEventListener('click', downloadContactsExcel);
+
+                await loadContacts();
+            } catch (e) {
+                console.error('Init error:', e);
+            }
+        }
+
+        async function loadContacts() {
+            const tbody = document.getElementById('contactsTableBody');
+            tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-500">Loading contacts...</td></tr>`;
+            const collegeId = document.getElementById('contactsCollegeFilter').value;
+            const category = document.getElementById('contactsCategoryFilter').value;
+            const search = document.getElementById('contactsSearch').value.trim().toLowerCase();
+            const params = new URLSearchParams();
+            if (collegeId) params.append('collegeId', collegeId);
+            if (category) params.append('category', category);
+            try {
+                const res = await fetch(`/api/admin/college-contacts?${params.toString()}`);
+                const data = await res.json();
+                let contacts = data.success ? data.contacts : [];
+                if (!contacts.length) {
+                    const collegesRes = await fetch('/api/colleges');
+                    const collegesData = await collegesRes.json();
+                    const colleges = Array.isArray(collegesData) ? collegesData : (Array.isArray(collegesData.colleges) ? collegesData.colleges : []);
+                    contacts = [];
+                    colleges.forEach(college => {
+                        if (collegeId && String(college.id) !== String(collegeId) && parseInt(college.id) !== parseInt(collegeId)) return;
+                        (Array.isArray(college.keyStakeholders) ? college.keyStakeholders : []).forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
+                        (Array.isArray(college.superUsers) ? college.superUsers : []).forEach(u => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: u?.name || '', position: u?.position || '', email: u?.email || '' }));
+                        if (college.misContactName || college.misContactEmail) contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
+                    });
+                    if (category) contacts = contacts.filter(c => (c.category || '').toLowerCase() === String(category).toLowerCase());
+                }
+                if (search) {
+                    contacts = contacts.filter(c => (c.collegeName||'').toLowerCase().includes(search) || (c.category||'').toLowerCase().includes(search) || (c.name||'').toLowerCase().includes(search) || (c.position||'').toLowerCase().includes(search) || (c.email||'').toLowerCase().includes(search));
+                }
+                if (!contacts.length) {
+                    tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">No contacts found</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = contacts.map(c => `
+                    <tr>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-900">${c.collegeName || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.category || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.name || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.position || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-blue-700">${c.email || ''}</td>
+                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-700">${c.dataTransferMethod || ''}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                console.error('Load error:', e);
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Failed to load contacts</td></tr>`;
+            }
+        }
+
+        function copyFilteredEmails() {
+            const rows = Array.from(document.querySelectorAll('#contactsTableBody tr'));
+            const emails = rows.map(r => r.children[4]?.textContent?.trim()).filter(e => e && e.includes('@'));
+            if (!emails.length) {
+                showToast('No emails in current view', 'info');
+                return;
+            }
+            const text = emails.join('; ');
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(`Copied ${emails.length} email(s)`);
+            }).catch(() => {
+                // Fallback
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                textarea.remove();
+                showToast(`Copied ${emails.length} email(s)`);
+            });
+        }
+
+        async function downloadContactsExcel() {
+            const collegeId = document.getElementById('contactsCollegeFilter').value;
+            const category = document.getElementById('contactsCategoryFilter').value;
+            const params = new URLSearchParams();
+            if (collegeId) params.append('collegeId', collegeId);
+            if (category) params.append('category', category);
+            try {
+                const res = await fetch(`/api/admin/college-contacts/excel?${params.toString()}`);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'college-contacts.xlsx';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    window.URL.revokeObjectURL(url);
+                    return;
+                }
+            } catch (e) {}
+            // Fallback
+            const rows = Array.from(document.querySelectorAll('#contactsTableBody tr'));
+            const tableData = rows.map(r => Array.from(r.children).map(td => td.textContent.trim()));
+            const headers = ['College','Category','Name','Position','Email','Data Transfer'];
+            const worksheet = XLSX.utils.aoa_to_sheet([headers, ...tableData]);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'College Contacts');
+            XLSX.writeFile(workbook, 'college-contacts.xlsx');
+        }
+
+        function debounce(fn, delay) {
+            let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), delay); };
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            toastMessage.textContent = message;
+            const base = 'fixed top-4 right-4 text-white px-6 py-3 rounded-lg shadow-lg transform transition-transform duration-300 z-50';
+            if (type === 'error') {
+                toast.className = base + ' bg-red-500 translate-x-full hidden';
+            } else if (type === 'info') {
+                toast.className = base + ' bg-blue-500 translate-x-full hidden';
+            } else {
+                toast.className = base + ' bg-green-500 translate-x-full hidden';
+            }
+            setTimeout(() => { toast.classList.remove('translate-x-full', 'hidden'); }, 100);
+            setTimeout(() => { toast.classList.add('translate-x-full'); }, 3000);
+            setTimeout(() => { toast.classList.add('hidden'); }, 3350);
+        }
+    </script>
+</body>
+</html>
+
+

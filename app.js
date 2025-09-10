@@ -418,6 +418,10 @@ app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
 });
 
+app.get('/admin-contacts', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/admin-contacts.html'));
+});
+
 app.get('/admin-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
 });
@@ -1637,7 +1641,13 @@ app.post('/api/colleges/:collegeId/reports/share', authService.requireAuth(), as
 app.get('/api/shared/validate', async (req, res) => {
   try {
     const { token } = req.query;
+    console.log('🔍 Validate token:', token, 'NODE_ENV:', process.env.NODE_ENV);
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    // Dev bypass: allow ?token=local in non-production
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      console.log('✅ Using local bypass for token validation');
+      return res.json({ success: true, payload: { shareId: 'local', collegeId: Number(req.query.collegeId) || 0 } });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { shareId, collegeId } = verification.payload;
@@ -1654,6 +1664,11 @@ app.get('/api/shared/colleges/:collegeId/reports', async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const collegeId = parseInt(req.params.collegeId);
+      const reports = await getCollegeReports(collegeId);
+      return res.json({ success: true, reports });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1673,6 +1688,11 @@ app.get('/api/shared/colleges/:collegeId', async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const collegeId = parseInt(req.params.collegeId);
+      const college = (await collegesService.getCollege(collegeId)) || { id: collegeId, name: 'Local College' };
+      return res.json({ success: true, college });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1693,6 +1713,11 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId', async (req, res) =>
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const report = await getCollegeReport(parseInt(req.params.collegeId), req.params.reportId);
+      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+      return res.json({ success: true, report });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1712,6 +1737,12 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      // Fall back to existing internal export if available
+      const report = await getCollegeReport(parseInt(req.params.collegeId), req.params.reportId);
+      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+      return exportReportAsExcel(res, report); // assumes existing helper; if not, responds 501
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId, permissions } = verification.payload;
@@ -2828,8 +2859,316 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
   }
 });
 
-// Template Upload Route - Upload spreadsheet files to create templates
-app.post('/api/upload-template', authService.requireAuth(), upload.array('files'), async (req, res) => {
+// NEW: Raw Template Preview Route - Process files for template creation WITHOUT DataImporter filtering
+app.post('/api/template-preview', authService.requireAuth(), upload.array('files'), async (req, res) => {
+  try {
+    console.log('📋 Template preview request received - RAW processing');
+    console.log('👤 User:', req.user);
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const XLSX = require('xlsx');
+    const ExcelJS = require('exceljs');
+    
+    // Helper function to convert indexed colors to hex
+    function getIndexedColor(index) {
+      // Basic Excel indexed color palette
+      const colors = {
+        0: '#000000', 1: '#FFFFFF', 2: '#FF0000', 3: '#00FF00', 4: '#0000FF',
+        5: '#FFFF00', 6: '#FF00FF', 7: '#00FFFF', 8: '#000000', 9: '#FFFFFF',
+        10: '#FF0000', 11: '#00FF00', 12: '#0000FF', 13: '#FFFF00', 14: '#FF00FF',
+        15: '#00FFFF', 16: '#800000', 17: '#008000', 18: '#000080', 19: '#808000',
+        20: '#800080', 21: '#008080', 22: '#C0C0C0', 23: '#808080', 24: '#9999FF',
+        25: '#993366', 26: '#FFFFCC', 27: '#CCFFFF', 28: '#660066', 29: '#FF8080',
+        30: '#0066CC', 31: '#CCCCFF', 32: '#000080', 33: '#FF00FF', 34: '#FFFF00',
+        35: '#00FFFF', 36: '#800080', 37: '#800000', 38: '#008080', 39: '#0000FF',
+        40: '#00CCFF', 41: '#CCFFFF', 42: '#CCFFCC', 43: '#FFFF99', 44: '#99CCFF',
+        45: '#FF99CC', 46: '#CC99FF', 47: '#FFCC99', 48: '#3366FF', 49: '#33CCCC',
+        50: '#99CC00', 51: '#FFCC00', 52: '#FF9900', 53: '#FF6600', 54: '#666699',
+        55: '#969696', 56: '#003366', 57: '#339966', 58: '#003300', 59: '#333300',
+        60: '#993300', 61: '#993366', 62: '#333399', 63: '#333333'
+      };
+      return colors[index] || '#FFFFFF'; // Default to white if unknown
+    }
+    
+    // Process files with raw Excel/CSV reading - NO filtering
+    const rawData = {
+      headers: [],
+      headerColors: [], // Store header background colors
+      departments: [],
+      rows: [],
+      timestamp: new Date().toISOString(),
+      rawGrid: []
+    };
+
+    for (const file of req.files) {
+      console.log(`📄 Reading raw file: ${file.originalname}`);
+      
+      // Read the Excel/CSV file directly
+      const workbook = XLSX.readFile(file.path);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      // Keep the entire raw grid so the client can faithfully recreate the sheet
+      if (Array.isArray(jsonData) && jsonData.length) {
+        rawData.rawGrid = jsonData;
+      }
+      
+      if (jsonData && jsonData.length > 0) {
+        // Find the header row - look for the row with the most non-empty cells
+        let headerRowIndex = 0;
+        let maxHeaderCells = 0;
+        
+        // Check first 5 rows to find the best header row
+        for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+          const row = jsonData[i] || [];
+          const nonEmptyCells = row.filter(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '').length;
+          console.log(`Row ${i} has ${nonEmptyCells} non-empty cells:`, row);
+          
+          if (nonEmptyCells > maxHeaderCells) {
+            maxHeaderCells = nonEmptyCells;
+            headerRowIndex = i;
+          }
+        }
+        
+        console.log(`📋 Using row ${headerRowIndex} as header row with ${maxHeaderCells} columns`);
+        const rawHeaders = jsonData[headerRowIndex] || [];
+        console.log(`📋 Raw headers from ${file.originalname}:`, rawHeaders);
+        
+        // Store ALL headers exactly as they appear in the file
+        rawData.headers = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
+        console.log(`✅ Clean headers:`, rawData.headers);
+        
+        // Extract header colors from Excel file
+        rawData.headerColors = [];
+        try {
+          // For Excel files, try to extract cell styling
+          if (file.originalname.toLowerCase().includes('.xlsx') || file.originalname.toLowerCase().includes('.xls')) {
+            console.log('📎 Trying ExcelJS for better color extraction...');
+            
+            // Try ExcelJS first - better color support
+            try {
+              const excelWorkbook = new ExcelJS.Workbook();
+              await excelWorkbook.xlsx.readFile(file.path);
+              const excelWorksheet = excelWorkbook.getWorksheet(1);
+              
+              if (excelWorksheet) {
+                console.log('📎 ExcelJS: Successfully loaded worksheet');
+                console.log('📎 ExcelJS: Worksheet row count:', excelWorksheet.rowCount);
+                console.log('📎 ExcelJS: Looking for header row at index:', headerRowIndex + 1);
+                
+                // Try scanning first few rows to find any colors
+                for (let rowNum = 1; rowNum <= Math.min(5, excelWorksheet.rowCount); rowNum++) {
+                  const testRow = excelWorksheet.getRow(rowNum);
+                  console.log(`📎 ExcelJS: Row ${rowNum} has ${testRow.cellCount} cells`);
+                  
+                  for (let colNum = 1; colNum <= Math.min(10, testRow.cellCount); colNum++) {
+                    const testCell = testRow.getCell(colNum);
+                    if (testCell && testCell.fill) {
+                      console.log(`📎 ExcelJS: FOUND FILL in row ${rowNum}, col ${colNum}:`, JSON.stringify(testCell.fill, null, 2));
+                    }
+                  }
+                }
+                
+                const headerRow = excelWorksheet.getRow(headerRowIndex + 1); // ExcelJS is 1-indexed
+                console.log('📎 ExcelJS: Header row cell count:', headerRow.cellCount);
+                
+                for (let colIndex = 0; colIndex < rawHeaders.length; colIndex++) {
+                  const cell = headerRow.getCell(colIndex + 1); // ExcelJS is 1-indexed
+                  let backgroundColor = null;
+                  
+                  console.log(`📎 ExcelJS: Examining cell ${colIndex + 1} (${rawHeaders[colIndex]})`);
+                  console.log(`📎 ExcelJS: Cell object:`, cell ? 'exists' : 'null');
+                  
+                  if (cell) {
+                    console.log(`📎 ExcelJS: Cell value:`, cell.value);
+                    console.log(`📎 ExcelJS: Cell fill:`, cell.fill);
+                    console.log(`📎 ExcelJS: Cell style:`, cell.style);
+                    console.log(`📎 ExcelJS: All cell properties:`, Object.keys(cell));
+                    
+                    if (cell.fill) {
+                      console.log(`📎 ExcelJS: Fill object:`, JSON.stringify(cell.fill, null, 2));
+                      console.log(`📎 ExcelJS: Fill type:`, cell.fill.type);
+                      console.log(`📎 ExcelJS: Fill pattern:`, cell.fill.pattern);
+                    
+                      // Check for different color formats in ExcelJS
+                      if (cell.fill.bgColor) {
+                        console.log(`📎 ExcelJS: bgColor object:`, JSON.stringify(cell.fill.bgColor, null, 2));
+                        
+                        if (cell.fill.bgColor.argb) {
+                          const argb = cell.fill.bgColor.argb;
+                          backgroundColor = `#${argb.substring(2)}`; // Remove alpha channel
+                          console.log(`📎 ExcelJS: Found ARGB color ${argb} -> ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.rgb) {
+                          backgroundColor = `#${cell.fill.bgColor.rgb}`;
+                          console.log(`📎 ExcelJS: Found RGB color ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.indexed !== undefined) {
+                          backgroundColor = getIndexedColor(cell.fill.bgColor.indexed);
+                          console.log(`📎 ExcelJS: Found indexed color ${cell.fill.bgColor.indexed} -> ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.theme !== undefined) {
+                          backgroundColor = '#E0E0E0'; // Default theme color
+                          console.log(`📎 ExcelJS: Found theme color ${cell.fill.bgColor.theme} -> ${backgroundColor}`);
+                        }
+                      }
+                      
+                      if (!backgroundColor && cell.fill.fgColor) {
+                        console.log(`📎 ExcelJS: fgColor object:`, JSON.stringify(cell.fill.fgColor, null, 2));
+                        
+                        if (cell.fill.fgColor.argb) {
+                          const argb = cell.fill.fgColor.argb;
+                          backgroundColor = `#${argb.substring(2)}`;
+                          console.log(`📎 ExcelJS: Found foreground ARGB color ${argb} -> ${backgroundColor}`);
+                        } else if (cell.fill.fgColor.rgb) {
+                          backgroundColor = `#${cell.fill.fgColor.rgb}`;
+                          console.log(`📎 ExcelJS: Found foreground RGB color ${backgroundColor}`);
+                        }
+                      }
+                      
+                      // Check for pattern-based fills
+                      if (!backgroundColor && cell.fill.pattern) {
+                        console.log(`📎 ExcelJS: Pattern:`, cell.fill.pattern);
+                        if (cell.fill.pattern === 'solid' && cell.fill.bgColor) {
+                          console.log(`📎 ExcelJS: Solid pattern with bgColor`);
+                        }
+                      }
+                    } else {
+                      console.log(`📎 ExcelJS: Cell has no fill property`);
+                    }
+                  } else {
+                    console.log(`📎 ExcelJS: Cell is null or undefined`);
+                  }
+                  
+                  rawData.headerColors.push(backgroundColor);
+                  console.log(`✅ ExcelJS: Header "${rawHeaders[colIndex]}" color: ${backgroundColor || 'none'}`);
+                }
+                
+                console.log('📎 ExcelJS extraction completed successfully');
+              } else {
+                throw new Error('No worksheet found');
+              }
+            } catch (exceljsError) {
+              console.log('📎 ExcelJS failed, falling back to XLSX:', exceljsError.message);
+              
+              // Fallback to XLSX method
+              console.log('📎 Extracting header colors from Excel file using XLSX...');
+              console.log('📎 Workbook sheets:', workbook.SheetNames);
+              console.log('📎 Worksheet object keys:', Object.keys(worksheet));
+              
+              // Re-read with cell styling enabled
+            const workbookWithStyles = XLSX.readFile(file.path, { cellStyles: true });
+            const worksheetWithStyles = workbookWithStyles.Sheets[workbookWithStyles.SheetNames[0]];
+            
+            console.log('📎 Reading colors for', rawHeaders.length, 'headers at row', headerRowIndex);
+            
+            // Get the worksheet to read cell styles
+            for (let colIndex = 0; colIndex < rawHeaders.length; colIndex++) {
+              const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: colIndex });
+              const cell = worksheetWithStyles[cellAddress];
+              
+              console.log(`📎 Cell ${cellAddress}:`, cell ? 'exists' : 'missing');
+              
+              let backgroundColor = null;
+              if (cell) {
+                console.log(`📎 Cell ${cellAddress} full object:`, JSON.stringify(cell, null, 2));
+                
+                if (cell.s) {
+                  console.log(`📎 Cell ${cellAddress} style:`, JSON.stringify(cell.s, null, 2));
+                  
+                  if (cell.s.fill) {
+                    console.log(`📎 Cell ${cellAddress} fill:`, JSON.stringify(cell.s.fill, null, 2));
+                    
+                    if (cell.s.fill.bgColor) {
+                      console.log(`📎 Cell ${cellAddress} bgColor:`, JSON.stringify(cell.s.fill.bgColor, null, 2));
+                      
+                      // Try to get the background color
+                      if (cell.s.fill.bgColor.rgb) {
+                        backgroundColor = `#${cell.s.fill.bgColor.rgb}`;
+                        console.log(`📎 Found RGB color: ${backgroundColor}`);
+                      } else if (cell.s.fill.bgColor.indexed !== undefined) {
+                        // Handle indexed colors - convert to hex
+                        const colorIndex = cell.s.fill.bgColor.indexed;
+                        backgroundColor = getIndexedColor(colorIndex);
+                        console.log(`📎 Found indexed color ${colorIndex}: ${backgroundColor}`);
+                      } else if (cell.s.fill.bgColor.theme !== undefined) {
+                        // Handle theme colors
+                        console.log(`📎 Found theme color: ${cell.s.fill.bgColor.theme}`);
+                        backgroundColor = '#E0E0E0'; // Default theme color
+                      }
+                    } else if (cell.s.fill.patternType) {
+                      console.log(`📎 Cell has pattern type: ${cell.s.fill.patternType}`);
+                    }
+                  } else {
+                    console.log(`📎 Cell ${cellAddress} has no fill property`);
+                  }
+                } else {
+                  console.log(`📎 Cell ${cellAddress} has no style property`);
+                }
+              }
+              
+              rawData.headerColors.push(backgroundColor);
+              console.log(`✅ Header "${rawHeaders[colIndex]}" (col ${colIndex}) color: ${backgroundColor || 'none'}`);
+            }
+            } // Close XLSX fallback block
+          } else {
+            // For CSV files, no color information available
+            console.log('📎 CSV file - no color information available');
+            rawData.headerColors = rawData.headers.map(() => null);
+          }
+        } catch (colorError) {
+          console.warn('❌ Could not extract header colors:', colorError.message, colorError.stack);
+          rawData.headerColors = rawData.headers.map(() => null);
+        }
+        
+        // Find department column (first non-empty column by default)
+        const deptColIndex = rawHeaders.findIndex(h => h && h.toString().trim() !== '');
+        console.log(`📍 Department column index: ${deptColIndex}`);
+        
+        // Get data rows (skip the header row)
+        const dataRows = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
+        
+        // Build departments and data directly
+        dataRows.forEach(row => {
+          const dept = row[deptColIndex];
+          if (dept && dept.toString().trim() !== '') {
+            if (!rawData.departments.includes(dept)) {
+              rawData.departments.push(dept);
+            }
+            
+            // Build complete row with all values
+            const fullRow = rawData.headers.map((header, idx) => {
+              return row[idx] || '';
+            });
+            fullRow[0] = dept; // Ensure department is first
+            rawData.rows.push(fullRow);
+          }
+        });
+      }
+      
+      // Clean up uploaded file
+      fs.remove(file.path).catch(console.error);
+    }
+    
+    console.log('📊 Raw template preview data prepared:');
+    console.log(`  - Headers: ${rawData.headers.length}`, rawData.headers);
+    console.log(`  - Departments: ${rawData.departments.length}`, rawData.departments);
+    console.log(`  - Rows: ${rawData.rows.length}`);
+    
+    res.json({
+      success: true,
+      data: rawData,
+      message: 'Template preview generated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Template preview error:', error);
+    res.status(500).json({ error: 'Template preview failed: ' + error.message });
+  }
+});
+
+// DISABLED: Template Upload Route - Upload spreadsheet files to create templates  
+// Use /api/upload + Save as Template workflow instead
+app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
     console.log('📋 Template upload request received');
     console.log('👤 User:', req.user);
@@ -5729,6 +6068,139 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler
+// Admin: Aggregate college contacts (registered before 404)
+app.get('/api/admin/college-contacts', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
+  try {
+    const { collegeId, category } = req.query;
+    const colleges = await (await getInitializedUserManager()).getColleges();
+
+    function normaliseArray(value) {
+      if (Array.isArray(value)) return value;
+      return [];
+    }
+
+    function buildContactsForCollege(college) {
+      const contacts = [];
+      const keyStakeholders = normaliseArray(college.keyStakeholders);
+      keyStakeholders.forEach(s => {
+        if (!s) return;
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'Key Stakeholders',
+          name: s.name || '',
+          position: s.position || '',
+          email: s.email || ''
+        });
+      });
+      const superUsers = normaliseArray(college.superUsers);
+      superUsers.forEach(su => {
+        if (!su) return;
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'Super Users',
+          name: su.name || '',
+          position: su.position || '',
+          email: su.email || ''
+        });
+      });
+      if (college.misContactName || college.misContactEmail) {
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'MIS Contact',
+          name: college.misContactName || '',
+          position: 'MIS Contact',
+          email: college.misContactEmail || '',
+          dataTransferMethod: college.dataTransferMethod || ''
+        });
+      }
+      return contacts;
+    }
+
+    let contacts = [];
+    colleges.forEach(college => {
+      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) return;
+      contacts.push(...buildContactsForCollege(college));
+    });
+    if (category) {
+      const categoryNormalised = String(category).toLowerCase();
+      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
+    }
+    res.json({ success: true, contacts });
+  } catch (error) {
+    console.error('Contacts aggregation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Export college contacts to Excel (registered before 404)
+app.get('/api/admin/college-contacts/excel', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
+  try {
+    const { collegeId, category } = req.query;
+    const colleges = await (await getInitializedUserManager()).getColleges();
+
+    function normaliseArray(value) {
+      if (Array.isArray(value)) return value;
+      return [];
+    }
+
+    function buildContactsForCollege(college) {
+      const contacts = [];
+      const keyStakeholders = normaliseArray(college.keyStakeholders);
+      keyStakeholders.forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
+      const superUsers = normaliseArray(college.superUsers);
+      superUsers.forEach(su => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: su?.name || '', position: su?.position || '', email: su?.email || '' }));
+      if (college.misContactName || college.misContactEmail) {
+        contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
+      }
+      return contacts;
+    }
+
+    let contacts = [];
+    colleges.forEach(college => {
+      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) return;
+      contacts.push(...buildContactsForCollege(college));
+    });
+    if (category) {
+      const categoryNormalised = String(category).toLowerCase();
+      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('College Contacts');
+    worksheet.columns = [
+      { header: 'College', key: 'collegeName', width: 30 },
+      { header: 'Category', key: 'category', width: 18 },
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'Position', key: 'position', width: 24 },
+      { header: 'Email', key: 'email', width: 34 },
+      { header: 'Data Transfer Method', key: 'dataTransferMethod', width: 22 }
+    ];
+    contacts.forEach(c => worksheet.addRow({
+      collegeName: c.collegeName || '',
+      category: c.category || '',
+      name: c.name || '',
+      position: c.position || '',
+      email: c.email || '',
+      dataTransferMethod: c.dataTransferMethod || ''
+    }));
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: 'middle' };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `college-contacts-${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Contacts Excel export error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -5841,6 +6313,160 @@ app.post('/api/admin/migrate-database', authService.requireAuth(), async (req, r
   } catch (error) {
     console.error('Migration error:', error);
     res.status(500).json({ error: 'Migration failed: ' + error.message });
+  }
+});
+
+// Admin: Aggregate college contacts
+app.get('/api/admin/college-contacts', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
+  try {
+    const { collegeId, category } = req.query;
+    const colleges = await (await getInitializedUserManager()).getColleges();
+
+    function normaliseArray(value) {
+      if (Array.isArray(value)) return value;
+      return [];
+    }
+
+    function buildContactsForCollege(college) {
+      const contacts = [];
+
+      // Key Stakeholders
+      const keyStakeholders = normaliseArray(college.keyStakeholders);
+      keyStakeholders.forEach(s => {
+        if (!s) return;
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'Key Stakeholders',
+          name: s.name || '',
+          position: s.position || '',
+          email: s.email || ''
+        });
+      });
+
+      // Super Users
+      const superUsers = normaliseArray(college.superUsers);
+      superUsers.forEach(su => {
+        if (!su) return;
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'Super Users',
+          name: su.name || '',
+          position: su.position || '',
+          email: su.email || ''
+        });
+      });
+
+      // MIS Contact (from Data Transfer & MIS section)
+      if (college.misContactName || college.misContactEmail) {
+        contacts.push({
+          collegeId: college.id,
+          collegeName: college.name,
+          category: 'MIS Contact',
+          name: college.misContactName || '',
+          position: 'MIS Contact',
+          email: college.misContactEmail || '',
+          dataTransferMethod: college.dataTransferMethod || ''
+        });
+      }
+
+      return contacts;
+    }
+
+    let contacts = [];
+    colleges.forEach(college => {
+      // If filtering by collegeId, skip others
+      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) {
+        return;
+      }
+      contacts.push(...buildContactsForCollege(college));
+    });
+
+    if (category) {
+      const categoryNormalised = String(category).toLowerCase();
+      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
+    }
+
+    res.json({ success: true, contacts });
+  } catch (error) {
+    console.error('Contacts aggregation error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Admin: Export college contacts to Excel
+app.get('/api/admin/college-contacts/excel', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
+  try {
+    const { collegeId, category } = req.query;
+
+    // Reuse minimal logic for building contacts
+    const colleges = await (await getInitializedUserManager()).getColleges();
+
+    function normaliseArray(value) {
+      if (Array.isArray(value)) return value;
+      return [];
+    }
+
+    function buildContactsForCollege(college) {
+      const contacts = [];
+      const keyStakeholders = normaliseArray(college.keyStakeholders);
+      keyStakeholders.forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
+      const superUsers = normaliseArray(college.superUsers);
+      superUsers.forEach(su => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: su?.name || '', position: su?.position || '', email: su?.email || '' }));
+      if (college.misContactName || college.misContactEmail) {
+        contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
+      }
+      return contacts;
+    }
+
+    let contacts = [];
+    colleges.forEach(college => {
+      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) {
+        return;
+      }
+      contacts.push(...buildContactsForCollege(college));
+    });
+    if (category) {
+      const categoryNormalised = String(category).toLowerCase();
+      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
+    }
+
+    // Build Excel workbook
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('College Contacts');
+
+    worksheet.columns = [
+      { header: 'College', key: 'collegeName', width: 30 },
+      { header: 'Category', key: 'category', width: 18 },
+      { header: 'Name', key: 'name', width: 28 },
+      { header: 'Position', key: 'position', width: 24 },
+      { header: 'Email', key: 'email', width: 34 },
+      { header: 'Data Transfer Method', key: 'dataTransferMethod', width: 22 }
+    ];
+
+    contacts.forEach(c => worksheet.addRow({
+      collegeName: c.collegeName || '',
+      category: c.category || '',
+      name: c.name || '',
+      position: c.position || '',
+      email: c.email || '',
+      dataTransferMethod: c.dataTransferMethod || ''
+    }));
+
+    // Style header
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.alignment = { vertical: 'middle' };
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `college-contacts-${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Contacts Excel export error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
