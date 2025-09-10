@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/modern-normalize/modern-normalize.css">
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji"; background:#f7f9fc; color:#111; }
-    .container { max-width: 1100px; margin: 24px auto; padding: 16px; background:#fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .container { max-width: 100%; margin: 24px auto; padding: 16px; background:#fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     header { display:flex; justify-content: space-between; align-items:center; margin-bottom: 16px; }
     h1 { font-size: 20px; margin: 0; }
     .meta { color:#555; font-size: 14px; }
@@ -71,19 +71,24 @@
         return;
       }
 
+      // Helper: sort reports newest first
+      function sortReports(list) {
+        return (list || []).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      }
+
       let allReports = [];
       async function loadReports() {
         statusEl.textContent = 'Loading reports...';
         const res = await axios.get(`/api/shared/colleges/${collegeId}/reports`, { params: { token, _t: Date.now() } });
         if (!res.data.success) throw new Error('Failed');
-        allReports = res.data.reports || [];
+        allReports = sortReports(res.data.reports || []);
         render(allReports);
         statusEl.textContent = '';
       }
 
       function render(list) {
         tableBody.innerHTML = '';
-        const filtered = list;
+        const filtered = sortReports(list);
         for (const r of filtered) {
           const tr = document.createElement('tr');
           const created = new Date(r.createdAt).toLocaleString();
@@ -129,8 +134,17 @@
                 <div class="muted" style="margin-top:4px;">Created: ${created}</div>
                 ${report.summary ? `<div class="muted">Summary: ${report.summary}</div>` : ''}
               </div>
-              <div>
-                <a class="btn" href="/api/shared/colleges/${encodeURIComponent(getQueryParam('collegeId'))}/reports/${encodeURIComponent(report.id)}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
+                  <input type="checkbox" id="departmentStickyToggle" checked onchange="toggleDepartmentSticky()" style="width:16px;height:16px;">
+                  <label for="departmentStickyToggle" style="font-size:14px;color:#555;">Fix Department Column</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;border:1px solid #d0d7de;border-radius:8px;padding:6px 10px;">
+                  <button onclick="adjustZoom(-10)" style="border:none;background:#fff;color:#555;font-weight:700;padding:4px 8px;border-radius:6px;">-</button>
+                  <span id="zoomLevel" style="font-size:13px;color:#555;min-width:42px;text-align:center;">100%</span>
+                  <button onclick="adjustZoom(10)" style="border:none;background:#fff;color:#555;font-weight:700;padding:4px 8px;border-radius:6px;">+</button>
+                  <button onclick="resetZoom()" style="border:none;background:#f8fafc;color:#666;padding:4px 8px;border-radius:6px;">Reset</button>
+                </div>
               </div>
             </div>
             <div id="reportDataContainer"></div>
@@ -170,6 +184,11 @@
         return { inlineColor: `background-color: ${colors[type]}; border-color: ${colors[type]};` };
       }
 
+      // Helper: robustly identify the Department column (handles stray spaces/case)
+      function isDepartmentHeader(h) {
+        return String(h || '').trim().toLowerCase().startsWith('department');
+      }
+
       function displayReportData(reportData) {
         const container = document.getElementById('reportDataContainer');
         if (!reportData || !reportData.data) { container.innerHTML = '<div class="muted">No data available in this report</div>'; return; }
@@ -178,27 +197,161 @@
 
         // Build headers including change columns
         let completeHeaders = [];
-        headers.forEach(h => { completeHeaders.push(h); if (h !== 'Department') completeHeaders.push(`${h} +/-`); });
+        headers.forEach(h => { completeHeaders.push(h); if (!isDepartmentHeader(h)) completeHeaders.push(`${h} +/-`); });
         const headerCells = completeHeaders.map(h => {
           const isChange = h.endsWith(' +/-');
           const base = isChange ? h.slice(0,-4) : h;
           const section = getColumnSection(base);
-          const sticky = base === 'Department' ? 'position: sticky; left: 0; z-index: 3; min-width: 260px; background: #fff;' : '';
+          const sticky = isDepartmentHeader(base) ? 'position: sticky; left: 0; z-index: 3; min-width: 260px; background: #fff;' : '';
           return `<th style="padding:10px;text-align:left;border-bottom:1px solid #eef2f7;${section.inlineColor}${sticky}">${h}</th>`;
         }).join('');
 
-        // Totals
-        const totals = {}; headers.forEach((header, colIndex) => { if (colIndex === 0 || header.toLowerCase().includes('department')) { totals[colIndex] = ''; } else { let total = 0; let has=false; rows.forEach(row => { if (row[colIndex] !== '' && row[colIndex] !== null && !isNaN(parseFloat(row[colIndex]))) { total += parseFloat(row[colIndex]); has=true; } }); if (has) { if (header.toLowerCase().includes('percent') || header.includes('%')) { const validRows = rows.filter(r => r[colIndex] !== '' && r[colIndex] !== null && !isNaN(parseFloat(r[colIndex]))); totals[colIndex] = validRows.length > 0 ? total / validRows.length : 0; } else { totals[colIndex] = total; } } else { totals[colIndex] = ''; } } });
+        // Totals and previous totals (for +/- in totals row)
+        const totals = {};
+        const prevTotals = {};
+        headers.forEach((header, colIndex) => { const isDept = colIndex === 0 || isDepartmentHeader(header); if (isDept) { totals[colIndex] = ''; prevTotals[colIndex] = ''; return; } let total = 0; let count = 0; let has = false; rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } }); if (has) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; } else { totals[colIndex] = total; } } else { totals[colIndex] = ''; } const prev = window.previousReportData; if (prev && Array.isArray(prev.rows)) { let pTotal = 0; let pCount = 0; let pHas = false; prev.rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } }); if (pHas) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { prevTotals[colIndex] = pCount > 0 ? (pTotal / pCount) : 0; } else { prevTotals[colIndex] = pTotal; } } else { prevTotals[colIndex] = ''; } } else { prevTotals[colIndex] = ''; } });
 
-        const bodyRows = rows.map((row, rowIdx) => { let cells = []; headers.forEach((header, originalColIdx) => { const cell = row[originalColIdx]; let displayValue = cell; let percentageBar=''; let align='left'; if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) { if (typeof cell === 'number' || !isNaN(parseFloat(cell))) { let percentage = parseFloat(cell) <= 1 ? parseFloat(cell) * 100 : parseFloat(cell); displayValue = percentage.toFixed(1) + '%'; align='right'; const width = Math.min(percentage, 100); let barColor = '#22c55e'; if (percentage < 40) barColor = '#ef4444'; else if (percentage >= 40 && percentage <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } } else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) { displayValue = parseFloat(cell).toLocaleString(); align='right'; } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : ''; cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:${align};${sticky}\"><div>${displayValue ?? ''}</div>${percentageBar}</td>`);
-          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563;font-size:12px;">N/A</span>'; if (prev && prev.rows) { const previousRow = prev.rows.find(r => r[0] === row[0]); if (previousRow && previousRow[originalColIdx] !== undefined) { const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[originalColIdx]) || 0; const change = currentValue - previousValue; if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\\\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\\\">${changeText}</span>`; } } } cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
+        const bodyRows = rows.map((row, rowIdx) => { let cells = []; headers.forEach((header, originalColIdx) => { const cell = row[originalColIdx]; let displayValue = cell; let percentageBar=''; let align='left'; if (header && (String(header).toLowerCase().includes('percent') || String(header).includes('%'))) { if (typeof cell === 'number' || !isNaN(parseFloat(cell))) { let percentage = parseFloat(cell) <= 1 ? parseFloat(cell) * 100 : parseFloat(cell); displayValue = percentage.toFixed(1) + '%'; align='right'; const width = Math.min(percentage, 100); let barColor = '#22c55e'; if (percentage < 40) barColor = '#ef4444'; else if (percentage >= 40 && percentage <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } } else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) { displayValue = parseFloat(cell).toLocaleString(); align='right'; } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : ''; cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:${align};${sticky}\"><div>${displayValue ?? ''}</div>${percentageBar}</td>`);
+          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563;font-size:12px;">N/A</span>'; if (!isDepartmentHeader(header) && prev && prev.rows) { const previousRow = prev.rows.find(r => r[0] === row[0]); if (previousRow && previousRow[originalColIdx] !== undefined) { const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[originalColIdx]) || 0; const change = currentValue - previousValue; if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\\\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\\\">${changeText}</span>`; } } } if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); } }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
 
-        // Totals row
-        let totalsRowCells = []; headers.forEach((header, originalColIdx) => { const totalValue = totals[originalColIdx]; let displayTotal=''; let align='left'; let percentageBar=''; if (originalColIdx === 0) { displayTotal='TOTAL'; } else if (header.toLowerCase().includes('department')) { displayTotal=''; } else if (totalValue !== '') { if (header.toLowerCase().includes('percent') || header.includes('%')) { displayTotal = totalValue.toFixed(1) + '%'; align='right'; const width = Math.min(totalValue, 100); let barColor = '#22c55e'; if (totalValue < 40) barColor = '#ef4444'; else if (totalValue >= 40 && totalValue <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\\\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\\\"><div style=\\\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\\\"></div></div>`; } else { displayTotal = Number(totalValue).toLocaleString(); align='right'; } } totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:${align};font-weight:600;color:#475569;\">${displayTotal}${percentageBar}</td>`); totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:center;font-weight:600;color:#2563eb;\"></td>`); });
+        // Totals row with +/- values
+        let totalsRowCells = [];
+        headers.forEach((header, originalColIdx) => { const totalValue = totals[originalColIdx]; let displayTotal=''; let align='left'; let percentageBar=''; if (originalColIdx === 0) { displayTotal='TOTAL'; } else if (isDepartmentHeader(header)) { displayTotal=''; } else if (totalValue !== '') { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { const pct = (parseFloat(totalValue) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue)); displayTotal = pct.toFixed(1) + '%'; align='right'; const width = Math.min(pct, 100); let barColor = '#22c55e'; if (pct < 40) barColor = '#ef4444'; else if (pct >= 40 && pct <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } else { displayTotal = Number(totalValue).toLocaleString(); align='right'; } } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#f9fafb; min-width:260px;' : ''; totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:${align};font-weight:600;color:#475569;${sticky}\">${displayTotal}${percentageBar}</td>`); if (!isDepartmentHeader(header)) {
+            let totalsChange = '';
+            const prevVal = prevTotals[originalColIdx];
+            if (prevVal !== '' && totalValue !== '') {
+              const currNum = parseFloat(totalValue); const prevNum = parseFloat(prevVal);
+              if (!isNaN(currNum) && !isNaN(prevNum)) {
+                const diff = currNum - prevNum; const text = (diff > 0 ? '+' : '') + diff.toFixed(1);
+                const bg = diff > 0 ? '#dcfce7' : (diff < 0 ? '#fee2e2' : '#e5e7eb');
+                const fg = diff > 0 ? '#16a34a' : (diff < 0 ? '#dc2626' : '#475569');
+                totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${diff === 0 ? '0' : text}</span>`;
+              }
+            } else {
+              totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563;font-size:12px;\">-</span>`;
+            }
+            totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:center;font-weight:600;color:#2563eb;\">${totalsChange}</td>`);
+          } });
 
         const tableHTML = `<div style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\"><table style=\"width:100%;border-collapse:separate;border-spacing:0;\"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody></table></div>`;
         container.innerHTML = tableHTML;
+
+        // Apply initial sticky styling to department column
+        setTimeout(() => applyInitialDepartmentSticky(), 100);
       }
+
+      // Zoom controls (match dashboard behaviour)
+      let currentZoom = 100;
+      function applyZoom() {
+        const container = document.getElementById('reportDataContainer');
+        if (!container) return;
+        const scale = currentZoom / 100;
+        container.style.transformOrigin = 'top left';
+        container.style.transform = `scale(${scale})`;
+        container.style.width = `${100 / scale}%`;
+        const zl = document.getElementById('zoomLevel');
+        if (zl) zl.textContent = `${Math.round(currentZoom)}%`;
+      }
+      function adjustZoom(delta) {
+        currentZoom = Math.min(200, Math.max(50, currentZoom + delta));
+        applyZoom();
+      }
+      function resetZoom() { currentZoom = 100; applyZoom(); }
+
+      window.adjustZoom = adjustZoom;
+      window.resetZoom = resetZoom;
+
+      // Toggle department sticky position
+      function toggleDepartmentSticky() {
+        const toggle = document.getElementById('departmentStickyToggle');
+        const isSticky = toggle.checked;
+
+        // Update all existing department headers and cells
+        const departmentHeaders = document.querySelectorAll('th');
+        const departmentCells = document.querySelectorAll('td');
+
+        departmentHeaders.forEach(header => {
+          if (isDepartmentHeader(header.textContent)) {
+            if (isSticky) {
+              header.style.setProperty('position', 'sticky', 'important');
+              header.style.setProperty('left', '0', 'important');
+              header.style.setProperty('top', '0', 'important');
+              header.style.setProperty('z-index', '5', 'important');
+              header.style.setProperty('min-width', '260px', 'important');
+              header.style.setProperty('background', '#fff', 'important');
+            } else {
+              header.style.removeProperty('position');
+              header.style.removeProperty('left');
+              header.style.removeProperty('top');
+              header.style.removeProperty('z-index');
+              header.style.removeProperty('min-width');
+              header.style.removeProperty('background');
+            }
+          }
+        });
+
+        departmentCells.forEach((cell, index) => {
+          const row = cell.parentElement;
+          const cells = Array.from(row.children);
+          const cellIndex = cells.indexOf(cell);
+
+          // Check if this is the first cell in each row (department column)
+          if (cellIndex === 0) {
+            if (isSticky) {
+              cell.style.setProperty('position', 'sticky', 'important');
+              cell.style.setProperty('left', '0', 'important');
+              cell.style.setProperty('z-index', '2', 'important');
+              cell.style.setProperty('background', '#fff', 'important');
+              cell.style.setProperty('min-width', '260px', 'important');
+            } else {
+              cell.style.removeProperty('position');
+              cell.style.removeProperty('left');
+              cell.style.removeProperty('z-index');
+              cell.style.removeProperty('background');
+              cell.style.removeProperty('min-width');
+            }
+          }
+        });
+      }
+
+      // Apply initial sticky styling to all department elements after table render
+      function applyInitialDepartmentSticky() {
+        const toggle = document.getElementById('departmentStickyToggle');
+        if (!toggle || !toggle.checked) return;
+
+        // Apply to headers
+        const departmentHeaders = document.querySelectorAll('th');
+        departmentHeaders.forEach(header => {
+          if (isDepartmentHeader(header.textContent)) {
+            header.style.setProperty('position', 'sticky', 'important');
+            header.style.setProperty('left', '0', 'important');
+            header.style.setProperty('top', '0', 'important');
+            header.style.setProperty('z-index', '5', 'important');
+            header.style.setProperty('min-width', '260px', 'important');
+            header.style.setProperty('background', '#fff', 'important');
+          }
+        });
+
+        // Apply to cells
+        const departmentCells = document.querySelectorAll('td');
+        departmentCells.forEach((cell, index) => {
+          const row = cell.parentElement;
+          const cells = Array.from(row.children);
+          const cellIndex = cells.indexOf(cell);
+
+          if (cellIndex === 0) {
+            cell.style.setProperty('position', 'sticky', 'important');
+            cell.style.setProperty('left', '0', 'important');
+            cell.style.setProperty('z-index', '2', 'important');
+            cell.style.setProperty('background', '#fff', 'important');
+            cell.style.setProperty('min-width', '260px', 'important');
+          }
+        });
+      }
+
+      // Expose toggle functions globally for inline handlers
+      window.toggleDepartmentSticky = toggleDepartmentSticky;
+      window.applyInitialDepartmentSticky = applyInitialDepartmentSticky;
 
       filterInput.addEventListener('input', () => {
         const q = filterInput.value.toLowerCase().trim();
@@ -215,6 +368,13 @@
       } catch (e) {
         statusEl.innerHTML = '<div class="error">Failed to load reports. The link may be invalid or expired.</div>';
       }
+
+      // Keep the shared list fresh: refresh on focus/visibility and every 60s
+      window.addEventListener('focus', () => { loadReports().catch(() => {}); });
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') loadReports().catch(() => {});
+      });
+      setInterval(() => { loadReports().catch(() => {}); }, 60000);
     }
 
     window.addEventListener('DOMContentLoaded', init);
