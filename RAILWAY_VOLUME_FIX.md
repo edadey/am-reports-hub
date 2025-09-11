@@ -103,10 +103,11 @@ After deploying these changes:
 
 ## 🔧 **Testing**
 
-### **Local Testing**
-```bash
-node test-railway-paths.js
-```
+### **Local Verification**
+1. Start the app locally.
+2. Create a backup through the UI or API.
+3. Confirm files are written under `/data` (not `/app/data`).
+4. Restart the app and confirm backups persist.
 
 ### **Production Testing**
 1. Deploy to Railway

@@ -15,6 +15,22 @@
       "live": false,
       "expiresAt": "2025-09-11T11:15:27.064Z",
       "tokenHash": "eyJhbG...osef1Q"
+    },
+    {
+      "shareId": "college-1753277599076-permanent",
+      "collegeId": 1753277599076,
+      "scope": "reports",
+      "permissions": {
+        "view": true,
+        "download": true,
+        "edit": false
+      },
+      "createdByUser": 2,
+      "createdAt": "2025-09-10T10:13:50.021Z",
+      "revoked": false,
+      "live": false,
+      "expiresAt": "2025-09-17T10:13:50.021Z",
+      "tokenHash": "eyJhbG...XOpDv4"
     }
   ]
 }

@@ -171,9 +171,30 @@
 
       function getColumnSection(header) {
         const headerLower = (header || '').toLowerCase();
-        const colors = { placements: '#dbeafe', enrichment: '#bfdbfe', employment: '#f3e8ff', careers: '#fef3c7', activities: '#fef3c7', assessments: '#bbf7d0', targets: '#fce7f3', login: '#e0e7ff', default: '#f3f4f6' };
+        const colors = { 
+          placements: '#dbeafe', 
+          enrichment: '#bfdbfe', 
+          employment: '#f3e8ff', 
+          careers: '#fef3c7', 
+          activities: '#fed7aa', 
+          'employer-activity': '#bfdbfe', 
+          'enrichment-activity': '#e0f7fa', 
+          assessments: '#bbf7d0', 
+          targets: '#fce7f3', 
+          login: '#e0e7ff', 
+          default: '#f3f4f6' 
+        };
         let type = 'default';
-        if (headerLower.includes('enrichment')) type = 'enrichment';
+        // Check for specific activity suffixes first, but differentiate placements from activities
+        if (headerLower.includes('(employer activity)')) {
+          if (headerLower.includes('placement') || headerLower.includes('hours scheduled') || headerLower.includes('student confirmed') || headerLower.includes('employer confirmed')) {
+            type = 'placements';
+          } else {
+            type = 'employer-activity';
+          }
+        }
+        else if (headerLower.includes('(enrichment activity)')) type = 'enrichment-activity';
+        else if (headerLower.includes('enrichment')) type = 'enrichment';
         else if (headerLower.includes('employer') || headerLower.includes('employment')) type = 'employment';
         else if (headerLower.includes('career')) type = 'careers';
         else if (headerLower.includes('activity')) type = 'activities';

@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon app.js",
-    "test": "jest",
     "build": "echo 'No build step required for Node.js app'",
     "postinstall": "echo 'AM Reports Hub installed successfully'",
     "db:migrate": "node src/database/migrate-data.js",
@@ -44,11 +43,11 @@
     "openai": "^5.10.2",
     "pg": "^8.11.3",
     "pg-hstore": "^2.3.4",
+    "playwright": "^1.55.0",
     "sequelize": "^6.37.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "jest": "^29.7.0",
     "nodemon": "^3.0.1"
   },
   "keywords": [

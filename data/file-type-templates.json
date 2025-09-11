@@ -1,0 +1,169 @@
+{
+  "version": "1.0",
+  "templates": {
+    "placements": {
+      "name": "Placements Data",
+      "description": "Student placement information including hours, confirmations",
+      "signatureHeaders": [
+        "students with placements",
+        "total placements",
+        "hours scheduled",
+        "student confirmed",
+        "employer confirmed"
+      ],
+      "keywordPatterns": [
+        "placement",
+        "placed",
+        "hours scheduled",
+        "student confirmed",
+        "employer confirmed"
+      ],
+      "dataPatterns": [
+        "placement data",
+        "student placement"
+      ],
+      "color": "#dbeafe",
+      "bgColor": "bg-blue-100",
+      "lastUsed": "2025-09-11T13:31:17.680Z",
+      "usageCount": 30
+    },
+    "employer-activities": {
+      "name": "Employer Activities",
+      "description": "Activities involving employer engagement and interactions",
+      "signatureHeaders": [
+        "students with activities",
+        "total activities",
+        "activity hours",
+        "total students",
+        "employer activity"
+      ],
+      "keywordPatterns": [
+        "employer activity",
+        "employer engagement",
+        "employer activities",
+        "total students"
+      ],
+      "dataPatterns": [
+        "employer activity",
+        "employer engagement"
+      ],
+      "color": "#bfdbfe",
+      "bgColor": "bg-blue-200",
+      "lastUsed": "2025-09-11T13:31:17.693Z",
+      "usageCount": 62
+    },
+    "enrichment-activities": {
+      "name": "Enrichment Activities",
+      "description": "Student enrichment and development activities",
+      "signatureHeaders": [
+        "students with activities",
+        "total activities",
+        "activity hours",
+        "enrichment"
+      ],
+      "keywordPatterns": [
+        "enrichment activity",
+        "enrichment",
+        "enrichment activities"
+      ],
+      "dataPatterns": [
+        "enrichment activity",
+        "enrichment"
+      ],
+      "color": "#e0f7fa",
+      "bgColor": "bg-teal-100",
+      "lastUsed": null,
+      "usageCount": 0
+    },
+    "careers": {
+      "name": "Careers & Job Profiles",
+      "description": "Career development, job profiles and career quizzes",
+      "signatureHeaders": [
+        "career quiz",
+        "mapped job profile",
+        "students completed career quiz",
+        "job profile"
+      ],
+      "keywordPatterns": [
+        "career",
+        "job profile",
+        "quiz",
+        "mapped job profile"
+      ],
+      "dataPatterns": [
+        "career quiz",
+        "job profile"
+      ],
+      "color": "#fef3c7",
+      "bgColor": "bg-yellow-100",
+      "lastUsed": "2025-09-11T13:31:17.706Z",
+      "usageCount": 30
+    },
+    "assessments": {
+      "name": "Student Assessments",
+      "description": "Assessment scores and completion tracking",
+      "signatureHeaders": [
+        "students with assessments",
+        "average score",
+        "students without assessments",
+        "assessment"
+      ],
+      "keywordPatterns": [
+        "assessment",
+        "score",
+        "assessed"
+      ],
+      "dataPatterns": [
+        "assessment data",
+        "student assessment"
+      ],
+      "color": "#bbf7d0",
+      "bgColor": "bg-green-200",
+      "lastUsed": "2025-09-11T13:31:17.699Z",
+      "usageCount": 30
+    },
+    "targets": {
+      "name": "Targets & Goals",
+      "description": "Performance targets and goal tracking",
+      "signatureHeaders": [
+        "target",
+        "goals"
+      ],
+      "keywordPatterns": [
+        "target",
+        "goal"
+      ],
+      "dataPatterns": [
+        "target data",
+        "performance targets"
+      ],
+      "color": "#fce7f3",
+      "bgColor": "bg-pink-100",
+      "lastUsed": null,
+      "usageCount": 0
+    },
+    "login": {
+      "name": "Login & Access Data",
+      "description": "Student login and access information",
+      "signatureHeaders": [
+        "login",
+        "access",
+        "last login"
+      ],
+      "keywordPatterns": [
+        "login",
+        "access"
+      ],
+      "dataPatterns": [
+        "login data",
+        "access logs"
+      ],
+      "color": "#e0e7ff",
+      "bgColor": "bg-indigo-100",
+      "lastUsed": null,
+      "usageCount": 0
+    }
+  },
+  "userPatterns": {},
+  "lastUpdated": "2025-09-11T13:31:17.735Z"
+}

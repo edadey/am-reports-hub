@@ -5,9 +5,61 @@ const path = require('path');
 class DataImporter {
   constructor() {
     this.supportedFormats = ['.xlsx', '.xls', '.csv'];
+    this.fileTypeTemplates = null;
+    this.templatePath = path.join(__dirname, '../../data/file-type-templates.json');
+  }
+
+  /**
+   * Load file type templates for pattern matching
+   */
+  async loadFileTypeTemplates() {
+    try {
+      if (await fs.pathExists(this.templatePath)) {
+        const templateData = await fs.readJSON(this.templatePath);
+        this.fileTypeTemplates = templateData.templates;
+        console.log(`✅ Loaded ${Object.keys(this.fileTypeTemplates).length} file type templates`);
+      } else {
+        console.log(`❌ Template file not found at ${this.templatePath}, using default patterns`);
+        this.fileTypeTemplates = {};
+      }
+    } catch (error) {
+      console.error('Error loading file type templates:', error);
+      this.fileTypeTemplates = {};
+    }
+  }
+
+  /**
+   * Save updated templates with usage patterns
+   */
+  async saveFileTypeTemplates() {
+    try {
+      const templateData = {
+        version: "1.0",
+        templates: this.fileTypeTemplates,
+        userPatterns: {},
+        lastUpdated: new Date().toISOString()
+      };
+      await fs.writeJSON(this.templatePath, templateData, { spaces: 2 });
+      console.log(`✅ Saved file type templates to ${this.templatePath}`);
+    } catch (error) {
+      console.error('Error saving file type templates:', error);
+    }
+  }
+
+  /**
+   * Update template usage statistics
+   */
+  updateTemplateUsage(fileType) {
+    if (this.fileTypeTemplates && this.fileTypeTemplates[fileType]) {
+      this.fileTypeTemplates[fileType].usageCount = (this.fileTypeTemplates[fileType].usageCount || 0) + 1;
+      this.fileTypeTemplates[fileType].lastUsed = new Date().toISOString();
+    }
   }
 
   async processFiles(files) {
+    // Load file type templates for enhanced detection
+    await this.loadFileTypeTemplates();
+    
     const processedData = {
       departments: [],
       metrics: {},
@@ -15,6 +67,7 @@ class DataImporter {
         employerEngagement: {},
         enrichment: {}
       },
+      originalHeaders: [], // Store original headers from all files for template creation
       timestamp: new Date().toISOString(),
       headerFileMap: {}, // Map header to file index
       fileInfo: [] // Store filename information
@@ -23,8 +76,19 @@ class DataImporter {
     for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
       const file = files[fileIndex];
       try {
-        // Store file information
-        const contentType = this.detectContentTypeFromFilename(file.originalName);
+        // Read file data first to analyze content
+        const fileData = await this.readFile(file.path);
+        console.log(`File data keys for ${file.originalName}:`, Object.keys(fileData));
+        
+        // Extract data to get headers for content-based analysis
+        const extractedData = this.extractData(fileData, file.originalName, fileIndex);
+        
+        // Use enhanced content-based detection with actual headers and data
+        const contentType = extractedData.headerList && extractedData.headerList.length > 0 
+          ? this.detectContentTypeFromHeaders(extractedData.headerList, fileData[Object.keys(fileData)[0]], file.originalName)
+          : this.detectContentTypeFromFilename(file.originalName);
+        
+        // Store file information with detected content type
         processedData.fileInfo[fileIndex] = {
           originalName: file.originalName,
           filename: file.filename,
@@ -32,11 +96,6 @@ class DataImporter {
         };
         
         console.log(`Processing file ${fileIndex}: "${file.originalName}" -> contentType: "${contentType}"`);
-
-        const fileData = await this.readFile(file.path);
-        console.log(`File data keys for ${file.originalName}:`, Object.keys(fileData));
-        
-        const extractedData = this.extractData(fileData, file.originalName, fileIndex);
         console.log(`\n📊 EXTRACTED DATA FOR FILE: ${file.originalName}`);
         console.log(`   - Departments: ${extractedData.departments}`);
         console.log(`   - Metrics count: ${Object.keys(extractedData.metrics).length}`);
@@ -84,6 +143,9 @@ class DataImporter {
       console.log(`\n🎓 ENRICHMENT ACTIVITIES SAMPLE:`, Object.keys(processedData.activities.enrichment)[0],
         Object.keys(processedData.activities.enrichment[Object.keys(processedData.activities.enrichment)[0]]));
     }
+
+    // Save updated template usage statistics
+    await this.saveFileTypeTemplates();
 
     return processedData;
   }
@@ -217,6 +279,143 @@ class DataImporter {
     return null; // No specific activity type found
   }
 
+  /**
+   * Enhanced content-based file type detection with template learning
+   * Analyzes actual header content and data patterns to determine file type
+   * More reliable than filename-based detection
+   */
+  detectContentTypeFromHeaders(headers, sheetData, filename) {
+    console.log(`\n=== ENHANCED CONTENT-BASED FILE TYPE DETECTION ===`);
+    console.log(`Analyzing file: "${filename}"`);
+    console.log(`Headers to analyze:`, headers.slice(0, 10)); // Show first 10 headers
+    
+    // Use loaded templates or fallback to default patterns
+    let fileTypeSignatures = {};
+    
+    if (this.fileTypeTemplates && Object.keys(this.fileTypeTemplates).length > 0) {
+      console.log('✅ Using loaded template patterns for detection');
+      Object.keys(this.fileTypeTemplates).forEach(fileType => {
+        const template = this.fileTypeTemplates[fileType];
+        fileTypeSignatures[fileType] = {
+          requiredKeywords: template.keywordPatterns || [],
+          commonHeaders: template.signatureHeaders || [],
+          weight: 0
+        };
+      });
+    } else {
+      console.log('⚠️ No templates loaded, using fallback patterns');
+      fileTypeSignatures = {
+        'placements': {
+          requiredKeywords: ['placement', 'placed'],
+          commonHeaders: ['students with placements', 'total placements', 'hours scheduled', 'student confirmed', 'employer confirmed'],
+          weight: 0
+        },
+        'employer-activities': {
+          requiredKeywords: ['employer activity', 'employer engagement'],  
+          commonHeaders: ['students with activities', 'total activities', 'activity hours', 'total students'],
+          weight: 0
+        },
+        'enrichment-activities': {
+          requiredKeywords: ['enrichment activity', 'enrichment'],
+          commonHeaders: ['students with activities', 'total activities', 'activity hours', 'enrichment'],
+          weight: 0
+        },
+        'careers': {
+          requiredKeywords: ['career', 'job profile', 'quiz'],
+          commonHeaders: ['career quiz', 'mapped job profile', 'students completed career quiz'],
+          weight: 0
+        },
+        'assessments': {
+          requiredKeywords: ['assessment', 'score'],
+          commonHeaders: ['students with assessments', 'average score', 'students without assessments'],
+          weight: 0
+        },
+        'targets': {
+          requiredKeywords: ['target', 'goal'],
+          commonHeaders: ['target', 'goals'],
+          weight: 0
+        },
+        'login': {
+          requiredKeywords: ['login', 'access'],
+          commonHeaders: ['login', 'access', 'last login'],
+          weight: 0
+        }
+      };
+    }
+
+    // Analyze headers for content patterns
+    const headersText = headers.join(' ').toLowerCase();
+    console.log(`Combined headers text: "${headersText}"`);
+
+    // Calculate weights for each file type
+    Object.keys(fileTypeSignatures).forEach(fileType => {
+      const signature = fileTypeSignatures[fileType];
+      let weight = 0;
+      
+      // Check for required keywords
+      signature.requiredKeywords.forEach(keyword => {
+        if (headersText.includes(keyword)) {
+          weight += 10; // High weight for required keywords
+          console.log(`✅ Found required keyword "${keyword}" for ${fileType} (+10 weight)`);
+        }
+      });
+      
+      // Check for common headers  
+      signature.commonHeaders.forEach(commonHeader => {
+        if (headersText.includes(commonHeader)) {
+          weight += 5; // Medium weight for common headers
+          console.log(`✅ Found common header pattern "${commonHeader}" for ${fileType} (+5 weight)`);
+        }
+      });
+      
+      signature.weight = weight;
+    });
+
+    // Analyze sheet data content if available
+    if (sheetData && sheetData.length > 0) {
+      const allDataText = sheetData.flat().join(' ').toLowerCase();
+      console.log(`Analyzing sheet data content...`);
+      
+      // Look for activity type indicators in data
+      if (allDataText.includes('employer activity') || allDataText.includes('employer engagement')) {
+        fileTypeSignatures['employer-activities'].weight += 15;
+        console.log(`✅ Found employer activity pattern in data (+15 weight)`);
+      }
+      
+      if (allDataText.includes('enrichment activity') || allDataText.includes('enrichment')) {
+        fileTypeSignatures['enrichment-activities'].weight += 15; 
+        console.log(`✅ Found enrichment activity pattern in data (+15 weight)`);
+      }
+    }
+
+    // Find the file type with highest weight
+    let bestMatch = 'default';
+    let highestWeight = 0;
+    
+    Object.keys(fileTypeSignatures).forEach(fileType => {
+      const weight = fileTypeSignatures[fileType].weight;
+      console.log(`${fileType}: ${weight} points`);
+      
+      if (weight > highestWeight) {
+        highestWeight = weight;
+        bestMatch = fileType;
+      }
+    });
+
+    // Require minimum confidence threshold
+    if (highestWeight < 5) {
+      console.log(`❌ No confident match found (highest weight: ${highestWeight}), using filename-based detection as fallback`);
+      return this.detectContentTypeFromFilename(filename);
+    }
+    
+    console.log(`✅ BEST MATCH: "${bestMatch}" with ${highestWeight} points`);
+    
+    // Update template usage statistics for learning
+    this.updateTemplateUsage(bestMatch);
+    
+    return bestMatch;
+  }
+
   async readFile(filePath) {
     const fileExtension = path.extname(filePath).toLowerCase();
     
@@ -260,6 +459,7 @@ class DataImporter {
       departments: [],
       metrics: {},
       headerList: [],
+      originalHeaders: [], // Store original headers before processing
       activityType: null
     };
 
@@ -293,9 +493,14 @@ class DataImporter {
       return;
     }
         
+    // Capture original headers FIRST - completely unfiltered for template creation
+    extracted.originalHeaders = [...headers]; // Store ALL headers including empty ones
+    console.log(`Captured ALL original headers for ${fileName}:`, extracted.originalHeaders);
+    
     // Find key columns based on your report structure
     const departmentColIndex = this.findColumnIndex(headers, ['Department', 'Program', 'Course', 'Category']);
-              
+    console.log(`Department column index for ${fileName}:`, departmentColIndex);
+    
     // Filter out problematic headers (numbered columns, duplicates, etc.)
     console.log(`Processing sheet for ${fileName} - Original headers:`, headers);
     
@@ -403,11 +608,20 @@ class DataImporter {
 
   findColumnIndex(headers, possibleNames) {
     for (const name of possibleNames) {
-      const index = headers.findIndex(header => 
-        header && header.toString().toLowerCase().includes(name.toLowerCase())
-      );
-      if (index !== -1) return index;
+      const index = headers.findIndex(header => {
+        if (!header) return false;
+        const headerStr = header.toString().toLowerCase().trim();
+        const nameStr = name.toLowerCase().trim();
+        
+        // More specific matching - exact match or starts with the name
+        return headerStr === nameStr || headerStr.startsWith(nameStr);
+      });
+      if (index !== -1) {
+        console.log(`Found department column "${headers[index]}" at index ${index} matching "${name}"`);
+        return index;
+      }
     }
+    console.log(`No department column found, defaulting to index 0`);
     return 0; // Default to first column
   }
 
@@ -438,6 +652,18 @@ class DataImporter {
         target.departments.push(dept);
       }
     });
+
+    // Merge original headers for template creation
+    if (source.originalHeaders && Array.isArray(source.originalHeaders)) {
+      if (!target.originalHeaders) target.originalHeaders = [];
+      source.originalHeaders.forEach(header => {
+        if (!target.originalHeaders.includes(header)) {
+          target.originalHeaders.push(header);
+        }
+      });
+      console.log(`Added original headers from this file:`, source.originalHeaders);
+      console.log(`Total original headers now:`, target.originalHeaders);
+    }
 
     // Determine if this is activities data
     const isEmployerActivity = contentType === 'employer' || source.activityType === 'employer';

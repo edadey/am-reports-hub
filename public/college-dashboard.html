@@ -2814,7 +2814,6 @@
         details[4].querySelector('span:last-child').textContent = totals.employerConfirmed.toLocaleString();
       }
     }
-
     // Update enrichment activities details
     function updateEnrichmentActivitiesDetails(totals) {
       const enrichmentActivitiesDetails = document.getElementById('enrichmentActivitiesDetails');
@@ -3341,38 +3340,37 @@
         window.previousReportData = null;
       }
     }
-
     // Function to determine column section and color based on filename content
     // CACHE-BUST: 2025-01-27-16-00-00
     function getColumnSection(header, headerFileMap = null) {
-      // Define content-based colors - each content type gets its own color
+      // Define content-based colours - ensure employer vs enrichment are distinct
       const CONTENT_COLORS = {
-        'placements': 'bg-blue-100',      // Blue for placements
-        'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
-        'employment': 'bg-purple-100',    // Purple for employment
-        'careers': 'bg-yellow-100',       // Yellow for careers (changed from orange)
-        'activities': 'bg-orange-100',    // Orange for activities (changed from yellow to distinguish from careers)
-        'assessments': 'bg-green-200',    // Green-200 for assessments (changed from teal)
-        'employer-activity': 'bg-red-100', // Red for employer activities (new)
-        'enrichment-activity': 'bg-teal-100', // Teal for enrichment activities (new)
-        'targets': 'bg-pink-100',         // Pink for targets
-        'login': 'bg-indigo-100',         // Indigo for login data
-        'default': 'bg-gray-100'          // Gray for unknown
+        'placements': 'bg-blue-100',          // Blue for placements
+        'enrichment': 'bg-teal-100',          // Teal for enrichment
+        'employment': 'bg-purple-100',        // Purple for employment (employer engagement)
+        'careers': 'bg-yellow-100',           // Yellow for careers
+        'activities': 'bg-orange-100',        // Orange for generic activities
+        'assessments': 'bg-green-200',        // Green-200 for assessments
+        'employer-activity': 'bg-amber-100',  // Cream/amber for employer activities
+        'enrichment-activity': 'bg-cyan-100', // Light cyan for enrichment activities
+        'targets': 'bg-pink-100',
+        'login': 'bg-indigo-100',
+        'default': 'bg-gray-100'
       };
       
       // Define inline styles as fallback for better specificity
       const INLINE_COLORS = {
-        'placements': 'background-color: #dbeafe !important; border-color: #dbeafe !important;',      // Blue for placements
-        'enrichment': 'background-color: #bfdbfe !important; border-color: #bfdbfe !important;',      // Blue-200 for enrichment
-        'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',      // Purple for employment
-        'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',         // Yellow for careers
-        'activities': 'background-color: #fed7aa !important; border-color: #fed7aa !important;',      // Orange for activities (changed from yellow)
-        'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',     // Green-200 for assessments
-        'employer-activity': 'background-color: #fee2e2 !important; border-color: #fee2e2 !important;', // Red for employer activities (new)
-        'enrichment-activity': 'background-color: #f0fdfa !important; border-color: #f0fdfa !important;', // Teal for enrichment activities (new)
-        'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',         // Pink for targets
-        'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',           // Indigo for login data
-        'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'          // Gray for unknown
+        'placements': 'background-color: #dbeafe !important; border-color: #dbeafe !important;',
+        'enrichment': 'background-color: #ccfbf1 !important; border-color: #ccfbf1 !important;',
+        'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',
+        'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
+        'activities': 'background-color: #fed7aa !important; border-color: #fed7aa !important;',
+        'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',
+        'employer-activity': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
+        'enrichment-activity': 'background-color: #e0f7fa !important; border-color: #e0f7fa !important;',
+        'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',
+        'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',
+        'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'
       };
       
       // Function to determine content type from header suffix
@@ -3380,8 +3378,11 @@
         // First check if the header itself contains type information (from our renaming)
         const headerLower = header.toLowerCase();
         
-        // Check for new activity suffixes first
+        // Check for new activity suffixes first, but differentiate placements from activities
         if (headerLower.includes('(employer activity)')) {
+          if (headerLower.includes('placement') || headerLower.includes('hours scheduled') || headerLower.includes('student confirmed') || headerLower.includes('employer confirmed')) {
+            return 'placements';
+          }
           return 'employer-activity';
         }
         
@@ -3438,8 +3439,8 @@
           return 'enrichment';
         }
         
-        if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
-            headerLower.includes('activity') || headerLower.includes('activities'))) {
+        if (headerLower.includes('employer') && headerLower.includes('engagement') && 
+            !headerLower.includes('(employer activity)')) {
           return 'employment';
         }
         
@@ -3488,7 +3489,7 @@
     // Calculate total change for a specific column
     function calculateTotalChange(colIndex, currentTotals, previousData) {
       if (!previousData || !previousData.rows) {
-        return '';
+        return `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
       }
       
       // Calculate totals from previous report (same logic as current totals)
@@ -3527,12 +3528,12 @@
       }
       
       if (!hasValidPreviousData) {
-        return '';
+        return `<span class=\"px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600\">-</span>`;
       }
       
       const currentTotal = currentTotals[colIndex];
       if (currentTotal === '' || currentTotal === null) {
-        return '';
+        return `<span class=\"px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600\">-</span>`;
       }
       
       // Calculate the change in the overall totals
@@ -3749,21 +3750,22 @@
           displayTotal = '';
         } else if (totalValue !== '') {
           if (header.toLowerCase().includes('percent') || header.includes('%')) {
-            displayTotal = totalValue.toFixed(1) + '%';
+            const pct = (parseFloat(totalValue) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue));
+            displayTotal = pct.toFixed(1) + '%';
             cellAlignment = 'text-right';
             
             // Add percentage bar for totals row with gradient colors
-            const barWidth = Math.min(totalValue, 100);
+            const barWidth = Math.min(pct, 100);
             let barColor;
-            if (totalValue < 40) {
+            if (pct < 40) {
               barColor = 'bg-red-500';
-            } else if (totalValue >= 40 && totalValue <= 70) {
+            } else if (pct >= 40 && pct <= 70) {
               // Orange gradient between 40-70%
-              const orangeIntensity = Math.round(255 - ((totalValue - 40) / 30) * 100);
+              const orangeIntensity = Math.round(255 - ((pct - 40) / 30) * 100);
               barColor = `rgb(255, ${orangeIntensity}, 0)`;
             } else {
               // Green gradient above 70%
-              const greenIntensity = Math.round(100 + ((totalValue - 70) / 30) * 155);
+              const greenIntensity = Math.round(100 + ((pct - 70) / 30) * 155);
               barColor = `rgb(0, ${greenIntensity}, 0)`;
             }
             
@@ -3965,7 +3967,6 @@
         notification.remove();
       }, 3000);
     }
-
     // Tab navigation logic
     function showTab(tab) {
       // Hide all tab contents
@@ -4608,7 +4609,6 @@
         default: return 'text-gray-500';
       }
     }
-    
     function getPerformanceLevelLabel(quartile) {
       if (!quartile || quartile === 'N/A') return 'N/A';
       
@@ -4673,7 +4673,7 @@
         <div class="bg-blue-50 rounded-lg p-4 mb-4">
           <h4 class="font-semibold text-blue-900 mb-3 flex items-center">
             <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
             </svg>
             Detailed Rankings
           </h4>
@@ -5210,7 +5210,6 @@
         showFallbackGapAnalysis();
       }
     }
-
     // Update analytics dashboard with current live data from latest report
     function updateAnalyticsWithLiveData() {
       console.log('updateAnalyticsWithLiveData called');
@@ -5623,7 +5622,7 @@
           <div class="text-center py-8">
             <div class="flex justify-center mb-4">
               <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
               </svg>
             </div>
             <h4 class="text-lg font-semibold text-gray-900 mb-2">Gap Analysis Unavailable</h4>
@@ -5816,7 +5815,6 @@
       document.getElementById('sortReportsFilter').value = 'date-desc';
       updateReportsTableWithData(collegeReports);
     }
-    
     // Update reports table with filtered data
     function updateReportsTableWithData(reports = null) {
       const reportsToShow = reports || collegeReports;
@@ -6458,7 +6456,6 @@
        }
      }
      */
-
     // Refresh KPI suggestions
     async function refreshKPISuggestions() {
       const container = document.getElementById('kpiSuggestionsContainer');
@@ -7109,7 +7106,6 @@
       
       undoTimeouts.set(deletedKPI.timestamp, timeoutId);
     }
-
     function undoDeleteKPI(timestamp) {
       // Find the deleted KPI
       const deletedKPIIndex = deletedKPIs.findIndex(kpi => kpi.timestamp === timestamp);

@@ -1787,24 +1787,70 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     worksheet.getCell('A2').value = `Generated: ${new Date(report.createdAt).toLocaleString()}`;
     worksheet.getCell('A2').font = { size: 10, color: { argb: 'FF666666' } };
 
-    // Prepare header colouring (match UI)
-    function getColumnSection(header) {
+    // Prepare header colouring using file-based grouping with keyword fallback
+    function getColumnSection(header, headerFileMap = null, fileInfo = null) {
       const SECTION_COLORS_EXCEL = {
         placements: 'FFDBEAFE',
-        assessments: 'FFBBF7D0',
+        assessments: 'FFBBF7D0', 
         careers: 'FFFEF3C7',
-        activities: 'FFFEF3C7',
+        activities: 'FFFED7AA',
         enrichment: 'FFBFDBFE',
         employment: 'FFF3E8FF',
+        'employer-activities': 'FFFEF3C7', // Cream to distinguish employer engagement activities
+        'enrichment-activities': 'FFB2F5EA', // Light teal for enrichment activities
         targets: 'FFFCE7F3',
         login: 'FFE0E7FF',
         default: 'FFF3F4F6'
       };
+      
       const h = (header || '').toLowerCase();
       if (header === 'Department') return { section: 'Department', color: 'FFFEF3C7' };
+      
+      // FILE-BASED GROUPING: Check if we have file mapping information
+      if (headerFileMap && fileInfo) {
+        let fileIndex = headerFileMap[header];
+        if (fileIndex === undefined) {
+          // Try base name without suffix
+          const base = header.replace(/ \(.*\)$/, '');
+          for (const key in headerFileMap) { if (key.startsWith(base + ' (')) { fileIndex = headerFileMap[key]; break; } }
+        }
+        if (fileIndex !== undefined) {
+          const rawType = fileInfo[fileIndex]?.contentType ? String(fileInfo[fileIndex].contentType).toLowerCase() : null;
+          let normType = rawType === 'employer' ? 'employment' : rawType;
+          if (normType === 'employer-activities') normType = 'employer-activity';
+          if (normType === 'enrichment-activities') normType = 'enrichment-activity';
+          if (normType && SECTION_COLORS_EXCEL[normType]) {
+            console.log(`📁 File-based color assignment: "${header}" -> file ${fileIndex} (${normType}) -> ${SECTION_COLORS_EXCEL[normType]}`);
+            return { section: normType, color: SECTION_COLORS_EXCEL[normType] };
+          }
+          // Fallback: per-file deterministic palette even if content type is unknown/default
+          const FALLBACKS = ['FFE8F0FE','FFFDE68A','FFE9D5FF','FFD1FAE5','FFFEE2E2','FFBAE6FD','FFFDE2E2'];
+          const fallbackColor = FALLBACKS[fileIndex % FALLBACKS.length];
+          console.log(`📁 File-based fallback color: "${header}" -> file ${fileIndex} -> ${fallbackColor}`);
+          return { section: 'default', color: fallbackColor };
+        }
+      }
+      
+      // FALLBACK TO KEYWORD-BASED DETECTION for backwards compatibility
+      console.log(`🔍 Using keyword-based detection for header: "${header}"`);
+      
+      // Check for specific activity suffixes, but differentiate placements from activities
+      if (h.includes('(employer activity)')) {
+        if (h.includes('placement') || h.includes('hours scheduled') || h.includes('student confirmed') || h.includes('employer confirmed')) {
+          return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
+        }
+        return { section: 'employer-activities', color: SECTION_COLORS_EXCEL['employer-activities'] };
+      }
+      if (h.includes('(enrichment activity)')) return { section: 'enrichment-activities', color: SECTION_COLORS_EXCEL['enrichment-activities'] };
+      
+      // Then check for content type suffixes from backend processing
+      if (h.includes('(enrichment)')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
+      if (h.includes('(employer)')) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('(careers)')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
+      
       if (h.includes('placements') || h.includes('placed') || h.includes('scheduled to date')) return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
       if (h.includes('enrichment')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
-      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('students with')) && !h.includes('(employer activity)'))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
       if (h.includes('career') || h.includes('quiz') || h.includes('job profile') || h.includes('mapped')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
       if (h.includes('assessment') || h.includes('score') || h.includes('students without') || h.includes('assessed')) return { section: 'assessments', color: SECTION_COLORS_EXCEL.assessments };
       if (h.includes('activity') || (h.includes('hours') && !h.includes('scheduled'))) return { section: 'activities', color: SECTION_COLORS_EXCEL.activities };
@@ -1837,7 +1883,7 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
       const cell = worksheet.getCell(dataStartRow, index + 1);
       const isChange = header.endsWith(' +/-');
       const baseHeader = isChange ? header.replace(' +/-', '') : header;
-      const sectionInfo = getColumnSection(baseHeader);
+      const sectionInfo = getColumnSection(baseHeader, report.headerFileMap, report.fileInfo);
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sectionInfo.color } };
       cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 11, name: 'Arial' };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -2113,8 +2159,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     currentRow++;
     dataStartRow = currentRow;
     
-    // Function to determine column section and color
-    function getColumnSection(header, headerFileMap = null) {
+    // Function to determine column section and color (supports file-based colouring)
+    function getColumnSection(header, headerFileMap = null, fileInfo = null) {
       // Define colors that exactly match frontend Tailwind classes (Excel hex format)
       const SECTION_COLORS_EXCEL = {
         'placements': 'FFDBEAFE',      // bg-blue-100 - Light blue
@@ -2127,6 +2173,26 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         'login': 'FFE0E7FF',            // bg-indigo-100 - Light indigo
         'default': 'FFF3F4F6'           // bg-gray-100 - Light gray
       };
+      
+      // Try file-based first to ensure all headers from the same upload share a colour
+      if (headerFileMap && fileInfo) {
+        let fileIndex = headerFileMap[header];
+        if (fileIndex === undefined) {
+          const base = header.replace(/ \(.*\)$/, '');
+          for (const key in headerFileMap) { if (key.startsWith(base + ' (')) { fileIndex = headerFileMap[key]; break; } }
+        }
+        if (fileIndex !== undefined) {
+          const rawType = fileInfo[fileIndex]?.contentType ? String(fileInfo[fileIndex].contentType).toLowerCase() : null;
+          const normType = rawType === 'employer' ? 'employment' : rawType;
+          if (normType && SECTION_COLORS_EXCEL[normType]) {
+            return { section: normType, color: SECTION_COLORS_EXCEL[normType] };
+          }
+          // Deterministic per-file fallback palette when type is unknown/default
+          const FALLBACKS = ['FFE8F0FE','FFFDE68A','FFE9D5FF','FFD1FAE5','FFFEE2E2','FFBAE6FD','FFFDE2E2'];
+          const fallbackColor = FALLBACKS[fileIndex % FALLBACKS.length];
+          return { section: 'default', color: fallbackColor };
+        }
+      }
       
       // Function to determine section type from header - matches frontend logic exactly
       function getSectionType(header) {
@@ -2237,11 +2303,15 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     
     // Try to get headerFileMap from report data
     let reportHeaderFileMap = null;
+    let reportFileInfo = null;
     if (report.data && report.data.headerFileMap) {
       reportHeaderFileMap = report.data.headerFileMap;
       console.log('Using file-based coloring for Excel export:', reportHeaderFileMap);
     } else {
       console.log('No headerFileMap found, using content-based coloring for Excel export');
+    }
+    if (report.data && report.data.fileInfo) {
+      reportFileInfo = report.data.fileInfo;
     }
     
     // Build complete header structure with change columns positioned correctly
@@ -2269,7 +2339,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       // Debug: Log header section detection
       const isChangeColumn = header.endsWith(' +/-');
       const originalHeader = isChangeColumn ? header.replace(' +/-', '') : header;
-      const sectionInfo = getColumnSection(originalHeader, reportHeaderFileMap);
+      const sectionInfo = getColumnSection(originalHeader, reportHeaderFileMap, reportFileInfo);
       console.log(`🎨 Header: "${header}" -> Section: ${sectionInfo.section}, Color: ${sectionInfo.color}`);
       
       // Apply section colors

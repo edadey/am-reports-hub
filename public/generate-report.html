@@ -6,6 +6,10 @@
   <title>Generate Report - Navigate Reports Hub</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <!-- Version: 2025-09-09-14:15 - Force browser refresh -->
   <style>
     /* Custom styles for table headers to ensure background colors are applied */
     .bg-blue-100 { background-color: #dbeafe !important; }
@@ -133,29 +137,23 @@
       </div>
 
       <!-- Template Selection Section -->
-      <div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-gray-50 rounded-lg">
+      <div class="bg-white rounded-lg shadow p-4 sm:p-6">
         <h3 class="text-base sm:text-lg font-medium text-gray-900 mb-3">Template Options</h3>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Apply Template (Optional)</label>
             <select id="templateSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
-              <option value="">No template - Use new data structure</option>
+              <option value="">-- No template --</option>
             </select>
           </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Template Mode</label>
-            <select id="templateMode" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
-              <option value="strict">Strict - Only extract template columns</option>
-              <option value="flexible">Flexible - Add new columns if available</option>
-            </select>
-          </div>
+          <!-- Removed Use template for preview control -->
         </div>
       </div>
 
-      <!-- Template Upload Section -->
+      <!-- Template Processing Section -->
       <div class="mb-4 sm:mb-6 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-200">
         <h3 class="text-base sm:text-lg font-medium text-yellow-900 mb-3">Create Template from Spreadsheet</h3>
-        <p class="text-sm text-yellow-700 mb-4">Upload a pre-formatted spreadsheet to preview and create a reusable template with the same headers and structure.</p>
+        <p class="text-sm text-yellow-700 mb-4">Upload a pre-formatted spreadsheet to create a reusable template with the same headers and structure.</p>
         
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
           <div>
@@ -171,24 +169,13 @@
         <div class="mb-4">
           <label class="block text-sm font-medium text-yellow-800 mb-2">Upload Spreadsheet Files</label>
           <input id="templateFileInput" type="file" multiple class="mb-2 w-full" accept=".xlsx,.xls,.csv">
-          <p class="text-xs text-yellow-600">Upload one or more Excel/CSV files with your desired template structure. You can preview the data before creating the template.</p>
+          <p class="text-xs text-yellow-600">Upload one or more Excel/CSV files with your desired template structure.</p>
         </div>
         
         <div class="flex flex-wrap gap-2">
-          <button id="previewTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button">
-            Preview Sheet
+          <button id="processTemplateBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
+            Process template
           </button>
-          <button id="createTemplateBtn" class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition-colors duration-200 font-medium shadow-sm touch-button hidden">
-            Create Template
-          </button>
-          <button id="cancelTemplateUploadBtn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm touch-button hidden">
-            Cancel
-          </button>
-        </div>
-        
-        <!-- Template Preview Status -->
-        <div id="templatePreviewStatus" class="mt-3 text-sm text-yellow-700 hidden">
-          <p class="font-medium">Preview ready! Review the data in the table below and click "Create Template" when satisfied.</p>
         </div>
       </div>
 
@@ -244,6 +231,8 @@
         </div>
         
         <div class="overflow-x-auto custom-scrollbar">
+          <!-- File legend (maps header accent colours to filenames) -->
+          <div id="fileLegend" class="px-3 sm:px-6 py-2 text-xs text-gray-600 flex flex-wrap gap-2"></div>
           <table class="min-w-full divide-y divide-gray-200">
             <thead id="tableHeader">
               <!-- Headers will be populated here -->
@@ -302,18 +291,27 @@
     // Ensure cookies (session) are sent with uploads and all API calls
     try { axios.defaults.withCredentials = true; } catch(_) {}
     console.log('=== Script loading started ===');
-    console.log('=== NEW VERSION LOADED: 2025-01-27-15-30-00 ===');
-    document.body.style.backgroundColor = 'lightblue';
-    alert('JavaScript is working!');
+    console.log('=== Report generation page loaded ===');
+    console.log('=== PAGE VERSION: 2025-09-09-14:15 - Process Template Fixed ===');
     
     // Global variables
     let colleges = [];
     let accountManagers = [];
     let tableData = [];
     let tableHeaders = [];
+    let tableHeaderColors = []; // Store header colors from Excel files
     let selectedAccountManagerId = null;
     let currentCollegeId = null;
     let previousReportData = null;
+    
+    // Clear any stale data when page loads
+    console.log('🧹 Clearing stale data on page load...');
+    try { 
+      localStorage.removeItem('excelEditorData'); 
+      console.log('✅ Cleared excelEditorData from localStorage');
+    } catch(e) { 
+      console.warn('⚠️ Could not clear excelEditorData:', e.message); 
+    }
     let isSelectionMode = false;
     let selectedRows = new Set();
     let selectedColumns = new Set();
@@ -327,7 +325,7 @@
       'activities': 'bg-yellow-100',    // Yellow for activities (changed from orange to distinguish from careers)
       'enrichment': 'bg-green-100',     // Green for enrichment
       'employment': 'bg-purple-100',    // Purple for employment
-      'employer-activity': 'bg-red-100', // Red for employer activities (new)
+      'employer-activity': 'bg-blue-200', // Light blue for employer activities (placements)
       'enrichment-activity': 'bg-cyan-100', // Cyan for enrichment activities (new)
       'targets': 'bg-pink-100',         // Pink for targets
       'login': 'bg-indigo-100',         // Indigo for login
@@ -342,7 +340,7 @@
       'activities': 'FFFEF3C7',      // Light yellow (matches bg-yellow-100)
       'enrichment': 'FFDCFCE7',      // Light green (matches bg-green-100)
       'employment': 'FFF3E8FF',      // Light purple (matches bg-purple-100)
-      'employer-activity': 'FFFEE2E2', // Light red (matches bg-red-100)
+      'employer-activity': 'FFBFDBFE', // Light blue (matches bg-blue-200)
       'enrichment-activity': 'FFE0F7FA', // Light cyan (matches bg-cyan-100)
       'targets': 'FFFCE7F3',         // Light pink (matches bg-pink-100)
       'login': 'FFE0E7FF',           // Light indigo (matches bg-indigo-100)
@@ -621,20 +619,38 @@
         updateCollegeSelect();
       }
       
-      // Template upload functionality
-      const previewTemplateBtn = document.getElementById('previewTemplateBtn');
-      if (previewTemplateBtn) {
-        previewTemplateBtn.addEventListener('click', previewTemplate);
+      // Template processing functionality
+      const processTemplateBtn = document.getElementById('processTemplateBtn');
+      if (processTemplateBtn) {
+        console.log('=== Process template button found and event listener added ===');
+        processTemplateBtn.addEventListener('click', function() {
+          console.log('=== Process template button clicked - calling processTemplate() ===');
+          processTemplate();
+        });
+      } else {
+        console.error('=== Process template button NOT found ===');
       }
       
-      const createTemplateBtn = document.getElementById('createTemplateBtn');
-      if (createTemplateBtn) {
-        createTemplateBtn.addEventListener('click', createTemplate);
-      }
-      
-      const cancelTemplateUploadBtn = document.getElementById('cancelTemplateUploadBtn');
-      if (cancelTemplateUploadBtn) {
-        cancelTemplateUploadBtn.addEventListener('click', cancelTemplateUpload);
+      // Template selection event listener
+      const templateSelect = document.getElementById('templateSelect');
+      if (templateSelect) {
+        templateSelect.addEventListener('change', function() {
+          const selectedTemplate = getSelectedTemplate();
+          if (selectedTemplate) {
+            console.log('Template selected:', selectedTemplate.name);
+            showStatus(`Template "${selectedTemplate.name}" selected`, 'success');
+            
+            // Optionally load template data immediately to preview
+            if (selectedTemplate.tableData && selectedTemplate.headers) {
+              tableHeaders = [...selectedTemplate.headers];
+              tableData = selectedTemplate.tableData.map(row => [...row]);
+              renderTable();
+              showStatus(`Template "${selectedTemplate.name}" loaded for preview`, 'info');
+            }
+          } else {
+            showStatus('Template deselected - using new data structure', 'info');
+          }
+        });
       }
     }
 
@@ -669,20 +685,33 @@
 
     async function loadTemplates() {
       try {
+        console.log('Loading templates...');
         const response = await axios.get('/api/templates');
+        console.log('Templates response:', response.data);
         const apiData = response.data;
         const list = Array.isArray(apiData) ? apiData : (Array.isArray(apiData.templates) ? apiData.templates : []);
+        
+        console.log('Parsed templates list:', list);
         
         // Store templates globally so they can be accessed by other functions
         window.__templates = list;
         
         const templateSelect = document.getElementById('templateSelect');
         if (templateSelect) {
-          templateSelect.innerHTML = '<option value="">No template - Use new data structure</option>' +
+          const options = '<option value="">No template - Use new data structure</option>' +
             list.map(template => `<option value="${template.id}">${template.name}</option>`).join('');
+          console.log('Template options HTML:', options);
+          templateSelect.innerHTML = options;
+          console.log('Templates loaded successfully, dropdown populated with', list.length, 'templates');
+        } else {
+          console.error('Template select element not found');
         }
       } catch (error) {
         console.error('Error loading templates:', error);
+        console.error('Error details:', error.response?.data || error.message);
+        
+        // Show error to user
+        showStatus('Failed to load templates: ' + (error.response?.data?.error || error.message), 'error');
       }
     }
 
@@ -739,6 +768,15 @@
     // File processing
     async function processFiles() {
       console.log('=== processFiles called ===');
+      
+      // Reset the original headers flag for regular file processing
+      window.useOriginalHeaders = false;
+      tableHeaderColors = []; // Clear any template colors
+      
+      const useTplCheckbox = document.getElementById('useTemplateForPreview');
+      const shouldUseTemplateForPreview = !!(useTplCheckbox && useTplCheckbox.checked);
+      console.log('Use template for preview:', shouldUseTemplateForPreview);
+      
       const fileInput = document.getElementById('fileInput');
       if (!fileInput.files.length) {
         showStatus('Please select files to process', 'error');
@@ -762,37 +800,24 @@
         
         if (response.data.success) {
           console.log('Processing successful, adapting table to data...');
-          console.log('Response data structure:', {
-            departments: response.data.data.departments?.length || 0,
-            metricsKeys: Object.keys(response.data.data.metrics || {}).length,
-            employerEngagementKeys: Object.keys(response.data.data.activities?.employerEngagement || {}).length,
-            enrichmentKeys: Object.keys(response.data.data.activities?.enrichment || {}).length
-          });
+          const selectedTemplate = getSelectedTemplate();
+          const useTemplate = !!(selectedTemplate && selectedTemplate.headers);
+          let headers, rows;
           
-          // Log detailed activity data
-          console.log('Response departments:', response.data.data.departments);
-          console.log('Response metrics keys:', Object.keys(response.data.data.metrics || {}));
-          console.log('Response employer engagement keys:', Object.keys(response.data.data.activities?.employerEngagement || {}));
-          console.log('Response enrichment keys:', Object.keys(response.data.data.activities?.enrichment || {}));
-          
-          // Log detailed activity data for each department
-          Object.keys(response.data.data.activities?.employerEngagement || {}).forEach(dept => {
-            console.log(`Response Employer Engagement for ${dept}:`, response.data.data.activities.employerEngagement[dept]);
-          });
-          Object.keys(response.data.data.activities?.enrichment || {}).forEach(dept => {
-            console.log(`Response Enrichment for ${dept}:`, response.data.data.activities.enrichment[dept]);
-          });
-          
-          // Prepare data for Excel editor and cache it
-          const headers = await buildHeadersFromProcessed(response.data.data);
-          const rows = await buildRowsFromProcessed(response.data.data, headers);
-          // Clear stale then set fresh cache so the editor uses the latest
+          if (useTemplate) {
+            console.log('Using template headers from:', selectedTemplate.name);
+            headers = [...selectedTemplate.headers];
+            rows = await buildRowsFromTemplate(response.data.data, headers, selectedTemplate);
+          } else {
+            console.log('No template selected, generating headers from data');
+            headers = await buildHeadersFromProcessed(response.data.data);
+            rows = await buildRowsFromProcessed(response.data.data, headers);
+          }
           try { localStorage.removeItem('excelEditorData'); } catch(_) {}
           localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
           const hint = document.getElementById('excelEditorHint');
           if (hint) hint.classList.remove('hidden');
-          // Render the classic table as before
-          await adaptTableToData(response.data.data);
+          await adaptTableToData(response.data.data, useTemplate);
           showStatus('Files processed successfully', 'success');
         }
       } catch (error) {
@@ -807,9 +832,9 @@
         const metrics = (data.metrics || {})[dept] || {};
         Object.keys(metrics).forEach(k => { if (k !== 'Department') all.add(k); });
         const emp = data.activities?.employerEngagement?.[dept] || {};
-        Object.keys(emp).forEach(k => all.add(k));
+        Object.keys(emp).forEach(k => all.add(`${k} (Employer Engagement)`));
         const enr = data.activities?.enrichment?.[dept] || {};
-        Object.keys(enr).forEach(k => all.add(k));
+        Object.keys(enr).forEach(k => all.add(`${k} (Enrichment)`));
       });
       return Array.from(all);
     }
@@ -821,10 +846,271 @@
         const emp = data.activities?.employerEngagement?.[dept] || {};
         const enr = data.activities?.enrichment?.[dept] || {};
         headers.slice(1).forEach(h => {
-          row.push(metrics[h] ?? emp[h] ?? enr[h] ?? '');
+          let val = '';
+          if (h.endsWith(' (Employer Engagement)')) {
+            const originalKey = h.replace(' (Employer Engagement)', '');
+            val = emp[originalKey] ?? '';
+          } else if (h.endsWith(' (Enrichment)')) {
+            const originalKey = h.replace(' (Enrichment)', '');
+            val = enr[originalKey] ?? '';
+          } else {
+            val = metrics[h] ?? '';
+          }
+          row.push(val);
         });
         return row;
       });
+    }
+
+    // Build rows using template structure - maps data to template headers
+    async function buildRowsFromTemplate(data, templateHeaders, selectedTemplate) {
+      console.log('Building rows from template:', selectedTemplate.name);
+      console.log('Template headers:', templateHeaders);
+      
+      const templateMode = getTemplateMode();
+      console.log('Template mode:', templateMode);
+      
+      return (data.departments || []).map(dept => {
+        const row = [dept]; // First column is always Department
+        const metrics = (data.metrics || {})[dept] || {};
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        const enr = data.activities?.enrichment?.[dept] || {};
+        
+        // Map each template header to available data
+        templateHeaders.slice(1).forEach(templateHeader => {
+          let value = '';
+          
+          // Try to find matching data in order of priority
+          if (metrics[templateHeader] !== undefined) {
+            value = metrics[templateHeader];
+          } else if (emp[templateHeader] !== undefined) {
+            value = emp[templateHeader];
+          } else if (enr[templateHeader] !== undefined) {
+            value = enr[templateHeader];
+          } else if (templateMode === 'flexible') {
+            // In flexible mode, try fuzzy matching for similar header names
+            const allData = { ...metrics, ...emp, ...enr };
+            const similarKey = Object.keys(allData).find(key => 
+              key.toLowerCase().includes(templateHeader.toLowerCase()) ||
+              templateHeader.toLowerCase().includes(key.toLowerCase())
+            );
+            if (similarKey) {
+              value = allData[similarKey];
+              console.log(`Fuzzy matched "${templateHeader}" to "${similarKey}": ${value}`);
+            }
+          }
+          
+          row.push(value);
+        });
+        
+        return row;
+      });
+    }
+
+    // Build rows using original headers from uploaded files (for template creation)
+    async function buildRowsFromOriginalHeaders(data, originalHeaders) {
+      console.log('Building rows from original headers:', originalHeaders);
+      console.log('Available departments:', data.departments);
+      
+      return (data.departments || []).map(dept => {
+        const row = [dept]; // First column is always Department
+        const metrics = (data.metrics || {})[dept] || {};
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        const enr = data.activities?.enrichment?.[dept] || {};
+        
+        // Combine all data sources
+        const allData = { ...metrics, ...emp, ...enr };
+        console.log(`\n=== DEPARTMENT: ${dept} ===`);
+        console.log(`Available processed keys:`, Object.keys(allData));
+        console.log(`Original headers to match:`, originalHeaders);
+        
+        // For each original header, try to find corresponding data
+        originalHeaders.slice(1).forEach(originalHeader => {
+          let value = '';
+          
+          // Strategy 1: Direct exact match
+          if (allData[originalHeader] !== undefined) {
+            value = allData[originalHeader];
+            console.log(`Direct match for "${originalHeader}": ${value}`);
+          } else {
+            // Strategy 2: Remove content type suffixes and compare
+            let foundKey = Object.keys(allData).find(key => {
+              const cleanKey = key.replace(/\s*\([^)]*\)\s*$/g, '').trim();
+              return cleanKey === originalHeader.trim();
+            });
+            
+            if (!foundKey) {
+              // Strategy 3: Fuzzy matching - check if processed key contains original header
+              foundKey = Object.keys(allData).find(key => {
+                const cleanKey = key.replace(/\s*\([^)]*\)\s*$/g, '').trim().toLowerCase();
+                const cleanOriginal = originalHeader.trim().toLowerCase();
+                return cleanKey.includes(cleanOriginal) || cleanOriginal.includes(cleanKey);
+              });
+            }
+            
+            if (!foundKey) {
+              // Strategy 4: Very fuzzy matching - partial word matches
+              foundKey = Object.keys(allData).find(key => {
+                const keyWords = key.toLowerCase().split(/[\s\(\)\-\_]+/).filter(w => w.length > 2);
+                const origWords = originalHeader.toLowerCase().split(/[\s\(\)\-\_]+/).filter(w => w.length > 2);
+                return keyWords.some(kw => origWords.some(ow => kw.includes(ow) || ow.includes(kw)));
+              });
+            }
+            
+            if (foundKey) {
+              value = allData[foundKey];
+              console.log(`Matched original header "${originalHeader}" to processed "${foundKey}": ${value}`);
+            } else {
+              console.log(`No match found for original header: "${originalHeader}"`);
+              // For template creation, we still want the column to exist even if empty
+              value = '';
+            }
+          }
+          
+          row.push(value);
+        });
+        
+        return row;
+      });
+    }
+    
+    // Process template - follows same workflow as processFiles (just shows preview)
+    async function processTemplate() {
+      console.log('=== processTemplate called ===');
+      console.log('=== THIS FUNCTION SHOULD ONLY SHOW PREVIEW, NOT CREATE TEMPLATES ===');
+      
+      // Clear any existing data to ensure fresh start
+      console.log('🧹 Clearing existing table data for fresh template processing...');
+      tableHeaders = [];
+      tableData = [];
+      previousReportData = null;
+      window.useOriginalHeaders = false; // Reset this flag
+      
+      // Clear localStorage cache
+      try { 
+        localStorage.removeItem('excelEditorData'); 
+        console.log('✅ Cleared excelEditorData cache');
+      } catch(e) { 
+        console.warn('⚠️ Could not clear excelEditorData:', e.message); 
+      }
+      
+      const templateFileInput = document.getElementById('templateFileInput');
+      
+      if (!templateFileInput.files.length) {
+        showStatus('Please select files to process', 'error');
+        return;
+      }
+      
+      console.log(`Processing files for template preview ONLY from ${templateFileInput.files.length} files:`, Array.from(templateFileInput.files).map(f => f.name));
+      console.log('=== NO TEMPLATE WILL BE CREATED AUTOMATICALLY ===');
+      
+      const formData = new FormData();
+      for (const file of templateFileInput.files) {
+        formData.append('files', file);
+        console.log(`Added file to FormData: ${file.name}`);
+      }
+      
+      showStatus('Processing files...', 'info');
+      
+      try {
+        console.log('Sending template preview request to NEW RAW endpoint...');
+        const response = await axios.post('/api/template-preview', formData);
+        console.log('Template preview response received:', response.data);
+        
+        if (response.data.success) {
+          console.log('Template preview successful, using RAW data...');
+          console.log('RAW TEMPLATE DATA:', response.data.data);
+          
+          // For template processing, use RAW data directly from new endpoint
+          console.log('Process Template: Using RAW data from template-preview endpoint');
+          
+          // Extract raw headers and rows directly - NO processing needed!
+          // Prefer a faithful reconstruction if rawGrid is present
+          const rawGrid = response.data.data.rawGrid || [];
+          let headers = response.data.data.headers || [];
+          let rows = response.data.data.rows || [];
+
+          // If we have a raw grid, reconstruct headers/rows exactly
+          if (Array.isArray(rawGrid) && rawGrid.length) {
+            // Find header row the same way as backend chose it
+            let headerRowIndex = 0;
+            let maxHeaderCells = 0;
+            for (let i = 0; i < Math.min(5, rawGrid.length); i++) {
+              const row = rawGrid[i] || [];
+              const nonEmptyCells = row.filter(c => c !== null && c !== undefined && String(c).trim() !== '').length;
+              if (nonEmptyCells > maxHeaderCells) {
+                maxHeaderCells = nonEmptyCells;
+                headerRowIndex = i;
+              }
+            }
+            headers = (rawGrid[headerRowIndex] || []).map(h => h === null || h === undefined ? '' : String(h));
+            rows = rawGrid.slice(headerRowIndex + 1).map(r => {
+              const row = Array.from({ length: headers.length }, (_, idx) => r[idx] ?? '');
+              return row;
+            });
+          }
+          
+          // Extract header colours from response (may be empty for plain Excel)
+          const headerColors = response.data.data.headerColors || [];
+          const hasExcelHeaderColours = Array.isArray(headerColors) && headerColors.some(Boolean);
+          
+          console.log('✅ RAW Headers from upload:', headers);
+          console.log('✅ RAW Header Colors:', headerColors);
+          console.log('✅ RAW Headers length:', headers.length);
+          console.log('✅ RAW Headers type:', typeof headers);
+          console.log('✅ RAW Headers detailed:', JSON.stringify(headers, null, 2));
+          console.log('✅ RAW Rows count:', rows.length);
+          console.log('✅ Sample row:', rows[0]);
+          console.log('✅ Sample row length:', rows[0] ? rows[0].length : 'N/A');
+          console.log('✅ Sample row detailed:', rows[0] ? JSON.stringify(rows[0], null, 2) : 'N/A');
+          
+          // Validate that we have proper data structure
+          if (headers.length === 0) {
+            console.error('❌ No headers found in template data!');
+            showStatus('No column headers found in the uploaded file. Please check the file format.', 'error');
+            return;
+          }
+          
+          if (rows.length === 0) {
+            console.error('❌ No data rows found in template data!');
+            showStatus('No data rows found in the uploaded file. Please check the file format.', 'error');
+            return;
+          }
+          
+          // Set flags: only use original Excel header colours if they actually exist
+          window.useOriginalHeaders = !!hasExcelHeaderColours;
+          window.strictTemplateMode = !!hasExcelHeaderColours;
+          
+          // Store in global variables for table rendering
+          tableHeaders = [...headers];
+          tableData = [...rows];
+          tableHeaderColors = hasExcelHeaderColours ? [...headerColors] : []; // Store colours if present
+          
+          // Cache data for Excel editor
+          try { localStorage.removeItem('excelEditorData'); } catch(_) {}
+          localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
+          const hint = document.getElementById('excelEditorHint');
+          if (hint) hint.classList.remove('hidden');
+          
+          // Render the table directly with raw data (skip adaptTableToData for templates)
+          console.log('Rendering table with raw template data...');
+          renderTable();
+          
+          showStatus('Files processed successfully', 'success');
+          
+        } else {
+          showStatus('Failed to process files: ' + (response.data.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Error processing files:', error);
+        let errorMessage = 'File processing failed';
+        if (error.response && error.response.data && error.response.data.error) {
+          errorMessage += ': ' + error.response.data.error;
+        } else {
+          errorMessage += ': ' + error.message;
+        }
+        showStatus(errorMessage, 'error');
+      }
     }
     
     // Test activity processing
@@ -872,192 +1158,9 @@
       showStatus('Test activity processing completed', 'success');
     }
 
-    // Template upload functions
-    let templatePreviewData = null;
-    
-    async function previewTemplate() {
-      const templateNameInput = document.getElementById('templateName');
-      const templateFileInput = document.getElementById('templateFileInput');
-      
-      const templateName = templateNameInput.value.trim();
-      
-      if (!templateName) {
-        showStatus('Please enter a template name', 'error');
-        templateNameInput.focus();
-        return;
-      }
-      
-      if (!templateFileInput.files || templateFileInput.files.length === 0) {
-        showStatus('Please select spreadsheet files to preview', 'error');
-        return;
-      }
-      
-      // Validate file types
-      const validExtensions = ['.xlsx', '.xls', '.csv'];
-      const invalidFiles = [];
-      
-      for (const file of templateFileInput.files) {
-        const extension = '.' + file.name.split('.').pop().toLowerCase();
-        if (!validExtensions.includes(extension)) {
-          invalidFiles.push(file.name);
-        }
-      }
-      
-      if (invalidFiles.length > 0) {
-        showStatus(`Invalid file types: ${invalidFiles.join(', ')}. Please upload Excel (.xlsx, .xls) or CSV files only.`, 'error');
-        return;
-      }
-      
-      console.log(`Previewing template "${templateName}" from ${templateFileInput.files.length} files`);
-      
-      const formData = new FormData();
-      for (const file of templateFileInput.files) {
-        formData.append('files', file);
-        console.log(`Added file to FormData: ${file.name}`);
-      }
-      
-      showStatus('Processing files for preview...', 'info');
-      
-      try {
-        // Use the existing upload endpoint to process files
-        const response = await axios.post('/api/upload', formData);
-        console.log('Preview response:', response.data);
-        
-        if (response.data.success) {
-          console.log('Processing successful, showing preview...');
-          
-          // Store the processed data for template creation
-          templatePreviewData = response.data.data;
-          
-          // Display the data in the same table view as generate report
-          await adaptTableToData(response.data.data);
-          
-          // Show status message and buttons
-          showStatus('Preview loaded successfully. Review the data below and click "Create Template" to save it.', 'success');
-          
-          // Show the create template button and status
-          document.getElementById('createTemplateBtn').classList.remove('hidden');
-          document.getElementById('cancelTemplateUploadBtn').classList.remove('hidden');
-          document.getElementById('templatePreviewStatus').classList.remove('hidden');
-          
-          // Scroll to table so user can see the preview
-          document.getElementById('tableHeader').scrollIntoView({ behavior: 'smooth', block: 'start' });
-          
-        } else {
-          showStatus('Failed to preview template: ' + (response.data.error || 'Unknown error'), 'error');
-        }
-      } catch (error) {
-        console.error('Template preview error:', error);
-        let errorMessage = 'Template preview failed';
-        if (error.response && error.response.data && error.response.data.error) {
-          errorMessage += ': ' + error.response.data.error;
-        } else {
-          errorMessage += ': ' + error.message;
-        }
-        showStatus(errorMessage, 'error');
-      }
-    }
-    
-    async function createTemplate() {
-      if (!templatePreviewData) {
-        showStatus('No preview data available. Please preview first.', 'error');
-        return;
-      }
-      
-      const templateNameInput = document.getElementById('templateName');
-      const templateDescriptionInput = document.getElementById('templateDescription');
-      
-      const templateName = templateNameInput.value.trim();
-      const templateDescription = templateDescriptionInput.value.trim();
-      
-      if (!templateName) {
-        showStatus('Please enter a template name', 'error');
-        templateNameInput.focus();
-        return;
-      }
-      
-      console.log(`Creating template "${templateName}" from preview data`);
-      
-      showStatus('Creating template...', 'info');
-      
-      try {
-        // Build template data from current table state (allows for any edits made during preview)
-        const templateData = {
-          templateName,
-          templateDescription: templateDescription || `Template created from uploaded files`,
-          headers: tableHeaders,
-          tableData: tableData,
-          processedData: templatePreviewData
-        };
-        
-        const response = await axios.post('/api/create-template-from-preview', templateData);
-        console.log('Template creation response:', response.data);
-        
-        if (response.data.success) {
-          showStatus(response.data.message, 'success');
-          
-          // Clear the form and reset state
-          templateNameInput.value = '';
-          templateDescriptionInput.value = '';
-          document.getElementById('templateFileInput').value = '';
-          templatePreviewData = null;
-          
-          // Hide template creation buttons
-          document.getElementById('createTemplateBtn').classList.add('hidden');
-          document.getElementById('cancelTemplateUploadBtn').classList.add('hidden');
-          document.getElementById('templatePreviewStatus').classList.add('hidden');
-          
-          // Reload templates to include the new one
-          await loadTemplates();
-          
-          // Show template details
-          const template = response.data.template;
-          console.log('Template created:', template);
-          
-          // Optionally select the new template
-          const templateSelect = document.getElementById('templateSelect');
-          if (templateSelect && template.id) {
-            templateSelect.value = template.id;
-            showStatus(`Template "${template.name}" is now selected and ready to use`, 'info');
-          }
-          
-        } else {
-          showStatus('Failed to create template: ' + (response.data.error || 'Unknown error'), 'error');
-        }
-      } catch (error) {
-        console.error('Template creation error:', error);
-        let errorMessage = 'Template creation failed';
-        if (error.response && error.response.data && error.response.data.error) {
-          errorMessage += ': ' + error.response.data.error;
-        } else {
-          errorMessage += ': ' + error.message;
-        }
-        showStatus(errorMessage, 'error');
-      }
-    }
-    
-    function cancelTemplateUpload() {
-      // Clear the form and reset state
-      document.getElementById('templateName').value = '';
-      document.getElementById('templateDescription').value = '';
-      document.getElementById('templateFileInput').value = '';
-      templatePreviewData = null;
-      
-      // Hide template creation buttons
-      document.getElementById('createTemplateBtn').classList.add('hidden');
-      document.getElementById('cancelTemplateUploadBtn').classList.add('hidden');
-      document.getElementById('templatePreviewStatus').classList.add('hidden');
-      
-      // Clear the table if it was showing preview data
-      tableHeaders = [];
-      tableData = [];
-      renderTable();
-      
-      showStatus('Template preview cancelled', 'info');
-    }
 
     // Table functions
-    async function adaptTableToData(data) {
+    async function adaptTableToData(data, useTemplateForPreview = false) {
       console.log('=== adaptTableToData called ===');
       console.log('Data received:', data);
       // Store the headerFileMap and fileInfo for color assignment
@@ -1065,7 +1168,6 @@
         headerFileMap = data.headerFileMap;
         console.log('Header file mapping:', headerFileMap);
       } else {
-        // Fallback: assign all headers to file 0 if no mapping is provided
         headerFileMap = {};
         console.log('No headerFileMap provided, using fallback coloring');
       }
@@ -1074,27 +1176,123 @@
       if (data.fileInfo) {
         window.fileInfo = data.fileInfo;
         console.log('File info received:', window.fileInfo);
-        // Also store it in a global variable for easier access
         globalThis.fileInfoData = data.fileInfo;
+        // Render legend for file colours if container exists
+        try {
+          const legend = document.getElementById('fileLegend');
+          if (legend && Array.isArray(window.fileInfo) && window.showFileAccents === true) {
+            const accents = ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'];
+            legend.innerHTML = window.fileInfo.map((fi, idx) => {
+              const c = accents[idx % accents.length];
+              const name = (fi && (fi.originalName || fi.filename)) ? (fi.originalName || fi.filename) : `File ${idx + 1}`;
+              return `<span style="display:inline-flex;align-items:center;margin-right:12px;margin-bottom:6px;">
+                <span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;margin-right:6px;"></span>
+                <span style="font-size:12px;color:#374151;">${name}</span>
+              </span>`;
+            }).join('');
+          }
+        } catch (_) {}
       }
       
       if (data.departments) {
-        const selectedTemplate = getSelectedTemplate();
+        const selectedTemplate = useTemplateForPreview ? getSelectedTemplate() : null;
         const templateMode = getTemplateMode();
+        console.log('Selected template (for preview):', useTemplateForPreview ? selectedTemplate : null);
         
-        if (selectedTemplate && selectedTemplate.tableData) {
-          tableHeaders = selectedTemplate.headers;
-          tableData = selectedTemplate.tableData;
+        if (selectedTemplate && selectedTemplate.headers) {
+          console.log('Applying template:', selectedTemplate.name);
           
-          // Update headerFileMap for template headers if not already set
+          // Start with template headers and structure
+          tableHeaders = [...selectedTemplate.headers];
+          console.log('Template headers:', tableHeaders);
+          
+          // Build lookup for new data including activities
+          const newDataLookup = {};
+          data.departments.forEach(dept => {
+            newDataLookup[dept] = data.metrics[dept] || {};
+          });
+          
+          // Add activity metrics
+          console.log('Processing activity metrics...');
+          data.departments.forEach(dept => {
+            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+            const enrichment = data.activities?.enrichment?.[dept] || {};
+            
+            console.log(`Department ${dept} - Employer Engagement keys:`, Object.keys(employerEngagement));
+            console.log(`Department ${dept} - Enrichment keys:`, Object.keys(enrichment));
+            
+            Object.keys(employerEngagement).forEach(key => {
+              newDataLookup[dept][key] = employerEngagement[key];
+            });
+            
+            Object.keys(enrichment).forEach(key => {
+              newDataLookup[dept][key] = enrichment[key];
+            });
+          });
+          
+          console.log('All headers found:', Array.from(new DataLookup));
+          console.log('All headers found (detailed):', Array.from(new DataLookup).map(h => ({ header: h, type: h.includes('(Employer Engagement)') ? 'employer' : h.includes('(Enrichment)') ? 'enrichment' : 'other' })));
+          
+          // Build a map of activity header -> type using actual data to aid classification
+          try {
+            const employerSet = new Set();
+            const enrichmentSet = new Set();
+            data.departments.forEach(dept => {
+              const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+              const enrichment = data.activities?.enrichment?.[dept] || {};
+              Object.keys(employerEngagement).forEach(h => employerSet.add(h));
+              Object.keys(enrichment).forEach(h => enrichmentSet.add(h));
+            });
+            window.activityHeaderTypeMap = {};
+            employerSet.forEach(h => { window.activityHeaderTypeMap[h] = 'employment'; });
+            enrichmentSet.forEach(h => { window.activityHeaderTypeMap[h] = 'enrichment'; });
+            console.log('Built activityHeaderTypeMap:', window.activityHeaderTypeMap);
+          } catch (e) {
+            console.warn('Failed to build activityHeaderTypeMap:', e?.message || e);
+          }
+          
+          // Organize headers by section
+          const organizedHeaders = organizeHeadersBySection(['Department', ...Array.from(new DataLookup)]);
+          tableHeaders = organizedHeaders;
+          
+          // Update headerFileMap for any missing headers
           if (Object.keys(headerFileMap).length === 0) {
+            console.log('Creating fallback headerFileMap');
             tableHeaders.forEach((header, index) => {
-              if (header !== 'Department') {
+              if (header !== 'Department' && !headerFileMap.hasOwnProperty(header)) {
                 headerFileMap[header] = Math.floor(index / 5); // Distribute across files
               }
             });
           }
+          
+          console.log('Organized headers:', tableHeaders);
+          console.log('Final headerFileMap:', headerFileMap);
+          
+          // Build table data
+          tableData = data.departments.map(dept => {
+            const row = [dept]; // Department column
+            
+            // Add regular metrics
+            const metrics = data.metrics[dept] || {};
+            tableHeaders.slice(1).forEach(header => {
+              if (header.includes('(Employer Engagement)') || header.includes('(Enrichment)')) {
+                // Handle activity columns
+                const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
+                const cleanHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '');
+                const activityData = data.activities?.[activityType]?.[dept] || {};
+                row.push(activityData[cleanHeader] ?? '');
+              } else {
+                // Handle regular metrics
+                row.push(metrics[header] ?? '');
+              }
+            });
+            
+            return row;
+          });
+          
+          console.log('Table data built:', tableData.length, 'rows');
         } else {
+          console.log('adaptTableToData: No template selected, building from data');
           // Build headers with proper section organization
           const allHeaders = new Set();
           
@@ -1118,16 +1316,34 @@
             console.log(`Department ${dept} - Enrichment keys:`, Object.keys(enrichment));
             
             Object.keys(employerEngagement).forEach(key => {
-              allHeaders.add(key);
+              allHeaders.add(`${key} (Employer Engagement)`);
             });
             
             Object.keys(enrichment).forEach(key => {
-              allHeaders.add(key);
+              allHeaders.add(`${key} (Enrichment)`);
             });
           });
           
           console.log('All headers found:', Array.from(allHeaders));
           console.log('All headers found (detailed):', Array.from(allHeaders).map(h => ({ header: h, type: h.includes('(Employer Engagement)') ? 'employer' : h.includes('(Enrichment)') ? 'enrichment' : 'other' })));
+          
+          // Build a map of activity header -> type using actual data to aid classification
+          try {
+            const employerSet = new Set();
+            const enrichmentSet = new Set();
+            data.departments.forEach(dept => {
+              const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
+              const enrichment = data.activities?.enrichment?.[dept] || {};
+              Object.keys(employerEngagement).forEach(h => employerSet.add(h));
+              Object.keys(enrichment).forEach(h => enrichmentSet.add(h));
+            });
+            window.activityHeaderTypeMap = {};
+            employerSet.forEach(h => { window.activityHeaderTypeMap[h] = 'employment'; });
+            enrichmentSet.forEach(h => { window.activityHeaderTypeMap[h] = 'enrichment'; });
+            console.log('Built activityHeaderTypeMap:', window.activityHeaderTypeMap);
+          } catch (e) {
+            console.warn('Failed to build activityHeaderTypeMap:', e?.message || e);
+          }
           
           // Organize headers by section
           const organizedHeaders = organizeHeadersBySection(['Department', ...Array.from(allHeaders)]);
@@ -1158,7 +1374,7 @@
                 const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
                 const cleanHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '');
                 const activityData = data.activities?.[activityType]?.[dept] || {};
-                row.push(activityData[header] ?? '');
+                row.push(activityData[cleanHeader] ?? '');
               } else {
                 // Handle regular metrics
                 row.push(metrics[header] ?? '');
@@ -1206,30 +1422,45 @@
           return;
         }
         
-        if (header === 'Department') {
-          sections.department.push(header);
-        } else if (header.includes('(placement)') || header.includes('(Placement)') || 
-                   header.toLowerCase().includes('placement') || header.toLowerCase().includes('employer')) {
-          sections.placements.push(header);
-        } else if (header.includes('(assessment)') || header.includes('(Assessment)') ||
-                   header.toLowerCase().includes('assessment') || header.toLowerCase().includes('score')) {
-          sections.assessments.push(header);
-        } else if (header.includes('(careersQuiz)') || header.includes('(CareersQuiz)') ||
-                   header.toLowerCase().includes('career') || header.toLowerCase().includes('job profile')) {
-          sections.careers.push(header);
-        } else if (header.includes('(student)') || header.includes('(Student)') ||
-                   header.toLowerCase().includes('student')) {
-          sections.students.push(header);
-        } else if (header.toLowerCase().includes('activity') || header.toLowerCase().includes('enrichment') ||
-                   header.toLowerCase().includes('hours')) {
-          sections.activities.push(header);
+        const h = header.toString();
+        const hl = h.toLowerCase();
+        const isDept = h === 'Department';
+        
+        // Data-driven hint from built map
+        const hintedType = (typeof window !== 'undefined' && window.activityHeaderTypeMap) ? window.activityHeaderTypeMap[h] : null;
+        if (isDept) {
+          sections.department.push(h);
+          return;
+        }
+        if (hintedType === 'employment' || hintedType === 'enrichment') {
+          sections.activities.push(h);
+          return;
+        }
+        
+        // Activity categorisation (string-based fallback)
+        const isEmployerActivity = h.includes('(Employer Engagement)') ||
+                                   (hl.includes('employer') && (hl.includes('engagement') || hl.includes('activity') || hl.includes('activities')));
+        const isEnrichmentActivity = h.includes('(Enrichment)') || hl.includes('enrichment');
+        
+        if (isEmployerActivity) {
+          sections.activities.push(h);
+        } else if (isEnrichmentActivity) {
+          sections.activities.push(h);
+        } else if (hl.includes('placement') || hl.includes('placed') || hl.includes('student confirmed') || hl.includes('employer confirmed')) {
+          sections.placements.push(h);
+        } else if (hl.includes('assessment') || hl.includes('score')) {
+          sections.assessments.push(h);
+        } else if (hl.includes('career') || hl.includes('job profile') || hl.includes('quiz') || hl.includes('mapped')) {
+          sections.careers.push(h);
+        } else if (hl.includes('student')) {
+          sections.students.push(h);
+        } else if (hl.includes('activity') || hl.includes('activities') || hl.includes('hours')) {
+          sections.activities.push(h);
         } else {
-          // Default to other section for unknown headers
-          sections.other.push(header);
+          sections.other.push(h);
         }
       });
       
-      // Return organized headers in correct order
       return [
         ...sections.department,
         ...sections.students,
@@ -1297,7 +1528,7 @@
     function getSectionColor(sectionName) {
       const sectionLower = sectionName.toLowerCase();
       if (sectionLower.includes('placements')) return 'bg-blue-100';
-      if (sectionLower.includes('enrichment')) return 'bg-blue-200';
+      if (sectionLower.includes('enrichment')) return 'bg-teal-100'; // switched to teal for enrichment
       if (sectionLower.includes('employment')) return 'bg-purple-100';
       if (sectionLower.includes('careers')) return 'bg-yellow-100';
       if (sectionLower.includes('assessments')) return 'bg-green-200';
@@ -1310,7 +1541,9 @@
     function getSectionInlineColor(sectionName) {
       const sectionLower = sectionName.toLowerCase();
       if (sectionLower.includes('placements')) return '#dbeafe';
-      if (sectionLower.includes('enrichment')) return '#bfdbfe';
+      if (sectionLower.includes('enrichment-activity')) return '#e0f7fa'; // Light cyan for enrichment activities
+      if (sectionLower.includes('employer-activity')) return '#bfdbfe'; // Light blue for employer activities (placements)
+      if (sectionLower.includes('enrichment')) return '#ccfbf1'; // switched to teal for enrichment
       if (sectionLower.includes('employment')) return '#f3e8ff';
       if (sectionLower.includes('careers')) return '#fef3c7';
       if (sectionLower.includes('assessments')) return '#bbf7d0';
@@ -1324,10 +1557,15 @@
     // CACHE-BUST: 2025-01-27-15-30-00
     function getColumnSection(header) {
       console.log('=== getColumnSection called with header:', header);
-      // Define content-based colors - each content type gets its own color
+      // Quick-revert flag
+      if (typeof window.useStrictTypePrecedence === 'undefined') {
+        window.useStrictTypePrecedence = true;
+      }
+
+      // Define content-based colors - unified canonical palette
       const CONTENT_COLORS = {
         'placements': 'bg-blue-100',      // Blue for placements
-        'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
+        'enrichment': 'bg-teal-100',      // Teal for enrichment (distinct from placements)
         'employment': 'bg-purple-100',    // Purple for employment
         'careers': 'bg-yellow-100',       // Yellow for careers
         'assessments': 'bg-green-200',    // Green-200 for assessments
@@ -1338,112 +1576,124 @@
       
       // Define inline styles as fallback for better specificity
       const INLINE_COLORS = {
-        'placements': 'background-color: #dbeafe !important; border-color: #dbeafe !important;',      // Blue for placements
-        'enrichment': 'background-color: #bfdbfe !important; border-color: #bfdbfe !important;',      // Blue-200 for enrichment
-        'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',      // Purple for employment
-        'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',         // Yellow for careers
-        'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',     // Green-200 for assessments
-        'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',         // Pink for targets
-        'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',           // Indigo for login data
-        'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'          // Gray for unknown
+        'placements': 'background-color: #dbeafe !important; border-color: #dbeafe !important;',
+        'enrichment': 'background-color: #ccfbf1 !important; border-color: #ccfbf1 !important;',
+        'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',
+        'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
+        'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',
+        'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',
+        'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',
+        'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'
       };
-      
-      // Function to determine content type from header suffix
-      function getContentTypeFromFilename(header) {
-        // First check if the header itself contains type information (from our renaming)
-        const headerLower = header.toLowerCase();
-        
-        if (headerLower.includes('(enrichment)')) {
-          console.log(`Header "${header}" detected as enrichment from suffix`);
-          return 'enrichment';
-        }
-        
-        if (headerLower.includes('(employer)')) {
-          console.log(`Header "${header}" detected as employment from suffix`);
-          return 'employment';
-        }
-        
-        // Also check for variations in case
-        if (headerLower.includes('enrichment')) {
-          console.log(`Header "${header}" detected as enrichment from content`);
-          return 'enrichment';
-        }
-        
-        if (headerLower.includes('employer')) {
-          console.log(`Header "${header}" detected as employment from content`);
-          return 'employment';
-        }
-        
-        if (headerLower.includes('(placements)')) {
-          return 'placements';
-        }
-        
-        if (headerLower.includes('(careers)')) {
-          console.log(`Header "${header}" detected as careers from suffix`);
-          return 'careers';
-        }
-        
-        if (headerLower.includes('(assessments)')) {
-          console.log(`Header "${header}" detected as assessments from suffix`);
-          return 'assessments';
-        }
-        
-        if (headerLower.includes('(targets)')) {
-          return 'targets';
-        }
-        
-        if (headerLower.includes('(login)')) {
-          return 'login';
-        }
-        
-        // Fallback to header content analysis if no filename info
-        if (headerLower.includes('placement') || headerLower.includes('placed') || 
-            headerLower.includes('employer confirmed') || headerLower.includes('student confirmed')) {
-          return 'placements';
-        }
-        
-        if (headerLower.includes('enrichment') || headerLower.includes('enrich')) {
-          return 'enrichment';
-        }
-        
-        if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
-            headerLower.includes('activity') || headerLower.includes('activities'))) {
-          return 'employment';
-        }
-        
-        if (headerLower.includes('career') || headerLower.includes('quiz') || 
-            headerLower.includes('job profile') || headerLower.includes('mapped')) {
-          return 'careers';
-        }
-         
-         if (headerLower.includes('assessment') || headerLower.includes('score') || 
-             headerLower.includes('assessed')) {
-           return 'assessments';
-         }
-         
-         if (headerLower.includes('target') || headerLower.includes('goal')) {
-           return 'targets';
-         }
-         
-         if (headerLower.includes('login') || headerLower.includes('log in') || 
-             headerLower.includes('access')) {
-           return 'login';
-         }
-         
-         return 'default';
-       }
-      
-      // Handle Department column specially
-      if (header === 'Department') {
-        return { section: 'Department', color: 'bg-amber-100', inlineColor: 'background-color: #fef3c7;' };
+
+      // Utility: normalise header for matching
+      const rawHeader = header;
+      const headerLower = String(rawHeader || '').toLowerCase();
+      const headerWithoutChange = headerLower.replace(/\s*\+\/\-\s*$/, '');
+      const headerNoEmpSuffix = headerWithoutChange.replace(/\s*\(employer engagement\)$/, ' (employer)');
+      const headerNoEnrSuffix = headerNoEmpSuffix.replace(/\s*\(enrichment\)$/, ' (enrichment)');
+
+      // 1) File-derived type via headerFileMap -> fileInfo
+      function getFileDerivedType() {
+        try {
+          if (!window.headerFileMap || !window.fileInfo) return null;
+          const directIdx = window.headerFileMap[rawHeader] ?? window.headerFileMap[headerNoEnrSuffix] ?? window.headerFileMap[headerNoEmpSuffix] ?? window.headerFileMap[rawHeader.replace(/\s*\(.*\)$/, '')];
+          if (directIdx === undefined || directIdx === null) return null;
+          const info = window.fileInfo[directIdx];
+          const t = info && info.contentType ? String(info.contentType).toLowerCase() : null;
+          if (!t) return null;
+          if (t === 'employer') return 'employment';
+          if (t === 'enrichment') return 'enrichment';
+          // placements, careers, assessments, targets, login, etc. pass through
+          return t;
+        } catch (_) { return null; }
       }
-      
-      // Determine content type and get appropriate color
-      const contentType = getContentTypeFromFilename(header);
+
+      // 2) Suffix-based explicit type
+      function getSuffixType() {
+        if (headerWithoutChange.includes('(employer activity)')) {
+          if (headerWithoutChange.includes('placement') || headerWithoutChange.includes('hours scheduled') || headerWithoutChange.includes('student confirmed') || headerWithoutChange.includes('employer confirmed')) {
+            return 'placements';
+          }
+          return 'employer-activity';
+        }
+        // Treat (Employer Engagement) as a label not a hard type; infer from keywords
+        if (headerWithoutChange.includes('(employer engagement)')) {
+          if (
+            headerWithoutChange.includes('placement') ||
+            headerWithoutChange.includes('hours scheduled') ||
+            headerWithoutChange.includes('scheduled to date') ||
+            headerWithoutChange.includes('student confirmed') ||
+            headerWithoutChange.includes('employer confirmed') ||
+            headerWithoutChange.includes('total students')
+          ) {
+            return 'placements';
+          }
+          if (headerWithoutChange.includes('activity') || headerWithoutChange.includes('activities')) {
+            return 'employer-activity';
+          }
+          return 'employment';
+        }
+        if (headerWithoutChange.includes('(enrichment activity)')) return 'enrichment-activity';
+        if (headerWithoutChange.includes('(employer engagement)')) return 'employment';
+        if (headerWithoutChange.includes('(enrichment)')) return 'enrichment';
+        if (headerWithoutChange.includes('(placements)')) return 'placements';
+        if (headerWithoutChange.includes('(careers)')) return 'careers';
+        if (headerWithoutChange.includes('(assessments)')) return 'assessments';
+        if (headerWithoutChange.includes('(targets)')) return 'targets';
+        if (headerWithoutChange.includes('(login)')) return 'login';
+        return null;
+      }
+
+      // 3) Data-driven activity header map (built during adaptTableToData)
+      function getActivityMapType() {
+        try {
+          const map = window.activityHeaderTypeMap || {};
+          const v = map[rawHeader] || map[rawHeader.replace(/\s*\(employer engagement\)$/i, '')] || map[rawHeader.replace(/\s*\(enrichment\)$/i, '')];
+          return v || null; // returns 'employment' or 'enrichment'
+        } catch (_) { return null; }
+      }
+
+      // 4) Keyword fallback
+      function getKeywordType() {
+        if (headerWithoutChange.includes('placement') || headerWithoutChange.includes('student confirmed') || headerWithoutChange.includes('employer confirmed')) return 'placements';
+        if (headerWithoutChange.includes('enrichment') || headerWithoutChange.includes('enrich')) return 'enrichment';
+        if ((headerWithoutChange.includes('employer') && (headerWithoutChange.includes('engagement')) && !headerWithoutChange.includes('(employer activity)')) || headerWithoutChange.includes('(employer)')) return 'employment';
+        if (headerWithoutChange.includes('career') || headerWithoutChange.includes('job profile') || headerWithoutChange.includes('quiz') || headerWithoutChange.includes('mapped')) return 'careers';
+        if (headerWithoutChange.includes('assessment') || headerWithoutChange.includes('score') || headerWithoutChange.includes('average score')) return 'assessments';
+        if (headerWithoutChange.includes('target')) return 'targets';
+        if (headerWithoutChange.includes('login') || headerWithoutChange.includes('access')) return 'login';
+        return 'default';
+      }
+
+      let contentType;
+      if (window.useStrictTypePrecedence) {
+        contentType = getFileDerivedType() || getSuffixType() || getActivityMapType() || getKeywordType() || 'default';
+      } else {
+        // Legacy behaviour fallback
+        contentType = getSuffixType() || getActivityMapType() || getKeywordType() || 'default';
+      }
+
+      // Final correction: headers labelled (Employer Engagement) must not default to purple 'employment'
+      // Reclassify using header keywords so placements and activities get distinct fills
+      if (contentType === 'employment' && headerWithoutChange.includes('(employer engagement)')) {
+        if (
+          headerWithoutChange.includes('placement') ||
+          headerWithoutChange.includes('hours scheduled') ||
+          headerWithoutChange.includes('scheduled to date') ||
+          headerWithoutChange.includes('student confirmed') ||
+          headerWithoutChange.includes('employer confirmed') ||
+          headerWithoutChange.includes('total students')
+        ) {
+          contentType = 'placements';
+        } else if (headerWithoutChange.includes('activity') || headerWithoutChange.includes('activities')) {
+          contentType = 'employer-activity';
+        }
+      }
+
       const color = CONTENT_COLORS[contentType] || CONTENT_COLORS.default;
       const inlineColor = INLINE_COLORS[contentType] || INLINE_COLORS.default;
       
-      // Debug logging for color assignment
       console.log(`Header "${header}" -> contentType: "${contentType}" -> color: "${color}"`);
       
       // Capitalize first letter for display
@@ -1463,51 +1713,126 @@
     function renderTable() {
       console.log('=== renderTable called ===');
       console.log('tableHeaders:', tableHeaders);
+      console.log('tableHeaders length:', tableHeaders ? tableHeaders.length : 'undefined');
+      console.log('tableData length:', tableData ? tableData.length : 'undefined');
+      console.log('window.useOriginalHeaders:', window.useOriginalHeaders);
+      if (typeof window.showFileAccents === 'undefined') window.showFileAccents = false; // hide coloured outlines by default
       const header = document.getElementById('tableHeader');
       const body = document.getElementById('tableBody');
       
-      if (!header || !body) return;
+      if (!header || !body) {
+        console.error('Header or body element not found!');
+        return;
+      }
+      
+      // Helper: normalise header to match headerFileMap keys
+      function normaliseHeaderForMap(h) {
+        if (!h) return h;
+        const base = h.replace(/ \+\/-?$/, '');
+        if (/(\(Employer Engagement\))$/i.test(base)) {
+          return base.replace(/ \(Employer Engagement\)$/i, ' (employer)');
+        }
+        if (/(\(Enrichment\))$/i.test(base)) {
+          return base.replace(/ \(Enrichment\)$/i, ' (enrichment)');
+        }
+        return base;
+      }
+      
+      // Helper: get file index for header
+      function getHeaderFileIndex(h) {
+        const direct = headerFileMap[h];
+        if (direct !== undefined) return direct;
+        const norm = normaliseHeaderForMap(h);
+        if (norm !== h && headerFileMap[norm] !== undefined) return headerFileMap[norm];
+        // Fallback: try matching by base name ignoring any suffix
+        const base = h.replace(/ \(.*\)$/, '');
+        for (const key in headerFileMap) {
+          if (key.startsWith(base + ' (')) return headerFileMap[key];
+        }
+        return undefined;
+      }
+      
+      // File accent colours to differentiate columns from different files
+      const FILE_ACCENTS = ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'];
+      function getFileAccentColor(idx) {
+        if (idx === undefined) return null;
+        return FILE_ACCENTS[idx % FILE_ACCENTS.length];
+      }
       
       // Build complete header structure with change columns
       let completeHeaders = [];
       let changeColumnIndices = [];
       
+      console.log('Building completeHeaders from tableHeaders:', tableHeaders);
       tableHeaders.forEach((h, colIdx) => {
+        console.log(`Processing header ${colIdx}: "${h}"`);
         completeHeaders.push(h);
-        // Add change indicator column if this is a numeric column (not Department)
-        // Only add for percentage columns and numeric metric columns
-        if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || 
-            h.toLowerCase().includes('total') || h.toLowerCase().includes('students') || 
-            h.toLowerCase().includes('hours') || h.toLowerCase().includes('score') || 
-            h.toLowerCase().includes('activities'))) {
-          completeHeaders.push(`${h} +/-`);
-          changeColumnIndices.push(completeHeaders.length - 1);
+        // In strict template mode, do NOT add any synthetic change columns
+        if (!window.strictTemplateMode) {
+          if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || 
+              h.toLowerCase().includes('total') || h.toLowerCase().includes('students') || 
+              h.toLowerCase().includes('hours') || h.toLowerCase().includes('score') || 
+              h.toLowerCase().includes('activities'))) {
+            completeHeaders.push(`${h} +/-`);
+            changeColumnIndices.push(completeHeaders.length - 1);
+          }
         }
       });
       
-      // Create section headers
-      const sectionHeaders = createSectionHeaders(completeHeaders);
+      console.log('completeHeaders built:', completeHeaders);
+      console.log('completeHeaders length:', completeHeaders.length);
       
-      // Render section headers first
+      // Create section headers only if explicitly enabled
       let headerHTML = '';
-      sectionHeaders.forEach(section => {
-        if (section.columns > 0) {
-          // Get the appropriate color for this section
-          const sectionColor = getSectionColor(section.name);
-          headerHTML += `<tr><th colspan="${section.columns}" class="px-6 py-2 text-left text-sm font-semibold text-gray-900 border-b-2 border-gray-300 ${sectionColor}" style="background-color: ${getSectionInlineColor(section.name)} !important;">${section.name}</th></tr>`;
-        }
-      });
+      if (!window.useOriginalHeaders && window.showSectionRows === true) {
+        const sectionHeaders = createSectionHeaders(completeHeaders);
+        // Render section headers first
+        sectionHeaders.forEach(section => {
+          if (section.columns > 0) {
+            // Get the appropriate color for this section
+            const sectionColor = getSectionColor(section.name);
+            headerHTML += `<tr><th colspan="${section.columns}" class="px-6 py-2 text-left text-sm font-semibold text-gray-900 border-b-2 border-gray-300 ${sectionColor}" style="background-color: ${getSectionInlineColor(section.name)} !important;">${section.name}</th></tr>`;
+          }
+        });
+      }
       
-      // Render data headers with section colors
+      // Render data headers with or without section colors
       const headerCells = completeHeaders.map((h, colIdx) => {
-        // Determine if this is a change column and get section color
-        const isChangeColumn = h.endsWith(' +/-');
-        const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
-        const sectionInfo = getColumnSection(originalHeader);
-        
-        console.log(`Rendering header "${h}" (original: "${originalHeader}") with color: "${sectionInfo.color}" and inline style: "${sectionInfo.inlineColor}"`);
-        
-        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}" style="${sectionInfo.inlineColor} !important;">${h}</th>`;
+        if (window.useOriginalHeaders) {
+          // For original headers, use colors from Excel file if available
+          let headerStyle = 'px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider';
+          let inlineStyle = '';
+          
+          if (tableHeaderColors && tableHeaderColors[colIdx]) {
+            const color = tableHeaderColors[colIdx];
+            inlineStyle = `background-color: ${color} !important; border-color: ${color} !important;`;
+            console.log(`Rendering original header "${h}" with Excel color: ${color}`);
+          } else {
+            // If Excel colours are missing, fall back to determinator colours for consistency
+            const isChangeColumn = h.endsWith(' +/-');
+            const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
+            const sectionInfo = getColumnSection(originalHeader);
+            inlineStyle = `${sectionInfo.inlineColor} !important;`;
+            console.log(`Rendering header "${h}" with determinator fallback colour`);
+          }
+          
+          return `<th class="${headerStyle}" style="${inlineStyle}">${h}</th>`;
+        } else {
+          // Determine if this is a change column and get section color
+          const isChangeColumn = h.endsWith(' +/-');
+          const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
+          const sectionInfo = getColumnSection(originalHeader);
+          
+          // File-based accent
+          const fileIdx = getHeaderFileIndex(originalHeader);
+          const accent = getFileAccentColor(fileIdx);
+          const accentStyle = (window.showFileAccents === true && accent) ? ` border-left: 4px solid ${accent} !important; box-shadow: inset 0 4px 0 ${accent};` : '';
+          const dot = (window.showFileAccents === true && accent) ? `<span style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : '';
+          
+          console.log(`Rendering header "${h}" (original: "${originalHeader}") with color: "${sectionInfo.color}" and inline style: "${sectionInfo.inlineColor}", fileIdx: ${fileIdx}, accent: ${accent}`);
+          
+          return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}" style="${sectionInfo.inlineColor} !important;${accentStyle}">${dot}${h}</th>`;
+        }
       }).join('');
       
       headerHTML += `<tr>${headerCells}</tr>`;
@@ -1522,8 +1847,8 @@
           let displayValue = cell;
           let percentageBar = '';
           
-          // Format percentages and add percentage bars
-          if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+          // In strict template mode, do not add visual decorations/formatting
+          if (!window.strictTemplateMode && header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
             if (typeof cell === 'number' || !isNaN(parseFloat(cell))) {
               // Check if the value is already a percentage (0-100) or needs conversion (0-1)
               let percentage;
@@ -1557,7 +1882,7 @@
             }
           }
           // Format numbers
-          else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) {
+          else if (!window.strictTemplateMode && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
             displayValue = parseFloat(cell).toLocaleString();
           }
           
@@ -1571,7 +1896,7 @@
           
           // Add change indicator cell if this column should have one
           // Only add for percentage columns and numeric metric columns
-          if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || 
+          if (!window.strictTemplateMode && header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || 
               header.toLowerCase().includes('total') || header.toLowerCase().includes('students') || 
               header.toLowerCase().includes('hours') || header.toLowerCase().includes('score') || 
               header.toLowerCase().includes('activities'))) {
@@ -1788,7 +2113,14 @@
       const templateSelect = document.getElementById('templateSelect');
       if (!templateSelect || !templateSelect.value) return null;
       
-      // This would need to be implemented to get template data
+      // Get template from global storage
+      if (window.__templates && Array.isArray(window.__templates)) {
+        const selectedId = templateSelect.value;
+        const template = window.__templates.find(t => String(t.id) === String(selectedId));
+        console.log('Selected template:', template);
+        return template;
+      }
+      
       return null;
     }
 
@@ -1797,12 +2129,69 @@
       return templateMode ? templateMode.value : 'flexible';
     }
 
-    function showSaveTemplateModal() {
-      const templateName = prompt('Enter template name:');
-      if (!templateName) return;
+    async function showSaveTemplateModal() {
+      if (!tableHeaders || !tableData || tableData.length === 0) {
+        showStatus('No data available to save as template. Please upload files and generate data first.', 'error');
+        return;
+      }
+
+      // Check if template name is already filled in from the template section
+      const templateNameInput = document.getElementById('templateName');
+      const templateDescriptionInput = document.getElementById('templateDescription');
       
-      // This would need to be implemented to save template
-      showStatus('Template saved successfully', 'success');
+      let templateName = templateNameInput ? templateNameInput.value.trim() : '';
+      let templateDescription = templateDescriptionInput ? templateDescriptionInput.value.trim() : '';
+      
+      // If no template name is provided in the form, prompt for it
+      if (!templateName) {
+        templateName = prompt('Enter template name:');
+        if (!templateName) return;
+      }
+      
+      // If no template description is provided, prompt for it or use default
+      if (!templateDescription) {
+        templateDescription = prompt('Enter template description (optional):') || `Template created from current data`;
+      }
+      
+      showStatus('Saving template...', 'info');
+      
+      try {
+        // Use the same endpoint as the template creation from preview
+        const templateData = {
+          templateName,
+          templateDescription,
+          headers: tableHeaders,
+          tableData: tableData,
+          processedData: { headers: tableHeaders, data: tableData }
+        };
+        
+        const response = await axios.post('/api/create-template-from-preview', templateData);
+        console.log('Template creation response:', response.data);
+        
+        if (response.data.success) {
+          showStatus('Template saved successfully: ' + templateName, 'success');
+          
+          // Clear the template form inputs if they were used
+          if (templateNameInput) templateNameInput.value = '';
+          if (templateDescriptionInput) templateDescriptionInput.value = '';
+          document.getElementById('templateFileInput').value = '';
+          
+          // Reload templates to include the new one
+          await loadTemplates();
+          
+        } else {
+          showStatus('Failed to save template: ' + (response.data.error || 'Unknown error'), 'error');
+        }
+      } catch (error) {
+        console.error('Template save error:', error);
+        let errorMessage = 'Failed to save template';
+        if (error.response && error.response.data && error.response.data.error) {
+          errorMessage += ': ' + error.response.data.error;
+        } else {
+          errorMessage += ': ' + error.message;
+        }
+        showStatus(errorMessage, 'error');
+      }
     }
 
     // Previous report data

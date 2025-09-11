@@ -457,7 +457,16 @@
             </div>
           </div>
           
-          <div class="overflow-x-auto">
+          <!-- Preview zoom controls -->
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs text-gray-500">Preview zoom</div>
+            <div class="flex items-center gap-2">
+              <button type="button" onclick="zoomOutReports()" class="px-2 py-1 bg-gray-200 rounded">-</button>
+              <button type="button" onclick="resetReportsZoom()" class="px-2 py-1 bg-gray-200 rounded">Reset</button>
+              <button type="button" onclick="zoomInReports()" class="px-2 py-1 bg-gray-200 rounded">+</button>
+            </div>
+          </div>
+          <div class="overflow-x-auto" id="reportsTableWrap" style="transform-origin: top left;">
             <table class="min-w-full divide-y divide-gray-200">
               <thead id="tableHeader" class="bg-gray-50">
                 <!-- Headers will be populated here -->
@@ -778,11 +787,11 @@
       <form id="saveTemplateForm" class="space-y-4" onsubmit="event.preventDefault(); saveTemplate();">
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
-          <input type="text" id="templateName" required class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Enter a unique template name">
+          <input type="text" id="saveTemplateModalName" required class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Enter a unique template name">
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea id="templateDescription" rows="3" class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Optional description of this template"></textarea>
+          <textarea id="saveTemplateModalDescription" rows="3" class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Optional description of this template"></textarea>
         </div>
         <div class="flex justify-end space-x-3">
           <button type="button" onclick="hideSaveTemplateModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
@@ -2365,33 +2374,94 @@
       }).join('');
     }
 
-    // Function to determine column section and color
-    function getColumnSection(header, headerFileMap = null) {
-      // Define consistent colors for each section type
+    // Function to determine column section and color using file-based grouping
+    function getColumnSection(header, headerFileMap = null, fileInfo = null) {
+      // Define consistent colors for each section type (updated with template system)
       const SECTION_COLORS = {
-        'placements': 'bg-blue-100',      // Blue for placements
-        'assessments': 'bg-green-200',    // Green-200 for assessments
-        'careers': 'bg-yellow-100',       // Yellow for careers
-        'activities': 'bg-orange-100',    // Orange for activities (changed from yellow to distinguish from careers)
-        'enrichment': 'bg-blue-200',      // Blue-200 for enrichment (changed from green to distinguish from assessments)
-        'employment': 'bg-purple-100',    // Purple for employment
-        'employer-activity': 'bg-red-100', // Red for employer activities (new)
-        'enrichment-activity': 'bg-teal-100', // Teal for enrichment activities (new)
-        'targets': 'bg-pink-100',         // Pink for targets
-        'login': 'bg-indigo-100',         // Indigo for login
-        'default': 'bg-gray-100'          // Gray for unknown sections
+        'placements': 'bg-blue-100',           // Blue for placements
+        'assessments': 'bg-green-200',         // Green-200 for assessments
+        'careers': 'bg-yellow-100',            // Yellow for careers
+        'activities': 'bg-orange-100',         // Orange for activities
+        'enrichment': 'bg-teal-100',           // Teal for enrichment
+        'employment': 'bg-purple-100',         // Purple for employment (employer engagement)
+        'employer-activities': 'bg-amber-100', // Cream/amber for employer activities
+        'enrichment-activities': 'bg-cyan-100', // Light cyan for enrichment activities
+        'targets': 'bg-pink-100',              // Pink for targets
+        'login': 'bg-indigo-100',              // Indigo for login
+        'default': 'bg-gray-100'               // Gray for unknown sections
       };
+      
+      // Function to detect content type from context clues for DEFAULT headers
+      function detectContextualType(header) {
+        const headerLower = header.toLowerCase().replace('(default)', '').trim();
+        
+        // Look for assessment context clues
+        if (headerLower.includes('assessment') || headerLower.includes('without assessment') || 
+            headerLower.includes('with 1 assessment') || headerLower.includes('with 2 assessment')) {
+          return 'assessments';
+        }
+        
+        // Look for career context clues  
+        if (headerLower.includes('career') || headerLower.includes('job profile') || 
+            headerLower.includes('quiz') || headerLower.includes('mapped')) {
+          return 'careers';
+        }
+        
+        // Look for placement context clues
+        if (headerLower.includes('placement') || headerLower.includes('scheduled') || 
+            headerLower.includes('confirmed')) {
+          return 'placements';
+        }
+        
+        // Look for activity context clues
+        if (headerLower.includes('activity') || headerLower.includes('activities')) {
+          return 'activities';
+        }
+        
+        // For "Total Students" headers, we need to look at their position/context
+        // This is a complex case that will be better handled by file-based grouping
+        if (headerLower.includes('total students')) {
+          console.log(`🎯 Found Total Students header: "${header}" - using default for now`);
+          // Return default for now - this will be properly handled by file-based grouping
+          // in future uploads where each file's columns will get consistent colors
+        }
+        
+        return 'default';
+      }
       
       // Function to determine section type from header
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
         
-        // First check for new activity suffixes
+        // First check for new activity suffixes, but differentiate placements from activities
         if (headerLower.includes('(employer activity)')) {
-          return 'employer-activity';
+          console.log(`🏢 Found employer activity: "${header}"`);
+          if (headerLower.includes('placement') || headerLower.includes('hours scheduled') || headerLower.includes('student confirmed') || headerLower.includes('employer confirmed')) {
+            console.log(`🏢 → Classified as placements due to keywords`);
+            return 'placements';
+          }
+          console.log(`🏢 → Classified as employer-activities`);
+          return 'employer-activities';
+        }
+        // Treat (Employer Engagement) as a label; infer by keywords (incl. Total Students)
+        if (headerLower.includes('(employer engagement)')) {
+          if (
+            headerLower.includes('placement') ||
+            headerLower.includes('hours scheduled') ||
+            headerLower.includes('scheduled to date') ||
+            headerLower.includes('student confirmed') ||
+            headerLower.includes('employer confirmed') ||
+            headerLower.includes('total students')
+          ) {
+            return 'placements';
+          }
+          if (headerLower.includes('activity') || headerLower.includes('activities')) {
+            return 'employer-activities';
+          }
+          return 'employment';
         }
         if (headerLower.includes('(enrichment activity)')) {
-          return 'enrichment-activity';
+          return 'enrichment-activities';
         }
         
         // Then check for content type suffixes from backend processing
@@ -2425,7 +2495,10 @@
             headerLower.includes('students with 1 assessment') ||
             headerLower.includes('students with 2 assessment') ||
             headerLower.includes('students with 3 assessment') ||
-            headerLower.includes('average score')) {
+            headerLower.includes('average score') ||
+            headerLower.includes('without assessments') ||
+            headerLower.includes('with 1 assessment') ||
+            headerLower.includes('with 2 assessment')) {
           return 'assessments';
         }
         
@@ -2452,14 +2525,65 @@
         return { section: 'Department', color: 'bg-amber-100' }; // Very light brown
       }
       
-      // Use section-based coloring
-      const sectionType = getSectionType(header);
+      // FILE-BASED GROUPING: Check if we have file mapping information
+      if (headerFileMap && fileInfo && headerFileMap[header] !== undefined) {
+        const fileIndex = headerFileMap[header];
+        const fileContentType = fileInfo[fileIndex]?.contentType;
+        
+        console.log(`🔍 File-based check for "${header}": fileIndex=${fileIndex}, contentType=${fileContentType}, available=${!!SECTION_COLORS[fileContentType]}`);
+        
+        if (fileContentType && SECTION_COLORS[fileContentType]) {
+          console.log(`📁 File-based color assignment: "${header}" -> file ${fileIndex} (${fileContentType}) -> ${SECTION_COLORS[fileContentType]}`);
+          return { section: fileContentType, color: SECTION_COLORS[fileContentType] };
+        } else if (fileContentType) {
+          console.log(`⚠️ File content type "${fileContentType}" not found in SECTION_COLORS:`, Object.keys(SECTION_COLORS));
+        }
+      }
+      
+      // FALLBACK TO KEYWORD-BASED DETECTION for backwards compatibility
+      console.log(`🔍 Using keyword-based detection for header: "${header}"`);
+      
+      // Enhanced detection for DEFAULT suffix headers using context
+      if (header.includes('(DEFAULT)') || header.includes('(default)')) {
+        const contextualType = detectContextualType(header);
+        if (contextualType !== 'default') {
+          console.log(`🎯 Contextual type detected for "${header}": ${contextualType}`);
+          const color = SECTION_COLORS[contextualType] || SECTION_COLORS.default;
+          return { section: contextualType, color: color };
+        }
+      }
+      
+      let sectionType = getSectionType(header);
+      // Final correction for (Employer Engagement) generics
+      if (sectionType === 'employment' && header.toLowerCase().includes('(employer engagement)')) {
+        const hl = header.toLowerCase();
+        if (hl.includes('total students') || hl.includes('placement') || hl.includes('hours scheduled') || hl.includes('student confirmed') || hl.includes('employer confirmed')) {
+          sectionType = 'placements';
+        } else if (hl.includes('activity') || hl.includes('activities')) {
+          sectionType = 'employer-activities';
+        }
+      }
       const color = SECTION_COLORS[sectionType] || SECTION_COLORS.default;
       
-      console.log(`getColumnSection for "${header}": sectionType="${sectionType}", color="${color}"`);
+      console.log(`🎯 Final result for "${header}": sectionType="${sectionType}", color="${color}", available sections:`, Object.keys(SECTION_COLORS));
       
       return { section: sectionType, color: color };
     }
+
+    // Simple table zoom controls for reports preview
+    if (typeof window.reportsZoom === 'undefined') window.reportsZoom = 1;
+    function applyReportsZoom() {
+      const wrap = document.getElementById('reportsTableWrap');
+      const z = Math.max(0.6, Math.min(2, window.reportsZoom));
+      if (wrap) {
+        wrap.style.transform = `scale(${z})`;
+        // Expand width to keep horizontal scroll sensible when zoomed in
+        wrap.style.width = z > 1 ? `${(100 / z).toFixed(2)}%` : '100%';
+      }
+    }
+    function zoomInReports() { window.reportsZoom = (window.reportsZoom || 1) + 0.1; applyReportsZoom(); }
+    function zoomOutReports() { window.reportsZoom = (window.reportsZoom || 1) - 0.1; applyReportsZoom(); }
+    function resetReportsZoom() { window.reportsZoom = 1; applyReportsZoom(); }
 
     // Table management
     function renderTable() {
@@ -2516,7 +2640,7 @@
           (selectionMode ? '<span class="mr-2"></span>' : ''); // Placeholder for change columns
         
         // Get section color
-        let colorClass = getColumnSection(originalHeader).color;
+        let colorClass = getColumnSection(originalHeader, window.processedData?.headerFileMap, window.processedData?.fileInfo).color;
         let reorderBtns = '';
         if (!isChangeColumn && !selectionMode) {
           reorderBtns = `
@@ -3553,8 +3677,8 @@
         return;
       }
       
-      const templateName = document.getElementById('templateName').value.trim();
-      const templateDescription = document.getElementById('templateDescription').value.trim();
+      const templateName = document.getElementById('saveTemplateModalName').value.trim();
+      const templateDescription = document.getElementById('saveTemplateModalDescription').value.trim();
       
       if (!templateName) {
         showStatus('Please enter a template name', 'error');
