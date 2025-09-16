@@ -7,3 +7,4 @@ This file forces Railway to deploy the latest code with:
 - Enhanced DATABASE_URL debugging
 
 Deployment timestamp: $(date) 
+Redeploy trigger: 2025-09-16T21:33:12+01:00
