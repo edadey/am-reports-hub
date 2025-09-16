@@ -809,7 +809,7 @@
               } catch (_) {}
               if (window.latestProcessedData && typeof window.latestProcessedData === 'object') {
                 // Remap current data to the selected template columns
-                try { await adaptTableToData(window.latestProcessedData); } catch (e) { console.warn('Remap after template select failed:', e?.message || e); }
+                try { await adaptTableToData(window.latestProcessedData, true); } catch (e) { console.warn('Remap after template select failed:', e?.message || e); }
                 showStatus(`Template "${selectedTemplate.name}" applied to current data`, 'info');
               } else {
                 // No processed data available, preview saved template rows
@@ -1569,8 +1569,7 @@
             });
           });
           
-          console.log('All headers found:', Array.from(new DataLookup));
-          console.log('All headers found (detailed):', Array.from(new DataLookup).map(h => ({ header: h, type: h.includes('(Employer Engagement)') ? 'employer' : h.includes('(Enrichment)') ? 'enrichment' : 'other' })));
+          // Removed erroneous references to undefined `new DataLookup` which caused runtime errors
           
           // Build a map of activity header -> type using actual data to aid classification
           try {
