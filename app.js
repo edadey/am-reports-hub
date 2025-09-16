@@ -3710,43 +3710,18 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
       fileInfo: processedData.fileInfo || [],
       headerFileMap: processedData.headerFileMap || {}
     };
-    
-    // Save template
+
+    // Save template (DISABLED route fallback)
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
 
-    // Also save to database if available so /api/templates (DB-preferred) can return it
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Saving preview-created template to database...');
-        await databaseUserManager.initialize();
-        await databaseUserManager.saveTemplate(template);
-        console.log('✅ Preview-created template saved to database');
-      } catch (dbError) {
-        console.warn('⚠️ Failed to save preview-created template to database:', dbError.message);
-      }
-    }
-
-    // Also save to database if available so /api/templates (DB-preferred) can return it
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Saving uploaded template to database...');
-        await databaseUserManager.initialize();
-        await databaseUserManager.saveTemplate(template);
-        console.log('✅ Uploaded template saved to database');
-      } catch (dbError) {
-        console.warn('⚠️ Failed to save uploaded template to database:', dbError.message);
-      }
-    }
-    
     // Create backup snapshot
     try {
       await snapshotTemplatesToBackups(volumeService, existingTemplates, 'template-upload');
     } catch (backupError) {
       console.warn('Failed to create backup snapshot:', backupError.message);
     }
-    
-    console.log('✅ Template created successfully:', templateName);
+
     res.json({
       success: true,
       message: `Template "${templateName}" created successfully from ${req.files.length} files`,
@@ -3757,14 +3732,8 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
         headers: template.headers,
         rowCount: template.tableData.length,
         columnCount: template.headers.length
-      },
-      processedData: {
-        departments: processedData.departments.length,
-        totalMetrics: Object.keys(processedData.metrics).length,
-        files: req.files.map(f => f.originalname)
       }
     });
-    
   } catch (error) {
     console.error('Template upload error:', error);
     res.status(500).json({ 
@@ -3773,7 +3742,6 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
   }
 });
 
-// Template Creation from Preview Route - Create template from previewed data
 app.post('/api/create-template-from-preview', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📋 Template creation from preview request received');
@@ -3827,6 +3795,18 @@ app.post('/api/create-template-from-preview', authService.requireAuth(), async (
     // Save template
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
+    
+    // Also save to database if available so /api/templates (DB-preferred) can return it
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Saving preview-created template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(template);
+        console.log('✅ Preview-created template saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save preview-created template to database:', dbError.message);
+      }
+    }
     
     // Create backup snapshot
     try {

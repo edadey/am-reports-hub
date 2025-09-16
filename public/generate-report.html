@@ -2837,6 +2837,13 @@
 
               // Refresh templates list
               await loadTemplates();
+              try {
+                const tpl = response.data.template;
+                if (tpl && tpl.id) {
+                  const templateSelect = document.getElementById('templateSelect');
+                  if (templateSelect) templateSelect.value = String(tpl.id);
+                }
+              } catch (_) {}
               cleanup();
             } else {
               showStatus('Failed to save template: ' + (response.data.error || 'Unknown error'), 'error');
@@ -3243,6 +3250,17 @@
         
         if (response.data.success) {
           showStatus('Template saved successfully', 'success');
+          // Immediately refresh templates and select the newly saved one
+          try {
+            await loadTemplates();
+            const tpl = response.data.template;
+            if (tpl && tpl.id) {
+              const templateSelect = document.getElementById('templateSelect');
+              if (templateSelect) templateSelect.value = String(tpl.id);
+            }
+          } catch (e) {
+            console.warn('Template refresh after save failed:', e?.message || e);
+          }
         } else {
           showStatus('Error saving template: ' + response.data.error, 'error');
         }
