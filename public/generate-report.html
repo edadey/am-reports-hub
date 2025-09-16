@@ -724,16 +724,25 @@
       // Template selection event listener
       const templateSelect = document.getElementById('templateSelect');
       if (templateSelect) {
-        templateSelect.addEventListener('change', function() {
+        templateSelect.addEventListener('change', async function() {
           const selectedTemplate = getSelectedTemplate();
           if (selectedTemplate) {
             console.log('Template selected:', selectedTemplate.name);
             showStatus(`Template "${selectedTemplate.name}" selected`, 'success');
             
             // Optionally load template data immediately to preview
-            if (selectedTemplate.tableData && selectedTemplate.headers) {
+            if (selectedTemplate.headers) {
               tableHeaders = [...selectedTemplate.headers];
-              tableData = selectedTemplate.tableData.map(row => [...row]);
+              const haveProcessed = (window.latestProcessedData && typeof window.latestProcessedData === 'object');
+              if (haveProcessed) {
+                // We have freshly processed data – remap it to the template structure
+                // Do not preload template.tableData to avoid overriding the new data
+                window.previewingTemplateRows = false;
+              } else if (selectedTemplate.tableData) {
+                // Fallback: if no processed data exists, allow previewing saved template rows
+                tableData = selectedTemplate.tableData.map(row => [...row]);
+                window.previewingTemplateRows = true;
+              }
               // Propagate headerFileMap and fileInfo for proper header coloring
               try {
                 // Helper to synthesize fileInfo from headerFileMap
@@ -798,8 +807,15 @@
                   }).join('');
                 }
               } catch (_) {}
-              renderTable();
-              showStatus(`Template "${selectedTemplate.name}" loaded for preview`, 'info');
+              if (window.latestProcessedData && typeof window.latestProcessedData === 'object') {
+                // Remap current data to the selected template columns
+                try { await adaptTableToData(window.latestProcessedData); } catch (e) { console.warn('Remap after template select failed:', e?.message || e); }
+                showStatus(`Template "${selectedTemplate.name}" applied to current data`, 'info');
+              } else {
+                // No processed data available, preview saved template rows
+                renderTable();
+                showStatus(`Template "${selectedTemplate.name}" loaded for preview`, 'info');
+              }
             }
           } else {
             showStatus('Template deselected - using new data structure', 'info');
@@ -1424,6 +1440,9 @@
     async function adaptTableToData(data, useTemplateForPreview = false) {
       console.log('=== adaptTableToData called ===');
       console.log('Data received:', data);
+      // Persist the most recent processed payload for template remapping on selection
+      try { window.latestProcessedData = data; } catch (_) {}
+      if (typeof window.previewingTemplateRows === 'undefined') { window.previewingTemplateRows = false; }
       // Store the headerFileMap and fileInfo for color assignment
       if (data.headerFileMap) {
         headerFileMap = data.headerFileMap;
@@ -1482,7 +1501,8 @@
         if (
           selectedTemplate &&
           Array.isArray(tableHeaders) && tableHeaders.length > 0 &&
-          Array.isArray(tableData) && tableData.length > 0
+          Array.isArray(tableData) && tableData.length > 0 &&
+          window.previewingTemplateRows === true
         ) {
           console.log('Using precomputed template headers and rows; skipping rebuild in adaptTableToData');
           // Ensure headerFileMap and fileInfo are available from the selected template for coloring
@@ -1599,15 +1619,19 @@
             // Add regular metrics
             const metrics = data.metrics[dept] || {};
             tableHeaders.slice(1).forEach(header => {
-              if (header.includes('(Employer Engagement)') || header.includes('(Enrichment)')) {
+              // Normalize header for lookups: remove activity suffixes and bracketed file labels
+              const isEmployer = header.includes('(Employer Engagement)') || header.includes('(Employer Activity)');
+              const isEnrichment = header.includes('(Enrichment)') || header.includes('(Enrichment Activity)');
+              let baseHeader = header.replace(/ \((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity)\)/, '');
+              baseHeader = baseHeader.replace(/\s*\[[^\]]+\]\s*$/, '');
+              if (isEmployer || isEnrichment) {
                 // Handle activity columns
-                const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
-                const cleanHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '');
+                const activityType = isEmployer ? 'employerEngagement' : 'enrichment';
                 const activityData = data.activities?.[activityType]?.[dept] || {};
-                row.push(activityData[cleanHeader] ?? '');
+                row.push(activityData[baseHeader] ?? '');
               } else {
                 // Handle regular metrics
-                row.push(metrics[header] ?? '');
+                row.push(metrics[baseHeader] ?? metrics[header] ?? '');
               }
             });
             
