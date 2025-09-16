@@ -249,6 +249,10 @@ class DatabaseUserManager {
         misContactName: 'miscontactname',
         misContactEmail: 'miscontactemail',
         renewalDate: 'renewaldate',
+        // Marketing fields
+        marketingName: 'marketingname',
+        marketingEmail: 'marketingemail',
+        marketingPosition: 'marketingposition',
         keyStakeholders: 'keystakeholders',
         engagementLevel: 'engagementlevel',
         swotStrengths: 'swotstrengths',
@@ -323,6 +327,10 @@ class DatabaseUserManager {
           misContactEmail: collegeData.miscontactemail || '',
           collegeSystem: collegeData.collegesystem || '',
           renewalDate: collegeData.renewaldate || '',
+          // Marketing fields (surface to frontend)
+          marketingName: collegeData.marketingname || '',
+          marketingEmail: collegeData.marketingemail || '',
+          marketingPosition: collegeData.marketingposition || '',
           modules: collegeData.modules || [],
           keyStakeholders: collegeData.keystakeholders || [],
           engagementLevel: collegeData.engagementlevel || 'Good',
@@ -403,6 +411,10 @@ class DatabaseUserManager {
         misContactName: 'miscontactname',
         misContactEmail: 'miscontactemail',
         renewalDate: 'renewaldate',
+        // Marketing fields
+        marketingName: 'marketingname',
+        marketingEmail: 'marketingemail',
+        marketingPosition: 'marketingposition',
         // Arrays / JSON fields
         keyStakeholders: 'keystakeholders',
         engagementLevel: 'engagementlevel',

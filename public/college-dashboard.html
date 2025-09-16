@@ -872,13 +872,13 @@
     <!-- Overview Tab -->
     <div id="overview" class="tab-content">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-4">
-        <div class="flex items-center gap-4">
+        <div class="flex items-center justify-between">
           <h1 class="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-800">College Dashboard</h1>
         </div>
         <div class="bg-white rounded-lg shadow p-3 sm:p-4 lg:p-6 w-full sm:w-auto">
           <h3 class="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-2">Total Students</h3>
-          <p class="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-600" id="totalStudentsDisplay">Loading...</p>
-          <div class="mt-2 text-xs sm:text-sm text-green-600" id="studentsTrend">Loading trend...</div>
+          <div class="text-2xl sm:text-3xl lg:text-4xl font-bold text-blue-700" id="totalStudentsDisplay">Loading...</div>
+          <div class="text-xs sm:text-sm text-gray-500 mt-1" id="studentsTrend">Loading trend...</div>
         </div>
       </div>
       
@@ -1124,6 +1124,12 @@
               <option value="name-asc">Name (A-Z)</option>
             </select>
           </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Template</label>
+            <select id="templateFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="applyFilters()">
+              <option value="">All Templates</option>
+            </select>
+          </div>
           <div class="flex items-end">
             <button onclick="clearFilters()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm w-full">
               Clear Filters
@@ -1300,6 +1306,25 @@
               <option value="Unity">Unity</option>
               <option value="Other">Other</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Marketing/Communications contact -->
+        <div class="mt-6 pt-4 border-t border-gray-200">
+          <h4 class="text-md font-semibold text-gray-900 mb-3">Marketing/Communications contact</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input type="text" id="marketingName" placeholder="Enter marketing contact name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+              <input type="text" id="marketingPosition" placeholder="Enter position" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" id="marketingEmail" placeholder="Enter marketing contact email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
           </div>
         </div>
       </div>
@@ -1664,10 +1689,10 @@
       }
     }
     
-    // Get college ID from URL parameters
+    // Get college ID from URL parameters (backward compatible)
     function getCollegeId() {
       const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get('id');
+      return urlParams.get('id') || urlParams.get('collegeId');
     }
 
     // Load college data from backend
@@ -1740,12 +1765,38 @@
         }
         
         const reportsResult = await reportsResponse.json();
-        console.log('Reports API response:', reportsResult);
-        console.log('Reports data:', reportsResult.reports);
-        
-        if (reportsResult.reports) {
-          collegeReports = reportsResult.reports;
+      console.log('Reports API response:', reportsResult);
+      console.log('Reports data:', reportsResult.reports);
+      
+      if (reportsResult.reports) {
+        collegeReports = reportsResult.reports;
+      }
+
+      // Populate Template filter options from loaded reports
+      try {
+        const tplSel = document.getElementById('templateFilter');
+        if (tplSel && Array.isArray(collegeReports)) {
+          const headerSig = (arr) => { try { return Array.isArray(arr) ? arr.join('|') : ''; } catch(_) { return ''; } };
+          const getTemplateKey = (r) => r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || ('hdr_' + headerSig(r.data && r.data.headers));
+          const getTemplateName = (r) => r.templateName || (r.data && r.data.meta && r.data.meta.templateName) || 'Ad-hoc';
+          const seen = new Map();
+          collegeReports.forEach(r => {
+            const k = getTemplateKey(r), n = getTemplateName(r);
+            if (!seen.has(k)) seen.set(k, n);
+          });
+          // Clear and add default
+          tplSel.innerHTML = '<option value="">All Templates</option>' + Array.from(seen.entries()).map(([k,n]) => `<option value="${String(k)}">${n}</option>`).join('');
         }
+      } catch (_) {}
+
+      // One-time backfill of template keys and previous cache for this college
+      try {
+        const backfillKey = `backfilled:${collegeId}`;
+        if (!sessionStorage.getItem(backfillKey)) {
+          await fetch(`/api/maintenance/backfill-template-keys/${collegeId}`, { method: 'POST', credentials: 'include' });
+          sessionStorage.setItem(backfillKey, 'true');
+        }
+      } catch (_) {}
 
         // Initialise share UI state
         initShareControls();
@@ -1768,8 +1819,8 @@
     function updateDashboardData() {
       if (!collegeData) return;
 
-      // Update page title
-      document.querySelector('h1').textContent = `${collegeData.name} Dashboard`;
+      // Update page title to indicate master data
+      document.querySelector('h1').textContent = `${collegeData.name} Dashboard (Master Data)`;
 
       // Update general information in Details tab
       document.getElementById('collegeName').value = collegeData.name || '';
@@ -1805,8 +1856,8 @@
       const tplEl = document.getElementById('collegeTemplate'); if (tplEl) tplEl.value = collegeData.template || 'standard';
       const notesEl = document.getElementById('initialConcerns'); if (notesEl) notesEl.value = collegeData.initialConcerns || '';
 
-      // Update metrics with data from latest report
-      updateMetricsFromLatestReport();
+      // Update metrics with aggregated data from all reports (master data)
+      updateMetricsFromAllReports();
 
       // Generate AI insights (now handled by enhanced analytics when analytics tab is shown)
       // generateAIInsights(); // Replaced by Gemini 2.5 Flash enhanced analytics
@@ -1941,6 +1992,10 @@
       document.getElementById('misContactEmail').value = collegeData.misContactEmail || '';
       document.getElementById('renewalDate').value = collegeData.renewalDate || '';
       const csEl = document.getElementById('collegeSystem'); if (csEl) csEl.value = collegeData.collegeSystem || 'Pro Monitor';
+      // Marketing Staff Member fields
+      const mkName = document.getElementById('marketingName'); if (mkName) mkName.value = collegeData.marketingName || '';
+      const mkEmail = document.getElementById('marketingEmail'); if (mkEmail) mkEmail.value = collegeData.marketingEmail || '';
+      const mkPosition = document.getElementById('marketingPosition'); if (mkPosition) mkPosition.value = collegeData.marketingPosition || '';
     }
 
     // Function to update performance indicators display
@@ -2110,6 +2165,128 @@
       
       // Update the detailed metrics sections
       updateDetailedMetrics(totals, availableSections);
+    }
+
+    // Update metrics with aggregated data from all reports (master data)
+    function updateMetricsFromAllReports() {
+      if (!collegeReports || collegeReports.length === 0) {
+        // No reports available - show no data message
+        showNoDataMessage();
+        return;
+      }
+
+      // Aggregate data from all reports to get master data
+      const masterData = aggregateDataFromAllReports(collegeReports);
+      console.log('Master data aggregated from all reports:', masterData);
+      
+      if (!masterData || Object.keys(masterData).length === 0) {
+        // No valid data found - show no data message
+        showNoDataMessage();
+        return;
+      }
+
+      // Determine which sections are available in the master data
+      const availableSections = determineAvailableSectionsFromMasterData(masterData);
+      console.log('Available sections in master data:', availableSections);
+      
+      // Update the metrics cards
+      updateMetricsCards(masterData, availableSections);
+      
+      // Update the detailed metrics sections
+      updateDetailedMetrics(masterData, availableSections);
+    }
+
+    // Aggregate data from all reports to create master data
+    function aggregateDataFromAllReports(reports) {
+      const masterData = {
+        totalStudents: 0,
+        totalPlacements: 0,
+        studentsWithPlacements: 0,
+        percentWithPlacements: 0,
+        hoursScheduled: 0,
+        studentConfirmed: 0,
+        employerConfirmed: 0,
+        studentsWithActivities: 0,
+        studentsWithActivitiesEnrichment: 0,
+        studentsWithActivitiesEmployer: 0,
+        totalActivities: 0,
+        totalActivitiesEnrichment: 0,
+        totalActivitiesEmployer: 0,
+        percentStudentsWithActivities: 0,
+        percentStudentsWithActivitiesEnrichment: 0,
+        percentStudentsWithActivitiesEmployer: 0,
+        totalActivityHours: 0,
+        totalActivityHoursEnrichment: 0,
+        totalActivityHoursEmployer: 0,
+        studentsWithoutAssessments: 0,
+        studentsWithAssessments: 0,
+        totalStudentsCareers: 0,
+        studentsCompletedCareerQuiz: 0,
+        percentCompletedCareerQuiz: 0,
+        studentsWithMappedJobProfile: 0,
+        percentWithMappedJobProfile: 0,
+        totalMappedJobProfiles: 0
+      };
+
+      // Process each report to find maximum values (master data)
+      reports.forEach(report => {
+        if (!report.data || !report.data.rows) return;
+
+        const reportTotals = calculateTotalsFromReport(report.data);
+        
+        // For master data, we want the maximum values across all reports
+        // This represents the highest numbers ever recorded for this college
+        masterData.totalStudents = Math.max(masterData.totalStudents, reportTotals.totalStudents);
+        masterData.totalPlacements = Math.max(masterData.totalPlacements, reportTotals.totalPlacements);
+        masterData.studentsWithPlacements = Math.max(masterData.studentsWithPlacements, reportTotals.studentsWithPlacements);
+        masterData.hoursScheduled = Math.max(masterData.hoursScheduled, reportTotals.hoursScheduled);
+        masterData.studentConfirmed = Math.max(masterData.studentConfirmed, reportTotals.studentConfirmed);
+        masterData.employerConfirmed = Math.max(masterData.employerConfirmed, reportTotals.employerConfirmed);
+        masterData.studentsWithActivities = Math.max(masterData.studentsWithActivities, reportTotals.studentsWithActivities);
+        masterData.studentsWithActivitiesEnrichment = Math.max(masterData.studentsWithActivitiesEnrichment, reportTotals.studentsWithActivitiesEnrichment);
+        masterData.studentsWithActivitiesEmployer = Math.max(masterData.studentsWithActivitiesEmployer, reportTotals.studentsWithActivitiesEmployer);
+        masterData.totalActivities = Math.max(masterData.totalActivities, reportTotals.totalActivities);
+        masterData.totalActivitiesEnrichment = Math.max(masterData.totalActivitiesEnrichment, reportTotals.totalActivitiesEnrichment);
+        masterData.totalActivitiesEmployer = Math.max(masterData.totalActivitiesEmployer, reportTotals.totalActivitiesEmployer);
+        masterData.totalActivityHours = Math.max(masterData.totalActivityHours, reportTotals.totalActivityHours);
+        masterData.totalActivityHoursEnrichment = Math.max(masterData.totalActivityHoursEnrichment, reportTotals.totalActivityHoursEnrichment);
+        masterData.totalActivityHoursEmployer = Math.max(masterData.totalActivityHoursEmployer, reportTotals.totalActivityHoursEmployer);
+        masterData.studentsWithoutAssessments = Math.max(masterData.studentsWithoutAssessments, reportTotals.studentsWithoutAssessments);
+        masterData.studentsWithAssessments = Math.max(masterData.studentsWithAssessments, reportTotals.studentsWithAssessments);
+        masterData.totalStudentsCareers = Math.max(masterData.totalStudentsCareers, reportTotals.totalStudentsCareers);
+        masterData.studentsCompletedCareerQuiz = Math.max(masterData.studentsCompletedCareerQuiz, reportTotals.studentsCompletedCareerQuiz);
+        masterData.studentsWithMappedJobProfile = Math.max(masterData.studentsWithMappedJobProfile, reportTotals.studentsWithMappedJobProfile);
+        masterData.totalMappedJobProfiles = Math.max(masterData.totalMappedJobProfiles, reportTotals.totalMappedJobProfiles);
+      });
+
+      // Calculate percentages based on the maximum values
+      if (masterData.totalStudents > 0) {
+        masterData.percentWithPlacements = (masterData.studentsWithPlacements / masterData.totalStudents) * 100;
+        masterData.percentStudentsWithActivities = (masterData.studentsWithActivities / masterData.totalStudents) * 100;
+        masterData.percentStudentsWithActivitiesEnrichment = (masterData.studentsWithActivitiesEnrichment / masterData.totalStudents) * 100;
+        masterData.percentStudentsWithActivitiesEmployer = (masterData.studentsWithActivitiesEmployer / masterData.totalStudents) * 100;
+      }
+
+      if (masterData.totalStudentsCareers > 0) {
+        masterData.percentCompletedCareerQuiz = (masterData.studentsCompletedCareerQuiz / masterData.totalStudentsCareers) * 100;
+        masterData.percentWithMappedJobProfile = (masterData.studentsWithMappedJobProfile / masterData.totalStudentsCareers) * 100;
+      }
+
+      return masterData;
+    }
+
+    // Determine available sections from master data
+    function determineAvailableSectionsFromMasterData(masterData) {
+      const sections = {
+        placements: masterData.totalStudents > 0 && masterData.totalPlacements > 0,
+        activities: masterData.totalStudents > 0 && masterData.totalActivities > 0,
+        activitiesEnrichment: masterData.totalStudents > 0 && masterData.totalActivitiesEnrichment > 0,
+        activitiesEmployer: masterData.totalStudents > 0 && masterData.totalActivitiesEmployer > 0,
+        assessments: masterData.totalStudents > 0 && (masterData.studentsWithAssessments > 0 || masterData.studentsWithoutAssessments > 0),
+        careers: masterData.totalStudentsCareers > 0 && (masterData.studentsCompletedCareerQuiz > 0 || masterData.studentsWithMappedJobProfile > 0)
+      };
+
+      return sections;
     }
 
     // Show no data message
@@ -2814,7 +2991,6 @@
         details[4].querySelector('span:last-child').textContent = totals.employerConfirmed.toLocaleString();
       }
     }
-
     // Update enrichment activities details
     function updateEnrichmentActivitiesDetails(totals) {
       const enrichmentActivitiesDetails = document.getElementById('enrichmentActivitiesDetails');
@@ -3065,10 +3241,14 @@
       // Sort reports by newest first
       const sortedReports = [...collegeReports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       
+      function getTemplateName(report) {
+        return report.templateName || (report.data && report.data.meta && report.data.meta.templateName) || 'Ad-hoc';
+      }
+
       recentReportsList.innerHTML = sortedReports.slice(0, 5).map(report => `
         <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-b-0">
           <div class="flex-1">
-            <p class="text-sm font-medium text-gray-900">${report.name}</p>
+            <p class="text-sm font-medium text-gray-900">${report.name} <span class="ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100">${getTemplateName(report)}</span></p>
             <p class="text-xs text-gray-500">${new Date(report.createdAt).toLocaleString()}</p>
           </div>
           <div class="flex space-x-2">
@@ -3341,7 +3521,6 @@
         window.previousReportData = null;
       }
     }
-
     // Function to determine column section and color based on filename content
     // CACHE-BUST: 2025-01-27-16-00-00
     function getColumnSection(header, headerFileMap = null) {
@@ -3488,7 +3667,7 @@
     // Calculate total change for a specific column
     function calculateTotalChange(colIndex, currentTotals, previousData) {
       if (!previousData || !previousData.rows) {
-        return '';
+        return `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
       }
       
       // Calculate totals from previous report (same logic as current totals)
@@ -3527,12 +3706,12 @@
       }
       
       if (!hasValidPreviousData) {
-        return '';
+        return `<span class=\"px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600\">-</span>`;
       }
       
       const currentTotal = currentTotals[colIndex];
       if (currentTotal === '' || currentTotal === null) {
-        return '';
+        return `<span class=\"px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600\">-</span>`;
       }
       
       // Calculate the change in the overall totals
@@ -3547,6 +3726,27 @@
         return `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
       }
     }
+    // Helper: map bg-* class to inline color to ensure exact match with preview
+    function inlineFromClass(bgClass) {
+      const map = {
+        'bg-blue-100': '#dbeafe',
+        'bg-blue-200': '#bfdbfe',
+        'bg-purple-100': '#f3e8ff',
+        'bg-yellow-100': '#fef3c7',
+        'bg-green-100': '#dcfce7',
+        'bg-green-200': '#bbf7d0',
+        'bg-orange-100': '#fed7aa',
+        'bg-amber-100': '#fef3c7',
+        'bg-teal-100': '#ccfbf1',
+        'bg-cyan-100': '#e0f7fa',
+        'bg-pink-100': '#fce7f3',
+        'bg-indigo-100': '#e0e7ff',
+        'bg-gray-100': '#f3f4f6'
+      };
+      const hex = map[bgClass];
+      return hex ? `background-color: ${hex} !important; border-color: ${hex} !important;` : '';
+    }
+
     // Display report data in table format with visual elements
     // CACHE-BUST: 2025-01-27-17-30-00
     function displayReportData(reportData) {
@@ -3586,16 +3786,34 @@
         }
       });
 
+      // Prefer saved header color classes and hex colors from report metadata (set during generation)
+      const meta = (reportData && reportData.data && reportData.data.meta) ? reportData.data.meta : {};
+      const metaClasses = meta.headerColorClasses || {};
+      const metaHex = meta.headerHexColors || {};
+      
       // Render headers with section colors
       const headerCells = completeHeaders.map(h => {
         // Determine if this is a change column and get section color
         const isChangeColumn = h.endsWith(' +/-');
         const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
-        const sectionInfo = getColumnSection(originalHeader);
+        const savedClass = metaClasses[originalHeader];
+        const savedHex = metaHex[originalHeader];
         const toggle = document.getElementById('departmentStickyToggle');
         const isSticky = toggle ? toggle.checked : true;
         const sticky = originalHeader === 'Department' && isSticky ? 'position: sticky; left: 0; top: 0; z-index: 5; min-width: 260px; background: #fff;' : '';
-        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider border-r border-gray-200 ${sectionInfo.color}" style="${sectionInfo.inlineColor}${sticky}">${h}</th>`;
+        let inlineStyle = '';
+        let className = '';
+        if (savedHex && typeof savedHex === 'string') {
+          inlineStyle = `background-color: ${savedHex}; border-color: ${savedHex};`;
+        } else if (savedClass) {
+          inlineStyle = inlineFromClass(savedClass);
+          className = savedClass;
+        } else {
+          const section = getColumnSection(originalHeader);
+          inlineStyle = section.inlineColor || '';
+          className = section.color || '';
+        }
+        return `<th class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider border-r border-gray-200 ${className}" style="${inlineStyle}${sticky}">${h}</th>`;
       }).join('');
       
       // Calculate totals for the report (same logic as Excel export)
@@ -3749,21 +3967,22 @@
           displayTotal = '';
         } else if (totalValue !== '') {
           if (header.toLowerCase().includes('percent') || header.includes('%')) {
-            displayTotal = totalValue.toFixed(1) + '%';
+            const pct = (parseFloat(totalValue) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue));
+            displayTotal = pct.toFixed(1) + '%';
             cellAlignment = 'text-right';
             
             // Add percentage bar for totals row with gradient colors
-            const barWidth = Math.min(totalValue, 100);
+            const barWidth = Math.min(pct, 100);
             let barColor;
-            if (totalValue < 40) {
+            if (pct < 40) {
               barColor = 'bg-red-500';
-            } else if (totalValue >= 40 && totalValue <= 70) {
+            } else if (pct >= 40 && pct <= 70) {
               // Orange gradient between 40-70%
-              const orangeIntensity = Math.round(255 - ((totalValue - 40) / 30) * 100);
+              const orangeIntensity = Math.round(255 - ((pct - 40) / 30) * 100);
               barColor = `rgb(255, ${orangeIntensity}, 0)`;
             } else {
               // Green gradient above 70%
-              const greenIntensity = Math.round(100 + ((totalValue - 70) / 30) * 155);
+              const greenIntensity = Math.round(100 + ((pct - 70) / 30) * 155);
               barColor = `rgb(0, ${greenIntensity}, 0)`;
             }
             
@@ -3965,7 +4184,6 @@
         notification.remove();
       }, 3000);
     }
-
     // Tab navigation logic
     function showTab(tab) {
       // Hide all tab contents
@@ -4608,7 +4826,6 @@
         default: return 'text-gray-500';
       }
     }
-    
     function getPerformanceLevelLabel(quartile) {
       if (!quartile || quartile === 'N/A') return 'N/A';
       
@@ -4673,7 +4890,7 @@
         <div class="bg-blue-50 rounded-lg p-4 mb-4">
           <h4 class="font-semibold text-blue-900 mb-3 flex items-center">
             <svg class="w-5 h-5 text-blue-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
             </svg>
             Detailed Rankings
           </h4>
@@ -5210,7 +5427,6 @@
         showFallbackGapAnalysis();
       }
     }
-
     // Update analytics dashboard with current live data from latest report
     function updateAnalyticsWithLiveData() {
       console.log('updateAnalyticsWithLiveData called');
@@ -5220,45 +5436,39 @@
         return;
       }
       
-      // Get the latest report by sorting by creation date
-      const sortedReports = [...collegeReports].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      const latestReport = sortedReports[0];
+      // Use master data aggregated from all reports instead of just latest report
+      const masterData = aggregateDataFromAllReports(collegeReports);
+      console.log('Master data for analytics:', masterData);
       
-      console.log('Latest report for analytics:', latestReport.name, latestReport.createdAt);
-      
-      if (!latestReport.data) {
-        console.log('No data in latest report');
+      if (!masterData || Object.keys(masterData).length === 0) {
+        console.log('No valid master data found');
         return;
       }
       
-      // Calculate totals from the latest report (same logic as main dashboard)
-      const totals = calculateTotalsFromReport(latestReport.data);
-      console.log('Calculated totals from latest report:', totals);
+      // Determine available sections from master data
+      const availableSections = determineAvailableSectionsFromMasterData(masterData);
+      console.log('Available sections in master data:', availableSections);
       
-      // Determine available sections
-      const availableSections = determineAvailableSections(latestReport.data);
-      console.log('Available sections:', availableSections);
-      
-      // Create performance data object for analytics dashboard
+      // Create performance data object for analytics dashboard using master data
       const performanceData = {
-        totalStudents: totals.totalStudents,
-        percentWithPlacements: totals.totalStudents > 0 ? (totals.studentsWithPlacements / totals.totalStudents) * 100 : 0,
-        percentStudentsWithActivities: totals.totalStudents > 0 ? (totals.studentsWithActivities / totals.totalStudents) * 100 : 0,
-        percentStudentsWithActivitiesEnrichment: totals.totalStudents > 0 ? (totals.studentsWithActivitiesEnrichment / totals.totalStudents) * 100 : 0,
-        percentStudentsWithActivitiesEmployer: totals.totalStudents > 0 ? (totals.studentsWithActivitiesEmployer / totals.totalStudents) * 100 : 0,
-        assessmentCompletionRate: totals.totalStudents > 0 ? (((totals.studentsWithAssessments > 0 ? totals.studentsWithAssessments : (totals.totalStudents - totals.studentsWithoutAssessments)) / totals.totalStudents) * 100) : 0,
+        totalStudents: masterData.totalStudents,
+        percentWithPlacements: masterData.totalStudents > 0 ? (masterData.studentsWithPlacements / masterData.totalStudents) * 100 : 0,
+        percentStudentsWithActivities: masterData.totalStudents > 0 ? (masterData.studentsWithActivities / masterData.totalStudents) * 100 : 0,
+        percentStudentsWithActivitiesEnrichment: masterData.totalStudents > 0 ? (masterData.studentsWithActivitiesEnrichment / masterData.totalStudents) * 100 : 0,
+        percentStudentsWithActivitiesEmployer: masterData.totalStudents > 0 ? (masterData.studentsWithActivitiesEmployer / masterData.totalStudents) * 100 : 0,
+        assessmentCompletionRate: masterData.totalStudents > 0 ? (((masterData.studentsWithAssessments > 0 ? masterData.studentsWithAssessments : (masterData.totalStudents - masterData.studentsWithoutAssessments)) / masterData.totalStudents) * 100) : 0,
         availableSections: availableSections
       };
       
-      console.log('=== LIVE DATA CALCULATION ===');
-      console.log('Total Students:', totals.totalStudents);
-      console.log('Students with Activities:', totals.studentsWithActivities);
-      console.log('Students with Activities Enrichment:', totals.studentsWithActivitiesEnrichment);
-      console.log('Students with Activities Employer:', totals.studentsWithActivitiesEmployer);
+      console.log('=== MASTER DATA CALCULATION ===');
+      console.log('Total Students (Master):', masterData.totalStudents);
+      console.log('Students with Activities (Master):', masterData.studentsWithActivities);
+      console.log('Students with Activities Enrichment (Master):', masterData.studentsWithActivitiesEnrichment);
+      console.log('Students with Activities Employer (Master):', masterData.studentsWithActivitiesEmployer);
       console.log('Calculated Activity Percentage:', performanceData.percentStudentsWithActivities);
       console.log('Calculated Enrichment Percentage:', performanceData.percentStudentsWithActivitiesEnrichment);
       console.log('Calculated Employer Percentage:', performanceData.percentStudentsWithActivitiesEmployer);
-      console.log('Performance data for analytics:', performanceData);
+      console.log('Performance data for analytics (Master):', performanceData);
       
       // Update the performance cards with live data
       updatePerformanceCards(performanceData);
@@ -5623,7 +5833,7 @@
           <div class="text-center py-8">
             <div class="flex justify-center mb-4">
               <svg class="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
               </svg>
             </div>
             <h4 class="text-lg font-semibold text-gray-900 mb-2">Gap Analysis Unavailable</h4>
@@ -5671,7 +5881,11 @@
           ofstedRating: document.getElementById('ofstedRating').value,
           engagementLevel: document.getElementById('engagementLevel').value,
           collegeSystem: (document.getElementById('collegeSystem') || {}).value || '',
-          initialConcerns: (document.getElementById('initialConcerns') || {}).value || ''
+          initialConcerns: (document.getElementById('initialConcerns') || {}).value || '',
+          // Marketing Staff Member
+          marketingName: (document.getElementById('marketingName') || {}).value || '',
+          marketingPosition: (document.getElementById('marketingPosition') || {}).value || '',
+          marketingEmail: (document.getElementById('marketingEmail') || {}).value || ''
         };
 
         // Collect modules data
@@ -5769,6 +5983,7 @@
       const dateRange = document.getElementById('dateRangeFilter').value;
       const searchTerm = document.getElementById('searchReportsFilter').value.toLowerCase();
       const sortBy = document.getElementById('sortReportsFilter').value;
+      const templateKey = (document.getElementById('templateFilter')?.value || '').trim();
       
       let filteredReports = [...collegeReports];
       
@@ -5790,6 +6005,12 @@
           report.name.toLowerCase().includes(searchTerm) ||
           report.summary.toLowerCase().includes(searchTerm)
         );
+      }
+      // Apply template filter
+      if (templateKey) {
+        const headerSig = (arr) => { try { return Array.isArray(arr) ? arr.join('|') : ''; } catch(_) { return ''; } };
+        const getTemplateKey = (r) => r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || ('hdr_' + headerSig(r.data && r.data.headers));
+        filteredReports = filteredReports.filter(r => String(getTemplateKey(r)) === String(templateKey));
       }
       
       // Apply sorting
@@ -5814,9 +6035,9 @@
       document.getElementById('dateRangeFilter').value = '';
       document.getElementById('searchReportsFilter').value = '';
       document.getElementById('sortReportsFilter').value = 'date-desc';
+      const tplSel = document.getElementById('templateFilter'); if (tplSel) tplSel.value = '';
       updateReportsTableWithData(collegeReports);
     }
-    
     // Update reports table with filtered data
     function updateReportsTableWithData(reports = null) {
       const reportsToShow = reports || collegeReports;
@@ -5831,19 +6052,40 @@
             </tr>
           `;
         } else {
-          reportsTableBody.innerHTML = reportsToShow.map(report => `
-            <tr>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(report.createdAt).toLocaleString()}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${report.name}</td>
-              <td class="px-6 py-4 text-sm text-gray-600">${report.summary}</td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                <button onclick="viewReport('${report.id}')" class="text-blue-600 hover:underline mr-2">View</button>
-                <button onclick="openExcelEditor('${report.id}')" class="text-purple-600 hover:underline mr-2">Open in Excel Editor</button>
-                <button onclick="downloadReport('${report.id}')" class="text-green-600 hover:underline mr-2">Download Excel</button>
-                <button onclick="deleteReport('${report.id}')" class="text-red-600 hover:underline">Delete</button>
-              </td>
-            </tr>
-          `).join('');
+          // Group by templateKey (fallback to header signature)
+          const headerSig = (arr) => { try { return Array.isArray(arr) ? arr.join('|') : ''; } catch(_) { return ''; } };
+          const getTemplateKey = (r) => r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || ('hdr_' + headerSig(r.data && r.data.headers));
+          const getTemplateName = (r) => r.templateName || (r.data && r.data.meta && r.data.meta.templateName) || 'Ad-hoc';
+          const groups = new Map();
+          reportsToShow.forEach(r => {
+            const k = getTemplateKey(r);
+            if (!groups.has(k)) groups.set(k, { name: getTemplateName(r), items: [] });
+            groups.get(k).items.push(r);
+          });
+          const chunks = [];
+          for (const [k, g] of groups.entries()) {
+            chunks.push(`
+              <tr>
+                <td colspan="4" class="px-6 py-3 bg-gray-50 text-sm font-semibold text-gray-700 border-t border-gray-200">Template: ${g.name} <span class=\"ml-2 text-xs text-gray-500\">(${g.items.length} reports)</span></td>
+              </tr>
+            `);
+            g.items.forEach(report => {
+              chunks.push(`
+                <tr>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(report.createdAt).toLocaleString()}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${report.name}</td>
+                  <td class="px-6 py-4 text-sm text-gray-600">${report.summary}</td>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <button onclick="viewReport('${report.id}')" class="text-blue-600 hover:underline mr-2">View</button>
+                    <button onclick="openExcelEditor('${report.id}')" class="text-purple-600 hover:underline mr-2">Open in Excel Editor</button>
+                    <button onclick="downloadReport('${report.id}')" class="text-green-600 hover:underline mr-2">Download Excel</button>
+                    <button onclick="deleteReport('${report.id}')" class="text-red-600 hover:underline">Delete</button>
+                  </td>
+                </tr>
+              `);
+            });
+          }
+          reportsTableBody.innerHTML = chunks.join('');
         }
       }
 
@@ -5855,11 +6097,12 @@
             <div class="text-center text-gray-500 py-8">No reports found</div>
           `;
         } else {
+          const getTemplateName = (report) => report.templateName || (report.data && report.data.meta && report.data.meta.templateName) || 'Ad-hoc';
           reportsCardBody.innerHTML = reportsToShow.map(report => `
             <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <div class="flex justify-between items-start mb-3">
                 <div class="flex-1">
-                  <h4 class="font-semibold text-gray-900 text-lg">${report.name}</h4>
+                  <h4 class="font-semibold text-gray-900 text-lg">${report.name} <span class=\"ml-2 inline-block px-2 py-0.5 text-xs rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100\">${getTemplateName(report)}</span></h4>
                   <p class="text-sm text-gray-600 mt-1">${new Date(report.createdAt).toLocaleString()}</p>
                 </div>
               </div>
@@ -6458,7 +6701,6 @@
        }
      }
      */
-
     // Refresh KPI suggestions
     async function refreshKPISuggestions() {
       const container = document.getElementById('kpiSuggestionsContainer');
@@ -7109,7 +7351,6 @@
       
       undoTimeouts.set(deletedKPI.timestamp, timeoutId);
     }
-
     function undoDeleteKPI(timestamp) {
       // Find the deleted KPI
       const deletedKPIIndex = deletedKPIs.findIndex(kpi => kpi.timestamp === timestamp);
