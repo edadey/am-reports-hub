@@ -18,6 +18,21 @@ try {
   console.log('⚠️ Could not load .env file via dotenv:', error.message);
 }
 
+// (moved) Maintenance endpoint is defined after app/authService initialization below
+
+// Helper: compute stable header signature as a fallback template key
+function computeHeaderSignature(headers) {
+  try {
+    const s = Array.isArray(headers) ? headers.join('|') : String(headers || '');
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) - hash) + s.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'hdr_' + Math.abs(hash).toString(36);
+  } catch (_) { return 'hdr_unknown'; }
+}
+
 // Method 2: Manual .env file reading for cPanel compatibility
 if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openai-api-key-here') {
   console.log('🔍 Attempting manual .env file reading...');
@@ -416,10 +431,6 @@ app.get('/college-dashboard', authService.requireAuth(), (req, res) => {
 
 app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/backup-dashboard.html'));
-});
-
-app.get('/admin-contacts', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/admin-contacts.html'));
 });
 
 app.get('/admin-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
@@ -1759,20 +1770,32 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const college = colleges.find(c => c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId);
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
 
-    // Load previous report data for change indicators
+    // Load previous report data for change indicators (template-aware)
     let previousData = null;
     try {
       const reports = await getCollegeReports(parseInt(collegeId));
       if (reports && reports.length > 0) {
         const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
-        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
-          const previousReport = sortedReports[currentReportIndex + 1];
-          previousData = previousReport.data;
+        if (currentReportIndex >= 0) {
+          const current = sortedReports[currentReportIndex];
+          const currentTK = current.templateKey || current.data?.meta?.templateKey || null;
+          const headerSig = (arr) => Array.isArray(arr) ? arr.join('|') : '';
+          const currentSig = headerSig(current.data?.headers);
+          const prevSame = sortedReports.slice(currentReportIndex + 1).find(r => {
+            const tk = r.templateKey || r.data?.meta?.templateKey || null;
+            if (currentTK && tk) return String(tk) === String(currentTK);
+            if (!currentTK && !tk) {
+              return headerSig(r.data?.headers) === currentSig;
+            }
+            return false;
+          });
+          if (prevSame) previousData = prevSame.data;
         }
       }
     } catch (_) {
-      previousData = await getPreviousReportData(parseInt(collegeId));
+      const currentTK = report.templateKey || report.data?.meta?.templateKey || null;
+      previousData = await getPreviousReportData(parseInt(collegeId), currentTK);
     }
 
     // Create Excel workbook with formatting
@@ -1787,70 +1810,24 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     worksheet.getCell('A2').value = `Generated: ${new Date(report.createdAt).toLocaleString()}`;
     worksheet.getCell('A2').font = { size: 10, color: { argb: 'FF666666' } };
 
-    // Prepare header colouring using file-based grouping with keyword fallback
-    function getColumnSection(header, headerFileMap = null, fileInfo = null) {
+    // Prepare header colouring (match UI)
+    function getColumnSection(header) {
       const SECTION_COLORS_EXCEL = {
         placements: 'FFDBEAFE',
-        assessments: 'FFBBF7D0', 
+        assessments: 'FFBBF7D0',
         careers: 'FFFEF3C7',
-        activities: 'FFFED7AA',
+        activities: 'FFFEF3C7',
         enrichment: 'FFBFDBFE',
         employment: 'FFF3E8FF',
-        'employer-activities': 'FFFEF3C7', // Cream to distinguish employer engagement activities
-        'enrichment-activities': 'FFB2F5EA', // Light teal for enrichment activities
         targets: 'FFFCE7F3',
         login: 'FFE0E7FF',
         default: 'FFF3F4F6'
       };
-      
       const h = (header || '').toLowerCase();
       if (header === 'Department') return { section: 'Department', color: 'FFFEF3C7' };
-      
-      // FILE-BASED GROUPING: Check if we have file mapping information
-      if (headerFileMap && fileInfo) {
-        let fileIndex = headerFileMap[header];
-        if (fileIndex === undefined) {
-          // Try base name without suffix
-          const base = header.replace(/ \(.*\)$/, '');
-          for (const key in headerFileMap) { if (key.startsWith(base + ' (')) { fileIndex = headerFileMap[key]; break; } }
-        }
-        if (fileIndex !== undefined) {
-          const rawType = fileInfo[fileIndex]?.contentType ? String(fileInfo[fileIndex].contentType).toLowerCase() : null;
-          let normType = rawType === 'employer' ? 'employment' : rawType;
-          if (normType === 'employer-activities') normType = 'employer-activity';
-          if (normType === 'enrichment-activities') normType = 'enrichment-activity';
-          if (normType && SECTION_COLORS_EXCEL[normType]) {
-            console.log(`📁 File-based color assignment: "${header}" -> file ${fileIndex} (${normType}) -> ${SECTION_COLORS_EXCEL[normType]}`);
-            return { section: normType, color: SECTION_COLORS_EXCEL[normType] };
-          }
-          // Fallback: per-file deterministic palette even if content type is unknown/default
-          const FALLBACKS = ['FFE8F0FE','FFFDE68A','FFE9D5FF','FFD1FAE5','FFFEE2E2','FFBAE6FD','FFFDE2E2'];
-          const fallbackColor = FALLBACKS[fileIndex % FALLBACKS.length];
-          console.log(`📁 File-based fallback color: "${header}" -> file ${fileIndex} -> ${fallbackColor}`);
-          return { section: 'default', color: fallbackColor };
-        }
-      }
-      
-      // FALLBACK TO KEYWORD-BASED DETECTION for backwards compatibility
-      console.log(`🔍 Using keyword-based detection for header: "${header}"`);
-      
-      // Check for specific activity suffixes, but differentiate placements from activities
-      if (h.includes('(employer activity)')) {
-        if (h.includes('placement') || h.includes('hours scheduled') || h.includes('student confirmed') || h.includes('employer confirmed')) {
-          return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
-        }
-        return { section: 'employer-activities', color: SECTION_COLORS_EXCEL['employer-activities'] };
-      }
-      if (h.includes('(enrichment activity)')) return { section: 'enrichment-activities', color: SECTION_COLORS_EXCEL['enrichment-activities'] };
-      
-      // Then check for content type suffixes from backend processing
-      if (h.includes('(enrichment)')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
-      if (h.includes('(employer)')) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
-      if (h.includes('(careers)')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
-      
       if (h.includes('placements') || h.includes('placed') || h.includes('scheduled to date')) return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
       if (h.includes('enrichment')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
-      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('students with')) && !h.includes('(employer activity)'))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')) && !h.includes('enrichment'))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
       if (h.includes('career') || h.includes('quiz') || h.includes('job profile') || h.includes('mapped')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
       if (h.includes('assessment') || h.includes('score') || h.includes('students without') || h.includes('assessed')) return { section: 'assessments', color: SECTION_COLORS_EXCEL.assessments };
       if (h.includes('activity') || (h.includes('hours') && !h.includes('scheduled'))) return { section: 'activities', color: SECTION_COLORS_EXCEL.activities };
@@ -1879,12 +1856,43 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
 
     // Set header values and style
     worksheet.getRow(dataStartRow).values = completeHeaders;
+    // Prefer saved meta colours if present
+    const classToArgbShared = {
+      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
+      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
+      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
+      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
+      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
+      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
+      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
+    };
+    const toArgbShared = (hex) => {
+      if (!hex || typeof hex !== 'string') return null;
+      const clean = hex.replace('#','').toUpperCase();
+      const rgb = clean.length === 8 ? clean.slice(2) : clean;
+      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
+      return `FF${rgb}`;
+    };
+    const metaShared = report.data?.meta || {};
+    const headerHexShared = metaShared.headerHexColors || {};
+    const headerClassShared = metaShared.headerColorClasses || {};
     completeHeaders.forEach((header, index) => {
       const cell = worksheet.getCell(dataStartRow, index + 1);
       const isChange = header.endsWith(' +/-');
       const baseHeader = isChange ? header.replace(' +/-', '') : header;
-      const sectionInfo = getColumnSection(baseHeader, report.headerFileMap, report.fileInfo);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sectionInfo.color } };
+      // Determine ARGB
+      let argb = null;
+      const savedHex = headerHexShared[baseHeader];
+      if (savedHex) argb = toArgbShared(savedHex);
+      if (!argb) {
+        const cls = headerClassShared[baseHeader];
+        if (cls && classToArgbShared[cls]) argb = classToArgbShared[cls];
+      }
+      if (!argb) {
+        const sectionInfo = getColumnSection(baseHeader);
+        argb = sectionInfo.color;
+      }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
       cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 11, name: 'Arial' };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = { top: { style: 'thick', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thick', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
@@ -1982,10 +1990,11 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const cleanReportName = safeReportName.replace(new RegExp(safeCollegeName, 'gi'), '').trim();
     const filename = `${safeCollegeName}_${cleanReportName}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
+    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Length', Buffer.byteLength(buffer));
+    res.status(200).send(Buffer.from(buffer));
   } catch (error) {
     console.error('Shared excel download error:', error);
     res.status(500).json({ success: false, error: 'Failed to export excel' });
@@ -2159,8 +2168,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     currentRow++;
     dataStartRow = currentRow;
     
-    // Function to determine column section and color (supports file-based colouring)
-    function getColumnSection(header, headerFileMap = null, fileInfo = null) {
+    // Function to determine column section and color
+    function getColumnSection(header, headerFileMap = null) {
       // Define colors that exactly match frontend Tailwind classes (Excel hex format)
       const SECTION_COLORS_EXCEL = {
         'placements': 'FFDBEAFE',      // bg-blue-100 - Light blue
@@ -2174,26 +2183,6 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         'default': 'FFF3F4F6'           // bg-gray-100 - Light gray
       };
       
-      // Try file-based first to ensure all headers from the same upload share a colour
-      if (headerFileMap && fileInfo) {
-        let fileIndex = headerFileMap[header];
-        if (fileIndex === undefined) {
-          const base = header.replace(/ \(.*\)$/, '');
-          for (const key in headerFileMap) { if (key.startsWith(base + ' (')) { fileIndex = headerFileMap[key]; break; } }
-        }
-        if (fileIndex !== undefined) {
-          const rawType = fileInfo[fileIndex]?.contentType ? String(fileInfo[fileIndex].contentType).toLowerCase() : null;
-          const normType = rawType === 'employer' ? 'employment' : rawType;
-          if (normType && SECTION_COLORS_EXCEL[normType]) {
-            return { section: normType, color: SECTION_COLORS_EXCEL[normType] };
-          }
-          // Deterministic per-file fallback palette when type is unknown/default
-          const FALLBACKS = ['FFE8F0FE','FFFDE68A','FFE9D5FF','FFD1FAE5','FFFEE2E2','FFBAE6FD','FFFDE2E2'];
-          const fallbackColor = FALLBACKS[fileIndex % FALLBACKS.length];
-          return { section: 'default', color: fallbackColor };
-        }
-      }
-      
       // Function to determine section type from header - matches frontend logic exactly
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
@@ -2203,7 +2192,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
           return 'enrichment';
         }
         
-        if (headerLower.includes('(employer)')) {
+        if (headerLower.includes('(employer)') || headerLower.includes('(employment)')) {
           return 'employment';
         }
         
@@ -2239,7 +2228,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         }
         
         if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
-            headerLower.includes('activity') || headerLower.includes('activities'))) {
+            headerLower.includes('activity') || headerLower.includes('activities')) && 
+            !headerLower.includes('enrichment')) {
           return 'employment';
         }
         
@@ -2271,7 +2261,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             (headerLower.includes('employer') && (headerLower.includes('engagement') || 
             headerLower.includes('activity') || headerLower.includes('activities') ||
             headerLower.includes('students with') || headerLower.includes('total students') ||
-            headerLower.includes('total activities')))) {
+            headerLower.includes('total activities')) && !headerLower.includes('enrichment'))) {
           return 'employment';
         }
         
@@ -2303,15 +2293,11 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     
     // Try to get headerFileMap from report data
     let reportHeaderFileMap = null;
-    let reportFileInfo = null;
     if (report.data && report.data.headerFileMap) {
       reportHeaderFileMap = report.data.headerFileMap;
       console.log('Using file-based coloring for Excel export:', reportHeaderFileMap);
     } else {
       console.log('No headerFileMap found, using content-based coloring for Excel export');
-    }
-    if (report.data && report.data.fileInfo) {
-      reportFileInfo = report.data.fileInfo;
     }
     
     // Build complete header structure with change columns positioned correctly
@@ -2339,7 +2325,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       // Debug: Log header section detection
       const isChangeColumn = header.endsWith(' +/-');
       const originalHeader = isChangeColumn ? header.replace(' +/-', '') : header;
-      const sectionInfo = getColumnSection(originalHeader, reportHeaderFileMap, reportFileInfo);
+      const sectionInfo = getColumnSection(originalHeader, reportHeaderFileMap);
       console.log(`🎨 Header: "${header}" -> Section: ${sectionInfo.section}, Color: ${sectionInfo.color}`);
       
       // Apply section colors
@@ -2416,8 +2402,14 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         const cell = dataRow.getCell(colIndex + 1);
         
         // Ensure all values are properly set, even empty ones
-        if (value === undefined || value === null) {
-          cell.value = '';
+        if (value === undefined || value === null || value === '') {
+          // For percentage columns, display 0% when there is no info
+          if ((header && (header.toLowerCase().includes('percent') || header.includes('%')))) {
+            cell.value = 0;
+            cell.numFmt = '0.00%';
+          } else {
+            cell.value = '';
+          }
         } else {
           cell.value = value;
         }
@@ -2621,29 +2613,44 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             }
           });
           
-          if (hasValidData) {
-            // For percentage columns, calculate average instead of sum
-            if (header.toLowerCase().includes('percent') || header.includes('%')) {
-              const validRows = rows.filter(row => 
-                row[originalColIndex] !== '' && 
-                row[originalColIndex] !== null && 
-                !isNaN(parseFloat(row[originalColIndex]))
-              );
-              const average = validRows.length > 0 ? total / validRows.length : 0;
-              
-              // Format total percentage properly
-              cell.value = average;
-              cell.numFmt = '0.00%';
-              cell.font = { bold: true };
-              
-              // Style totals row with same formatting as +/- cells
-              cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF5F5F5' }
-              };
-              cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
-            } else {
+          // For percentage columns, calculate average across ALL rows (treat empties as 0)
+          if (header.toLowerCase().includes('percent') || header.includes('%')) {
+            const count = rows.length;
+            let totalNormalized = 0;
+            rows.forEach(r => {
+              const raw = r[originalColIndex];
+              if (raw === undefined || raw === null || raw === '') return; // 0 contribution
+              if (typeof raw === 'number') {
+                const num = raw > 1 ? raw / 100 : raw;
+                if (!isNaN(num) && isFinite(num)) totalNormalized += num;
+              } else if (typeof raw === 'string') {
+                const s = raw.trim();
+                if (!s) return; // treat empty as 0
+                if (s.endsWith('%')) {
+                  const p = parseFloat(s);
+                  if (!isNaN(p)) totalNormalized += p / 100;
+                } else {
+                  const p = parseFloat(s);
+                  if (!isNaN(p)) totalNormalized += p <= 1 ? p : p / 100;
+                }
+              }
+            });
+            const average = count > 0 ? totalNormalized / count : 0;
+            
+            // Format total percentage properly
+            cell.value = average;
+            cell.numFmt = '0.00%';
+            cell.font = { bold: true };
+            
+            // Style totals row with same formatting as +/- cells
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFF5F5F5' }
+            };
+            cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
+          } else {
+            if (hasValidData) {
               cell.value = total;
               cell.font = { bold: true };
               
@@ -2653,10 +2660,10 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
               } else {
                 cell.numFmt = '0';
               }
+            } else {
+              // Even if no valid data, set empty string to ensure cell is properly formatted
+              cell.value = '';
             }
-          } else {
-            // Even if no valid data, set empty string to ensure cell is properly formatted
-            cell.value = '';
           }
         }
         
@@ -2789,20 +2796,47 @@ function calculateChange(currentValue, previousData, rowIndex, colIndex) {
 app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
+    const { templateKey } = req.query;
     
     // Try both storage methods for backwards compatibility
     let previousData = null;
     
-    // First try the centralized method (preferred)
+    // Preferred: centralized volume storage with template grouping
     try {
-      const previousReportsPath = 'data/previous-reports.json';
-      const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
-      previousData = previousReports[collegeId] || null;
-    } catch (error) {
-      console.log('Centralized previous report data not found, trying individual file method');
+      const previousReportsPath = 'previous-reports.json';
+      const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+      const entry = previousReports[collegeId];
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        if (templateKey && entry[templateKey]) {
+          previousData = entry[templateKey];
+        } else {
+          // fallback to any available previous data
+          const anyKey = Object.keys(entry)[0];
+          previousData = anyKey ? entry[anyKey] : null;
+        }
+      }
+    } catch (_) {}
+    
+    // Legacy centralized (file system path inside data/)
+    if (!previousData) {
+      try {
+        const legacyPath = 'data/previous-reports.json';
+        const previousReports = await fs.readJson(legacyPath).catch(() => ({}));
+        const entry = previousReports[collegeId];
+        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+          if (templateKey && entry[templateKey]) previousData = entry[templateKey];
+          else {
+            const anyKey = Object.keys(entry)[0];
+            previousData = anyKey ? entry[anyKey] : null;
+          }
+        } else if (entry) {
+          // very old format
+          previousData = entry;
+        }
+      } catch (_) {}
     }
     
-    // Fallback to individual file method
+    // Very old fallback: individual file method
     if (!previousData) {
       try {
         const previousReportPath = `data/reports/${collegeId}_previous.json`;
@@ -2810,37 +2844,69 @@ app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req
           const data = await fs.readJson(previousReportPath);
           previousData = { data: data, timestamp: new Date().toISOString() };
         }
-      } catch (error) {
-        console.log('Individual previous report file not found');
-      }
+      } catch (_) {}
     }
     
-    // Return consistent response structure for all clients
-    if (previousData) {
-      res.json({ 
-        success: true, 
-        previousData: previousData,
-        data: previousData // For backwards compatibility with generate-report.html
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        previousData: null,
-        data: null
-      });
+    // Final fallback: derive from existing reports for this college filtered by templateKey
+    if (!previousData && templateKey) {
+      try {
+        const reports = await getCollegeReports(parseInt(collegeId));
+        if (Array.isArray(reports) && reports.length > 0) {
+          const sorted = reports.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+          // Find the most recent report for this templateKey (not necessarily the latest overall)
+          const match = sorted.find(r => {
+            const tk = r.templateKey || r.data?.meta?.templateKey || null;
+            return tk && String(tk) === String(templateKey);
+          });
+          if (match && match.data) {
+            previousData = { data: match.data, timestamp: match.createdAt };
+            // Cache it for future
+            try {
+              const previousReportsPath = 'previous-reports.json';
+              const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+              if (!prevMap[collegeId] || typeof prevMap[collegeId] !== 'object' || Array.isArray(prevMap[collegeId])) prevMap[collegeId] = {};
+              prevMap[collegeId][String(templateKey)] = previousData;
+              await volumeService.writeFile(previousReportsPath, prevMap);
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
     }
+    
+    res.json({ success: true, previousData, data: previousData || null });
   } catch (error) {
     console.error('Get previous report error:', error);
     res.status(500).json({ error: 'Failed to get previous report data' });
   }
 });
 
+// Store previous report (template-scoped)
+app.post('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
+  try {
+    const { collegeId } = req.params;
+    const { data, templateKey } = req.body || {};
+    if (!data) return res.status(400).json({ success: false, error: 'No data provided' });
+    await storeCurrentReportAsPrevious(collegeId, data, templateKey);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Store previous report API error:', e);
+    res.status(500).json({ success: false, error: 'Failed to store previous report' });
+  }
+});
+
 // Helper function to get previous report data - use centralized method
-async function getPreviousReportData(collegeId) {
+async function getPreviousReportData(collegeId, templateKey) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    return previousReports[collegeId] || null;
+    const entry = previousReports[collegeId];
+    if (!entry) return null;
+    if (typeof entry === 'object' && !Array.isArray(entry)) {
+      if (templateKey && entry[templateKey]) return entry[templateKey];
+      const anyKey = Object.keys(entry)[0];
+      return anyKey ? entry[anyKey] : null;
+    }
+    return entry;
   } catch (error) {
     console.error('Get previous report error:', error);
     return null;
@@ -2848,12 +2914,15 @@ async function getPreviousReportData(collegeId) {
 }
 
 // Store current report as previous - use centralized method
-async function storeCurrentReportAsPrevious(collegeId, reportData) {
+async function storeCurrentReportAsPrevious(collegeId, reportData, templateKey) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    
-    previousReports[collegeId] = {
+    const tk = templateKey || '_default';
+    if (!previousReports[collegeId] || typeof previousReports[collegeId] !== 'object' || Array.isArray(previousReports[collegeId])) {
+      previousReports[collegeId] = {};
+    }
+    previousReports[collegeId][tk] = {
       data: reportData,
       timestamp: new Date().toISOString()
     };
@@ -2888,6 +2957,126 @@ app.get('/api/dashboard/college/:collegeId', authService.requireAuth(), async (r
 });
 
 // File Upload Routes
+// Handler for header extraction only
+async function handleHeaderExtractionOnly(req, res) {
+  try {
+    const XLSX = require('xlsx');
+    const allHeaders = [];
+    const headerFileMap = {};
+    const fileInfo = [];
+
+    // Process each file to extract headers with a per-file label to avoid mixing
+    for (let fileIndex = 0; fileIndex < req.files.length; fileIndex++) {
+      const file = req.files[fileIndex];
+      console.log(`Extracting headers from: ${file.originalname}`);
+
+      // Build a short label from the filename
+      const parsedName = path.parse(file.originalname || 'file');
+      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+      fileInfo.push({ originalName: file.originalname, filename: file.filename, label: fileLabel });
+
+      const workbook = XLSX.readFile(file.path);
+
+      // Process each sheet in the workbook
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (jsonData && jsonData.length > 0) {
+          const headers = jsonData[0]; // First row contains headers
+          if (Array.isArray(headers)) {
+            headers.forEach(header => {
+              if (header && header.toString().trim() !== '') {
+                const labeled = `${header.toString().trim()} [${fileLabel}]`;
+                allHeaders.push(labeled);
+                headerFileMap[labeled] = fileIndex;
+              }
+            });
+          }
+        }
+      });
+    }
+
+    console.log(`Extracted ${allHeaders.length} headers (file-labeled):`, allHeaders);
+
+    res.json({
+      success: true,
+      message: `Extracted ${allHeaders.length} headers (file-labeled) from ${req.files.length} files`,
+      headers: allHeaders,
+      fileCount: req.files.length,
+      headerFileMap,
+      fileInfo
+    });
+  } catch (error) {
+    console.error('Header extraction error:', error);
+    res.status(500).json({ error: 'Header extraction failed: ' + error.message });
+  }
+}
+
+// Handler for manual assignment processing
+async function handleManualAssignment(req, res) {
+  try {
+    console.log('Processing files with manual header assignments');
+    
+    // Get header assignments from request body
+    let headerAssignments = {};
+    if (req.body.headerAssignments) {
+      try {
+        headerAssignments = JSON.parse(req.body.headerAssignments);
+        console.log('Header assignments received:', headerAssignments);
+      } catch (error) {
+        console.warn('Could not parse header assignments:', error.message);
+      }
+    }
+    
+    // Optional: file-level type/color selections (for per-file colours)
+    let manualFileSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        manualFileSelections = JSON.parse(req.body.fileTypes);
+        console.log('Manual assignment file type selections received:', manualFileSelections);
+      } catch (error) {
+        console.warn('Could not parse manual file type selections:', error.message);
+      }
+    }
+    
+    // Map files with manual assignment logic
+    const mappedFiles = req.files.map((file, index) => {
+      return {
+        filename: file.filename,
+        path: file.path,
+        originalName: file.originalname,
+        userSelectedType: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].type) ? manualFileSelections[index].type : 'manual',
+        userSelectedColor: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].color) ? manualFileSelections[index].color : '#dbeafe',
+        headerAssignments: headerAssignments // Pass assignments to each file
+      };
+    });
+    
+    console.log('Mapped files for manual assignment:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
+    
+    // Process files with the manual assignment logic
+    const result = await dataImporter.processFilesWithManualAssignment(mappedFiles, headerAssignments);
+    
+    if (result) {
+      console.log('Files processed successfully with manual assignments');
+      res.json({
+        success: true,
+        message: `${req.files.length} files processed successfully with manual assignments`,
+        data: result,
+        filename: req.files.map(f => f.originalname).join(', '),
+        headerAssignments: headerAssignments
+      });
+    } else {
+      console.log('Failed to process files with manual assignments');
+      res.status(400).json({ error: 'Failed to process files with manual assignments' });
+    }
+  } catch (error) {
+    console.error('Manual assignment processing error:', error);
+    res.status(500).json({ error: 'Manual assignment processing failed: ' + error.message });
+  }
+}
+
 app.post('/api/upload', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
     console.log('📁 File upload request received');
@@ -2901,12 +3090,42 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
     
     console.log(`📄 Processing ${req.files.length} files:`, req.files.map(f => f.originalname));
     
-    // Map files to the expected format
-    const mappedFiles = req.files.map(file => ({
-      filename: file.filename,
-      path: file.path,
-      originalName: file.originalname
-    }));
+    // Check if this is a header extraction only request
+    if (req.body.extractHeadersOnly === 'true') {
+      console.log('🔍 Header extraction only requested');
+      return await handleHeaderExtractionOnly(req, res);
+    }
+    
+    // Check if this is a manual assignment request
+    if (req.body.useManualAssignment === 'true') {
+      console.log('🎨 Manual assignment requested');
+      return await handleManualAssignment(req, res);
+    }
+    
+    // Get file type selections from request body
+    let fileTypeSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        fileTypeSelections = JSON.parse(req.body.fileTypes);
+        console.log('📋 File type selections received:', fileTypeSelections);
+      } catch (error) {
+        console.warn('⚠️ Could not parse file type selections:', error.message);
+      }
+    }
+    
+    // Map files to the expected format with user-selected types and colours
+    const mappedFiles = req.files.map((file, index) => {
+      const selection = fileTypeSelections[index];
+      return {
+        filename: file.filename,
+        path: file.path,
+        originalName: file.originalname,
+        userSelectedType: selection?.type || selection || 'default',
+        userSelectedColor: selection?.color || '#dbeafe'
+      };
+    });
+    
+    console.log('📋 Mapped files with types:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
     
     // Process all files and combine them
     const result = await dataImporter.processFiles(mappedFiles);
@@ -2973,6 +3192,10 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       rawGrid: []
     };
 
+    // Store headers from each file separately for proper mapping
+    const fileHeaders = [];
+    const allFileData = []; // Store data from all files
+
     for (const file of req.files) {
       console.log(`📄 Reading raw file: ${file.originalname}`);
       
@@ -2980,8 +3203,15 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       const workbook = XLSX.readFile(file.path);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      // Keep the entire raw grid so the client can faithfully recreate the sheet
-      if (Array.isArray(jsonData) && jsonData.length) {
+      
+      // Store data from this file
+      allFileData.push({
+        filename: file.originalname,
+        data: jsonData
+      });
+      
+      // Use the first file's raw grid as the main structure
+      if (Array.isArray(jsonData) && jsonData.length && rawData.rawGrid.length === 0) {
         rawData.rawGrid = jsonData;
       }
       
@@ -3006,9 +3236,47 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
         const rawHeaders = jsonData[headerRowIndex] || [];
         console.log(`📋 Raw headers from ${file.originalname}:`, rawHeaders);
         
-        // Store ALL headers exactly as they appear in the file
-        rawData.headers = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
-        console.log(`✅ Clean headers:`, rawData.headers);
+        // Store headers from this specific file
+        const cleanHeaders = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
+        fileHeaders.push(cleanHeaders);
+
+        // Derive a per-file label to keep identical header names distinct across files
+        const parsedName = path.parse(file.originalname || 'file');
+        let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+        if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+        
+        // Combine headers from all files WITHOUT de-duplicating across files.
+        // Always append a file label suffix to preserve per-file structure.
+        cleanHeaders.forEach(header => {
+          const labeledHeader = `${header} [${fileLabel}]`;
+          rawData.headers.push(labeledHeader);
+        });
+        console.log(`✅ Clean headers from ${file.originalname}:`, cleanHeaders);
+        
+        // Combine data rows from all files
+        if (jsonData.length > headerRowIndex + 1) {
+          const dataRows = jsonData.slice(headerRowIndex + 1);
+          // Build a quick lookup from this file's raw header -> index
+          const headerIndexMap = new Map();
+          cleanHeaders.forEach((h, i) => headerIndexMap.set(h, i));
+          
+          dataRows.forEach(row => {
+            if (row && row.some(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '')) {
+              // Align this row to the combined labeled headers, only filling values for this file's headers
+              const aligned = rawData.headers.map(h => {
+                // Expect headers in format: "Header [Label]"
+                const match = String(h).match(/^(.*) \[(.*)\]$/);
+                if (!match) return '';
+                const baseHeader = match[1];
+                const labelInHeader = match[2];
+                if (labelInHeader !== fileLabel) return '';
+                const idx = headerIndexMap.get(baseHeader);
+                return (idx !== undefined && row[idx] !== undefined) ? row[idx] : '';
+              });
+              rawData.rows.push(aligned);
+            }
+          });
+        }
         
         // Extract header colors from Excel file
         rawData.headerColors = [];
@@ -3190,27 +3458,15 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
           rawData.headerColors = rawData.headers.map(() => null);
         }
         
+        // Build departments list based on detected department column for this file
         // Find department column (first non-empty column by default)
         const deptColIndex = rawHeaders.findIndex(h => h && h.toString().trim() !== '');
         console.log(`📍 Department column index: ${deptColIndex}`);
-        
-        // Get data rows (skip the header row)
-        const dataRows = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
-        
-        // Build departments and data directly
-        dataRows.forEach(row => {
+        const dataRowsForDepts = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
+        dataRowsForDepts.forEach(row => {
           const dept = row[deptColIndex];
-          if (dept && dept.toString().trim() !== '') {
-            if (!rawData.departments.includes(dept)) {
-              rawData.departments.push(dept);
-            }
-            
-            // Build complete row with all values
-            const fullRow = rawData.headers.map((header, idx) => {
-              return row[idx] || '';
-            });
-            fullRow[0] = dept; // Ensure department is first
-            rawData.rows.push(fullRow);
+          if (dept && dept.toString().trim() !== '' && !rawData.departments.includes(dept)) {
+            rawData.departments.push(dept);
           }
         });
       }
@@ -3219,10 +3475,88 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       fs.remove(file.path).catch(console.error);
     }
     
+    // Build headerFileMap and fileInfo for section-based coloring
+    const headerFileMap = {};
+    const fileInfo = [];
+    
+    // Get file type selections from request body
+    let fileTypeSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        fileTypeSelections = JSON.parse(req.body.fileTypes);
+        console.log('📋 Template preview file type selections received:', fileTypeSelections);
+      } catch (error) {
+        console.warn('⚠️ Could not parse template preview file type selections:', error.message);
+      }
+    }
+    
+    // Process each file and map its specific headers
+    req.files.forEach((file, fileIndex) => {
+      // Use user-selected type if available, otherwise detect from filename
+      let contentType = fileTypeSelections[fileIndex] || 'default';
+      
+      if (!fileTypeSelections[fileIndex]) {
+        // Fallback to filename detection
+        const filenameLower = file.originalname.toLowerCase();
+        if (filenameLower.includes('placement') || filenameLower.includes('placed')) {
+          contentType = 'placements';
+        } else if (filenameLower.includes('employer') || filenameLower.includes('engagement') || 
+                   filenameLower.includes('employer activity') || filenameLower.includes('employer activities') ||
+                   filenameLower.includes('employer engagement')) {
+          contentType = 'employment';
+        } else if (filenameLower.includes('enrichment') || filenameLower.includes('enrich')) {
+          contentType = 'enrichment';
+        } else if (filenameLower.includes('career') || filenameLower.includes('careers') || filenameLower.includes('my futures') || filenameLower.includes('myfutures') || filenameLower.includes('my-futures')) {
+          contentType = 'careers';
+        } else if (filenameLower.includes('assessment') || filenameLower.includes('assess')) {
+          contentType = 'assessments';
+        } else if (filenameLower.includes('target') || filenameLower.includes('targets')) {
+          contentType = 'targets';
+        } else if (filenameLower.includes('login') || filenameLower.includes('access')) {
+          contentType = 'login';
+        }
+      }
+      
+      // Normalize content type names to match frontend expectations
+      if (contentType === 'employer') {
+        contentType = 'employment';
+      }
+      
+      fileInfo.push({
+        originalName: file.originalname,
+        filename: file.filename,
+        contentType: contentType,
+        customColor: fileTypeSelections[fileIndex]?.color || '#dbeafe'
+      });
+      
+      // Map headers from THIS specific file to this file index (file-based coloring)
+      const headersForThisFile = fileHeaders[fileIndex] || [];
+      // Compute the label used above for headers from this file
+      const parsedName = path.parse(file.originalname || 'file');
+      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+      headersForThisFile.forEach(header => {
+        if (header && header.toString().trim() !== '') {
+          const labeledHeader = `${header} [${fileLabel}]`;
+          headerFileMap[labeledHeader] = fileIndex;
+          console.log(`Mapped header "${labeledHeader}" to file ${fileIndex} (${file.originalname}) - type: ${contentType}`);
+        }
+      });
+    });
+    
+    // Add headerFileMap and fileInfo to response
+    rawData.headerFileMap = headerFileMap;
+    rawData.fileInfo = fileInfo;
+    
     console.log('📊 Raw template preview data prepared:');
+    console.log(`  - Files processed: ${req.files.length}`);
     console.log(`  - Headers: ${rawData.headers.length}`, rawData.headers);
     console.log(`  - Departments: ${rawData.departments.length}`, rawData.departments);
     console.log(`  - Rows: ${rawData.rows.length}`);
+    console.log(`  - FileHeaders array:`, fileHeaders);
+    console.log(`  - HeaderFileMap:`, headerFileMap);
+    console.log(`  - FileInfo:`, fileInfo);
+    console.log(`  - All file data:`, allFileData.map(f => ({ filename: f.filename, rows: f.data.length })));
     
     res.json({
       success: true,
@@ -3380,6 +3714,30 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
     // Save template
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
+
+    // Also save to database if available so /api/templates (DB-preferred) can return it
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Saving preview-created template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(template);
+        console.log('✅ Preview-created template saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save preview-created template to database:', dbError.message);
+      }
+    }
+
+    // Also save to database if available so /api/templates (DB-preferred) can return it
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Saving uploaded template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(template);
+        console.log('✅ Uploaded template saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save uploaded template to database:', dbError.message);
+      }
+    }
     
     // Create backup snapshot
     try {
@@ -3411,7 +3769,6 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
     console.error('Template upload error:', error);
     res.status(500).json({ 
       error: 'Template upload failed: ' + error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -3500,17 +3857,15 @@ app.post('/api/create-template-from-preview', authService.requireAuth(), async (
     });
   }
 });
-
-// Report Generation Routes
 app.post('/api/reports/generate', authService.requireAuth(), async (req, res) => {
   try {
-    const { collegeId, reportData, reportName, summary } = req.body;
+    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
     
     if (!collegeId || !reportData) {
       return res.status(400).json({ error: 'College ID and report data are required' });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
     
     if (result.success) {
       res.json({
@@ -3538,7 +3893,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       reportDataLength: req.body.reportData?.length || 0
     });
     
-    const { collegeId, reportData, reportName, summary } = req.body;
+    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
     
     if (!collegeId || !reportData) {
       console.log('❌ Missing required data:', { 
@@ -3558,7 +3913,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
     
     if (result.success) {
       res.json({
@@ -4222,7 +4577,7 @@ app.post('/api/templates/restore', authService.requireAuth(), async (req, res) =
 // Export Excel from editor payload, preserving basic formatting
 app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
   try {
-    const { headers = [], rows = [], name = 'Report', createdAt } = req.body || {};
+    const { headers = [], rows = [], name = 'Report', createdAt, meta = {} } = req.body || {};
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report Data');
@@ -4249,11 +4604,30 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       department: 'FFFED7AA',    // amber-ish
       default: 'FFF3F4F6'        // light grey
     };
+    // Map Tailwind bg-* classes to ARGB for Excel
+    const classToArgb = {
+      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
+      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
+      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
+      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
+      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
+      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
+      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
+    };
+    const toArgb = (hex) => {
+      if (!hex || typeof hex !== 'string') return null;
+      const clean = hex.replace('#', '').toUpperCase();
+      const rgb = clean.length === 8 ? clean.slice(2) : clean;
+      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
+      return `FF${rgb}`;
+    };
+    const headerHexColors = (meta && meta.headerHexColors) ? meta.headerHexColors : {};
+    const headerColorClasses = (meta && meta.headerColorClasses) ? meta.headerColorClasses : {};
     function sectionFromHeader(h) {
       const s = String(h || '').toLowerCase();
       if (s.includes('placements')) return 'placements';
       if (s.includes('enrichment')) return 'enrichment';
-      if (s.includes('employment')) return 'employment';
+      if (s.includes('employment') || (s.includes('employer') && !s.includes('enrichment'))) return 'employment';
       if (s.includes('careers')) return 'careers';
       if (s.includes('assessments')) return 'assessments';
       if (s.includes('targets')) return 'targets';
@@ -4268,8 +4642,20 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
         const cell = headerRow.getCell(idx + 1);
         cell.value = h;
         cell.font = { bold: true, color: { argb: 'FF111111' } };
-        const sec = sectionFromHeader(h);
-        const argb = uiArgbBySection[sec] || uiArgbBySection.default;
+        // Prefer explicit saved hex colours, then saved class, then section fallback
+        let argb = null;
+        const savedHex = headerHexColors && headerHexColors[h] ? headerHexColors[h] : null;
+        if (savedHex) {
+          argb = toArgb(savedHex);
+        }
+        if (!argb) {
+          const cls = headerColorClasses && headerColorClasses[h] ? headerColorClasses[h] : null;
+          if (cls && classToArgb[cls]) argb = classToArgb[cls];
+        }
+        if (!argb) {
+          const sec = sectionFromHeader(h);
+          argb = uiArgbBySection[sec] || uiArgbBySection.default;
+        }
         columnArgb[idx] = argb;
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -4306,7 +4692,9 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
             cell.value = num;
             cell.numFmt = '0.0%';
           } else {
-            cell.value = val == null ? '' : val;
+            // No info/unparseable => treat as 0%
+            cell.value = 0;
+            cell.numFmt = '0.0%';
           }
         } else {
           cell.value = val == null ? '' : val;
@@ -4340,10 +4728,12 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       }
     }
 
+    const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', Buffer.byteLength(buffer));
+    res.status(200).send(Buffer.from(buffer));
   } catch (e) {
     console.error('Export Excel error:', e);
     res.status(500).json({ error: 'Failed to export Excel' });
@@ -4472,7 +4862,7 @@ async function getCollegeReports(collegeId) {
   }
 }
 
-async function saveCollegeReport(collegeId, reportData, reportName, summary) {
+async function saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName) {
   try {
     console.log(`💾 Saving report for college ${collegeId} to volume...`);
     console.log(`📄 Report name: ${reportName}`);
@@ -4518,6 +4908,15 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       validationChecksum: validationResult.checksum,
       validationTime: validationResult.validationTime
     };
+    // Attach template metadata (file JSON top-level + embedded in data for DB)
+    if (templateKey) report.templateKey = String(templateKey);
+    if (templateName) report.templateName = String(templateName);
+    report.data = report.data || {};
+    const incomingMeta = (reportData && reportData.meta) ? reportData.meta : {};
+    report.data.meta = Object.assign({}, report.data.meta, incomingMeta, {
+      templateKey: templateKey || report.data?.meta?.templateKey || null,
+      templateName: templateName || report.data?.meta?.templateName || null
+    });
     
     console.log(`📋 Adding new report with ID: ${report.id}`);
     reports.push(report);
@@ -4534,7 +4933,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
         const dbReportData = {
           name: report.name,
           collegeId: parseInt(collegeId),
-          data: report.data,
+          data: report.data, // contains meta.templateKey/templateName
           summary: report.summary,
           createdBy: report.createdBy,
           validationChecksum: report.validationChecksum,
@@ -4559,8 +4958,9 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       // Don't fail the save if backup fails
     }
     
-    // Store as previous report for comparison
-    await storeCurrentReportAsPrevious(collegeId, reportData);
+    // Store as previous report for comparison (template-scoped)
+    const tk = templateKey || report.templateKey || null;
+    await storeCurrentReportAsPrevious(collegeId, reportData, tk);
     
     // Update analytics with the new report
     try {
@@ -6138,139 +6538,6 @@ app.use((error, req, res, next) => {
 });
 
 // 404 handler
-// Admin: Aggregate college contacts (registered before 404)
-app.get('/api/admin/college-contacts', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
-  try {
-    const { collegeId, category } = req.query;
-    const colleges = await (await getInitializedUserManager()).getColleges();
-
-    function normaliseArray(value) {
-      if (Array.isArray(value)) return value;
-      return [];
-    }
-
-    function buildContactsForCollege(college) {
-      const contacts = [];
-      const keyStakeholders = normaliseArray(college.keyStakeholders);
-      keyStakeholders.forEach(s => {
-        if (!s) return;
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'Key Stakeholders',
-          name: s.name || '',
-          position: s.position || '',
-          email: s.email || ''
-        });
-      });
-      const superUsers = normaliseArray(college.superUsers);
-      superUsers.forEach(su => {
-        if (!su) return;
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'Super Users',
-          name: su.name || '',
-          position: su.position || '',
-          email: su.email || ''
-        });
-      });
-      if (college.misContactName || college.misContactEmail) {
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'MIS Contact',
-          name: college.misContactName || '',
-          position: 'MIS Contact',
-          email: college.misContactEmail || '',
-          dataTransferMethod: college.dataTransferMethod || ''
-        });
-      }
-      return contacts;
-    }
-
-    let contacts = [];
-    colleges.forEach(college => {
-      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) return;
-      contacts.push(...buildContactsForCollege(college));
-    });
-    if (category) {
-      const categoryNormalised = String(category).toLowerCase();
-      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
-    }
-    res.json({ success: true, contacts });
-  } catch (error) {
-    console.error('Contacts aggregation error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Admin: Export college contacts to Excel (registered before 404)
-app.get('/api/admin/college-contacts/excel', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
-  try {
-    const { collegeId, category } = req.query;
-    const colleges = await (await getInitializedUserManager()).getColleges();
-
-    function normaliseArray(value) {
-      if (Array.isArray(value)) return value;
-      return [];
-    }
-
-    function buildContactsForCollege(college) {
-      const contacts = [];
-      const keyStakeholders = normaliseArray(college.keyStakeholders);
-      keyStakeholders.forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
-      const superUsers = normaliseArray(college.superUsers);
-      superUsers.forEach(su => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: su?.name || '', position: su?.position || '', email: su?.email || '' }));
-      if (college.misContactName || college.misContactEmail) {
-        contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
-      }
-      return contacts;
-    }
-
-    let contacts = [];
-    colleges.forEach(college => {
-      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) return;
-      contacts.push(...buildContactsForCollege(college));
-    });
-    if (category) {
-      const categoryNormalised = String(category).toLowerCase();
-      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
-    }
-
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('College Contacts');
-    worksheet.columns = [
-      { header: 'College', key: 'collegeName', width: 30 },
-      { header: 'Category', key: 'category', width: 18 },
-      { header: 'Name', key: 'name', width: 28 },
-      { header: 'Position', key: 'position', width: 24 },
-      { header: 'Email', key: 'email', width: 34 },
-      { header: 'Data Transfer Method', key: 'dataTransferMethod', width: 22 }
-    ];
-    contacts.forEach(c => worksheet.addRow({
-      collegeName: c.collegeName || '',
-      category: c.category || '',
-      name: c.name || '',
-      position: c.position || '',
-      email: c.email || '',
-      dataTransferMethod: c.dataTransferMethod || ''
-    }));
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { vertical: 'middle' };
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `college-contacts-${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(Buffer.from(buffer));
-  } catch (error) {
-    console.error('Contacts Excel export error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
@@ -6383,160 +6650,6 @@ app.post('/api/admin/migrate-database', authService.requireAuth(), async (req, r
   } catch (error) {
     console.error('Migration error:', error);
     res.status(500).json({ error: 'Migration failed: ' + error.message });
-  }
-});
-
-// Admin: Aggregate college contacts
-app.get('/api/admin/college-contacts', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
-  try {
-    const { collegeId, category } = req.query;
-    const colleges = await (await getInitializedUserManager()).getColleges();
-
-    function normaliseArray(value) {
-      if (Array.isArray(value)) return value;
-      return [];
-    }
-
-    function buildContactsForCollege(college) {
-      const contacts = [];
-
-      // Key Stakeholders
-      const keyStakeholders = normaliseArray(college.keyStakeholders);
-      keyStakeholders.forEach(s => {
-        if (!s) return;
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'Key Stakeholders',
-          name: s.name || '',
-          position: s.position || '',
-          email: s.email || ''
-        });
-      });
-
-      // Super Users
-      const superUsers = normaliseArray(college.superUsers);
-      superUsers.forEach(su => {
-        if (!su) return;
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'Super Users',
-          name: su.name || '',
-          position: su.position || '',
-          email: su.email || ''
-        });
-      });
-
-      // MIS Contact (from Data Transfer & MIS section)
-      if (college.misContactName || college.misContactEmail) {
-        contacts.push({
-          collegeId: college.id,
-          collegeName: college.name,
-          category: 'MIS Contact',
-          name: college.misContactName || '',
-          position: 'MIS Contact',
-          email: college.misContactEmail || '',
-          dataTransferMethod: college.dataTransferMethod || ''
-        });
-      }
-
-      return contacts;
-    }
-
-    let contacts = [];
-    colleges.forEach(college => {
-      // If filtering by collegeId, skip others
-      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) {
-        return;
-      }
-      contacts.push(...buildContactsForCollege(college));
-    });
-
-    if (category) {
-      const categoryNormalised = String(category).toLowerCase();
-      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
-    }
-
-    res.json({ success: true, contacts });
-  } catch (error) {
-    console.error('Contacts aggregation error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Admin: Export college contacts to Excel
-app.get('/api/admin/college-contacts/excel', authService.requireAuth(), authService.requireRole(['admin']), async (req, res) => {
-  try {
-    const { collegeId, category } = req.query;
-
-    // Reuse minimal logic for building contacts
-    const colleges = await (await getInitializedUserManager()).getColleges();
-
-    function normaliseArray(value) {
-      if (Array.isArray(value)) return value;
-      return [];
-    }
-
-    function buildContactsForCollege(college) {
-      const contacts = [];
-      const keyStakeholders = normaliseArray(college.keyStakeholders);
-      keyStakeholders.forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
-      const superUsers = normaliseArray(college.superUsers);
-      superUsers.forEach(su => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: su?.name || '', position: su?.position || '', email: su?.email || '' }));
-      if (college.misContactName || college.misContactEmail) {
-        contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
-      }
-      return contacts;
-    }
-
-    let contacts = [];
-    colleges.forEach(college => {
-      if (collegeId && !(college.id === parseInt(collegeId) || college.id === collegeId || college.id?.toString() === collegeId)) {
-        return;
-      }
-      contacts.push(...buildContactsForCollege(college));
-    });
-    if (category) {
-      const categoryNormalised = String(category).toLowerCase();
-      contacts = contacts.filter(c => c.category.toLowerCase() === categoryNormalised);
-    }
-
-    // Build Excel workbook
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('College Contacts');
-
-    worksheet.columns = [
-      { header: 'College', key: 'collegeName', width: 30 },
-      { header: 'Category', key: 'category', width: 18 },
-      { header: 'Name', key: 'name', width: 28 },
-      { header: 'Position', key: 'position', width: 24 },
-      { header: 'Email', key: 'email', width: 34 },
-      { header: 'Data Transfer Method', key: 'dataTransferMethod', width: 22 }
-    ];
-
-    contacts.forEach(c => worksheet.addRow({
-      collegeName: c.collegeName || '',
-      category: c.category || '',
-      name: c.name || '',
-      position: c.position || '',
-      email: c.email || '',
-      dataTransferMethod: c.dataTransferMethod || ''
-    }));
-
-    // Style header
-    const headerRow = worksheet.getRow(1);
-    headerRow.font = { bold: true };
-    headerRow.alignment = { vertical: 'middle' };
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const filename = `college-contacts-${new Date().toISOString().replace(/[:.]/g, '-')}.xlsx`;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(Buffer.from(buffer));
-  } catch (error) {
-    console.error('Contacts Excel export error:', error);
-    res.status(500).json({ error: error.message });
   }
 });
 
