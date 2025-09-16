@@ -3237,7 +3237,7 @@
         const response = await axios.post('/api/save-template', {
           name: templateName,
           headers: tableHeaders,
-          data: tableData,
+          tableData: tableData,
           type: 'custom'
         });
         
