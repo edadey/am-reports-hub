@@ -34,6 +34,17 @@
       return url.searchParams.get(name);
     }
 
+    // Helpers for template grouping
+    function headerSig(arr) {
+      try { return Array.isArray(arr) ? arr.join('|') : ''; } catch (_) { return ''; }
+    }
+    function getTemplateKey(report) {
+      return report.templateKey || report.data?.meta?.templateKey || ('hdr_' + (headerSig(report.data?.headers) || '')); 
+    }
+    function getTemplateName(report) {
+      return report.templateName || report.data?.meta?.templateName || 'Ad-hoc';
+    }
+
     async function init() {
       const token = getQueryParam('token');
       const collegeId = getQueryParam('collegeId');
@@ -84,25 +95,45 @@
         allReports = sortReports(res.data.reports || []);
         render(allReports);
         statusEl.textContent = '';
+        // Show a neutral placeholder in the view area; user selects which report to view
+        if (reportView && (!reportView.innerHTML || reportView.innerHTML.trim() === '')) {
+          reportView.innerHTML = '<div class="muted" style="margin-top:8px;">Select a report from the list to view its data.</div>';
+        }
       }
 
       function render(list) {
         tableBody.innerHTML = '';
         const filtered = sortReports(list);
+        // Group by templateKey
+        const groups = new Map();
         for (const r of filtered) {
-          const tr = document.createElement('tr');
-          const created = new Date(r.createdAt).toLocaleString();
-          tr.innerHTML = `
-            <td>${r.name || 'Report'}</td>
-            <td><span class="tag">${created}</span></td>
-            <td>${r.summary ? r.summary : '<span class="muted">No summary</span>'}</td>
-            <td style="text-align:right;">
-              <button class="btn" data-id="${r.id}">View</button>
-              <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
-            </td>
-          `;
-          tableBody.appendChild(tr);
+          const key = getTemplateKey(r);
+          if (!groups.has(key)) groups.set(key, { name: getTemplateName(r), items: [] });
+          groups.get(key).items.push(r);
         }
+        // Build rows: group header row + items
+        const fragment = document.createDocumentFragment();
+        for (const [key, group] of groups.entries()) {
+          const headerTr = document.createElement('tr');
+          headerTr.innerHTML = `<td colspan="4" style="background:#fafbfc;border-top:2px solid #e5e7eb;font-weight:600;color:#334155;">Template: ${group.name} <span class="muted" style="margin-left:8px;">(${group.items.length} reports)</span></td>`;
+          fragment.appendChild(headerTr);
+          for (const r of group.items) {
+            const tr = document.createElement('tr');
+            const created = new Date(r.createdAt).toLocaleString();
+            const templateBadge = `<span class="pill" style="margin-left:6px;">${getTemplateName(r)}</span>`;
+            tr.innerHTML = `
+              <td>${r.name || 'Report'} ${templateBadge}</td>
+              <td><span class="tag">${created}</span></td>
+              <td>${r.summary ? r.summary : '<span class="muted">No summary</span>'}</td>
+              <td style="text-align:right;">
+                <button class="btn" data-id="${r.id}">View</button>
+                <a class="btn" href="/api/shared/colleges/${collegeId}/reports/${r.id}/excel?token=${encodeURIComponent(getQueryParam('token'))}">Download Excel</a>
+              </td>
+            `;
+            fragment.appendChild(tr);
+          }
+        }
+        tableBody.appendChild(fragment);
 
         // Attach view handlers
         Array.from(tableBody.querySelectorAll('button.btn[data-id]')).forEach(btn => {
@@ -116,7 +147,7 @@
           const res = await axios.get(`/api/shared/colleges/${collegeId}/reports/${reportId}`, { params: { token } });
           const json = res.data;
           if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
-          await loadSharedPreviousReport(collegeId, json.report.createdAt, token);
+          await loadSharedPreviousReport(collegeId, json.report, token);
           renderReport(json.report);
           statusEl.textContent = '';
         } catch (e) {
@@ -154,17 +185,26 @@
         reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
 
-      async function loadSharedPreviousReport(collegeId, currentReportDate, token) {
+      async function loadSharedPreviousReport(collegeId, currentReport, token) {
         try {
           const res = await axios.get(`/api/shared/colleges/${collegeId}/reports`, { params: { token, _t: Date.now() } });
           const list = res.data?.reports || [];
           const sorted = list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-          const idx = sorted.findIndex(r => new Date(r.createdAt).getTime() === new Date(currentReportDate).getTime());
-          if (idx >= 0 && idx < sorted.length - 1) {
-            const prev = await axios.get(`/api/shared/colleges/${collegeId}/reports/${sorted[idx+1].id}`, { params: { token } });
-            if (prev.data?.success && prev.data.report?.data) {
-              window.previousReportData = prev.data.report.data;
-            } else { window.previousReportData = null; }
+          const idx = sorted.findIndex(r => r.id === currentReport.id);
+          const currentTK = getTemplateKey(currentReport);
+          const currentSig = headerSig(currentReport.data?.headers);
+          let prevSame = null;
+          if (idx >= 0) {
+            prevSame = sorted.slice(idx + 1).find(r => {
+              const tk = getTemplateKey(r);
+              if (currentTK && tk) return String(tk) === String(currentTK);
+              if (!currentTK && !tk) return headerSig(r.data?.headers) === currentSig;
+              return false;
+            });
+          }
+          if (prevSame) {
+            const prev = await axios.get(`/api/shared/colleges/${collegeId}/reports/${prevSame.id}`, { params: { token } });
+            window.previousReportData = (prev.data?.success && prev.data.report?.data) ? prev.data.report.data : null;
           } else { window.previousReportData = null; }
         } catch (_) { window.previousReportData = null; }
       }
@@ -184,6 +224,27 @@
         return { inlineColor: `background-color: ${colors[type]}; border-color: ${colors[type]};` };
       }
 
+      // Map bg-* class to inline color to exactly reproduce preview shades
+      function inlineFromClass(bgClass) {
+        const map = {
+          'bg-blue-100': '#dbeafe',
+          'bg-blue-200': '#bfdbfe',
+          'bg-purple-100': '#f3e8ff',
+          'bg-yellow-100': '#fef3c7',
+          'bg-green-100': '#dcfce7',
+          'bg-green-200': '#bbf7d0',
+          'bg-orange-100': '#fed7aa',
+          'bg-amber-100': '#fef3c7',
+          'bg-teal-100': '#ccfbf1',
+          'bg-cyan-100': '#e0f7fa',
+          'bg-pink-100': '#fce7f3',
+          'bg-indigo-100': '#e0e7ff',
+          'bg-gray-100': '#f3f4f6'
+        };
+        const hex = map[bgClass];
+        return hex ? `background-color: ${hex}; border-color: ${hex};` : '';
+      }
+
       // Helper: robustly identify the Department column (handles stray spaces/case)
       function isDepartmentHeader(h) {
         return String(h || '').trim().toLowerCase().startsWith('department');
@@ -192,8 +253,10 @@
       function displayReportData(reportData) {
         const container = document.getElementById('reportDataContainer');
         if (!reportData || !reportData.data) { container.innerHTML = '<div class="muted">No data available in this report</div>'; return; }
-        const { headers = [], rows = [] } = reportData.data;
+        const { headers = [], rows = [], meta = {} } = reportData.data;
         if (!headers.length || !rows.length) { container.innerHTML = '<div class="muted">No data available in this report</div>'; return; }
+        const metaClasses = meta.headerColorClasses || {};
+        const metaHex = meta.headerHexColors || {};
 
         // Build headers including change columns
         let completeHeaders = [];
@@ -201,9 +264,21 @@
         const headerCells = completeHeaders.map(h => {
           const isChange = h.endsWith(' +/-');
           const base = isChange ? h.slice(0,-4) : h;
-          const section = getColumnSection(base);
+          const savedClass = metaClasses[base];
+          const savedHex = metaHex[base];
+          let inlineStyle = '';
+          let className = '';
+          if (savedHex && typeof savedHex === 'string') {
+            inlineStyle = `background-color: ${savedHex}; border-color: ${savedHex};`;
+          } else if (savedClass) {
+            inlineStyle = inlineFromClass(savedClass);
+            className = savedClass;
+          } else {
+            const section = getColumnSection(base);
+            inlineStyle = section.inlineColor || '';
+          }
           const sticky = isDepartmentHeader(base) ? 'position: sticky; left: 0; z-index: 3; min-width: 260px; background: #fff;' : '';
-          return `<th style="padding:10px;text-align:left;border-bottom:1px solid #eef2f7;${section.inlineColor}${sticky}">${h}</th>`;
+          return `<th class="${className}" style="padding:10px;text-align:left;border-bottom:1px solid #eef2f7;${inlineStyle}${sticky}">${h}</th>`;
         }).join('');
 
         // Totals and previous totals (for +/- in totals row)

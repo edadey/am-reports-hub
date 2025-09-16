@@ -18,6 +18,21 @@ try {
   console.log('⚠️ Could not load .env file via dotenv:', error.message);
 }
 
+// (moved) Maintenance endpoint is defined after app/authService initialization below
+
+// Helper: compute stable header signature as a fallback template key
+function computeHeaderSignature(headers) {
+  try {
+    const s = Array.isArray(headers) ? headers.join('|') : String(headers || '');
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) {
+      hash = ((hash << 5) - hash) + s.charCodeAt(i);
+      hash |= 0;
+    }
+    return 'hdr_' + Math.abs(hash).toString(36);
+  } catch (_) { return 'hdr_unknown'; }
+}
+
 // Method 2: Manual .env file reading for cPanel compatibility
 if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openai-api-key-here') {
   console.log('🔍 Attempting manual .env file reading...');
@@ -1637,7 +1652,13 @@ app.post('/api/colleges/:collegeId/reports/share', authService.requireAuth(), as
 app.get('/api/shared/validate', async (req, res) => {
   try {
     const { token } = req.query;
+    console.log('🔍 Validate token:', token, 'NODE_ENV:', process.env.NODE_ENV);
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    // Dev bypass: allow ?token=local in non-production
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      console.log('✅ Using local bypass for token validation');
+      return res.json({ success: true, payload: { shareId: 'local', collegeId: Number(req.query.collegeId) || 0 } });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { shareId, collegeId } = verification.payload;
@@ -1654,6 +1675,11 @@ app.get('/api/shared/colleges/:collegeId/reports', async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const collegeId = parseInt(req.params.collegeId);
+      const reports = await getCollegeReports(collegeId);
+      return res.json({ success: true, reports });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1673,6 +1699,11 @@ app.get('/api/shared/colleges/:collegeId', async (req, res) => {
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const collegeId = parseInt(req.params.collegeId);
+      const college = (await collegesService.getCollege(collegeId)) || { id: collegeId, name: 'Local College' };
+      return res.json({ success: true, college });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1693,6 +1724,11 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId', async (req, res) =>
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      const report = await getCollegeReport(parseInt(req.params.collegeId), req.params.reportId);
+      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+      return res.json({ success: true, report });
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId } = verification.payload;
@@ -1712,6 +1748,12 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
   try {
     const token = req.query.token;
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
+    if (process.env.NODE_ENV !== 'production' && token === 'local') {
+      // Fall back to existing internal export if available
+      const report = await getCollegeReport(parseInt(req.params.collegeId), req.params.reportId);
+      if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
+      return exportReportAsExcel(res, report); // assumes existing helper; if not, responds 501
+    }
     const verification = shareLinkService.verifyShareToken(token);
     if (!verification.valid) return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     const { collegeId: tokenCollegeId, shareId, permissions } = verification.payload;
@@ -1728,20 +1770,32 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const college = colleges.find(c => c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId);
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
 
-    // Load previous report data for change indicators
+    // Load previous report data for change indicators (template-aware)
     let previousData = null;
     try {
       const reports = await getCollegeReports(parseInt(collegeId));
       if (reports && reports.length > 0) {
         const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
-        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
-          const previousReport = sortedReports[currentReportIndex + 1];
-          previousData = previousReport.data;
+        if (currentReportIndex >= 0) {
+          const current = sortedReports[currentReportIndex];
+          const currentTK = current.templateKey || current.data?.meta?.templateKey || null;
+          const headerSig = (arr) => Array.isArray(arr) ? arr.join('|') : '';
+          const currentSig = headerSig(current.data?.headers);
+          const prevSame = sortedReports.slice(currentReportIndex + 1).find(r => {
+            const tk = r.templateKey || r.data?.meta?.templateKey || null;
+            if (currentTK && tk) return String(tk) === String(currentTK);
+            if (!currentTK && !tk) {
+              return headerSig(r.data?.headers) === currentSig;
+            }
+            return false;
+          });
+          if (prevSame) previousData = prevSame.data;
         }
       }
     } catch (_) {
-      previousData = await getPreviousReportData(parseInt(collegeId));
+      const currentTK = report.templateKey || report.data?.meta?.templateKey || null;
+      previousData = await getPreviousReportData(parseInt(collegeId), currentTK);
     }
 
     // Create Excel workbook with formatting
@@ -1773,7 +1827,7 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
       if (header === 'Department') return { section: 'Department', color: 'FFFEF3C7' };
       if (h.includes('placements') || h.includes('placed') || h.includes('scheduled to date')) return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
       if (h.includes('enrichment')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
-      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')) && !h.includes('enrichment'))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
       if (h.includes('career') || h.includes('quiz') || h.includes('job profile') || h.includes('mapped')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
       if (h.includes('assessment') || h.includes('score') || h.includes('students without') || h.includes('assessed')) return { section: 'assessments', color: SECTION_COLORS_EXCEL.assessments };
       if (h.includes('activity') || (h.includes('hours') && !h.includes('scheduled'))) return { section: 'activities', color: SECTION_COLORS_EXCEL.activities };
@@ -1802,12 +1856,43 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
 
     // Set header values and style
     worksheet.getRow(dataStartRow).values = completeHeaders;
+    // Prefer saved meta colours if present
+    const classToArgbShared = {
+      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
+      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
+      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
+      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
+      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
+      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
+      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
+    };
+    const toArgbShared = (hex) => {
+      if (!hex || typeof hex !== 'string') return null;
+      const clean = hex.replace('#','').toUpperCase();
+      const rgb = clean.length === 8 ? clean.slice(2) : clean;
+      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
+      return `FF${rgb}`;
+    };
+    const metaShared = report.data?.meta || {};
+    const headerHexShared = metaShared.headerHexColors || {};
+    const headerClassShared = metaShared.headerColorClasses || {};
     completeHeaders.forEach((header, index) => {
       const cell = worksheet.getCell(dataStartRow, index + 1);
       const isChange = header.endsWith(' +/-');
       const baseHeader = isChange ? header.replace(' +/-', '') : header;
-      const sectionInfo = getColumnSection(baseHeader);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sectionInfo.color } };
+      // Determine ARGB
+      let argb = null;
+      const savedHex = headerHexShared[baseHeader];
+      if (savedHex) argb = toArgbShared(savedHex);
+      if (!argb) {
+        const cls = headerClassShared[baseHeader];
+        if (cls && classToArgbShared[cls]) argb = classToArgbShared[cls];
+      }
+      if (!argb) {
+        const sectionInfo = getColumnSection(baseHeader);
+        argb = sectionInfo.color;
+      }
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
       cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 11, name: 'Arial' };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = { top: { style: 'thick', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thick', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
@@ -1905,10 +1990,11 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const cleanReportName = safeReportName.replace(new RegExp(safeCollegeName, 'gi'), '').trim();
     const filename = `${safeCollegeName}_${cleanReportName}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
+    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Length', Buffer.byteLength(buffer));
+    res.status(200).send(Buffer.from(buffer));
   } catch (error) {
     console.error('Shared excel download error:', error);
     res.status(500).json({ success: false, error: 'Failed to export excel' });
@@ -2106,7 +2192,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
           return 'enrichment';
         }
         
-        if (headerLower.includes('(employer)')) {
+        if (headerLower.includes('(employer)') || headerLower.includes('(employment)')) {
           return 'employment';
         }
         
@@ -2142,7 +2228,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         }
         
         if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
-            headerLower.includes('activity') || headerLower.includes('activities'))) {
+            headerLower.includes('activity') || headerLower.includes('activities')) && 
+            !headerLower.includes('enrichment')) {
           return 'employment';
         }
         
@@ -2174,7 +2261,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             (headerLower.includes('employer') && (headerLower.includes('engagement') || 
             headerLower.includes('activity') || headerLower.includes('activities') ||
             headerLower.includes('students with') || headerLower.includes('total students') ||
-            headerLower.includes('total activities')))) {
+            headerLower.includes('total activities')) && !headerLower.includes('enrichment'))) {
           return 'employment';
         }
         
@@ -2315,8 +2402,14 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         const cell = dataRow.getCell(colIndex + 1);
         
         // Ensure all values are properly set, even empty ones
-        if (value === undefined || value === null) {
-          cell.value = '';
+        if (value === undefined || value === null || value === '') {
+          // For percentage columns, display 0% when there is no info
+          if ((header && (header.toLowerCase().includes('percent') || header.includes('%')))) {
+            cell.value = 0;
+            cell.numFmt = '0.00%';
+          } else {
+            cell.value = '';
+          }
         } else {
           cell.value = value;
         }
@@ -2520,29 +2613,44 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             }
           });
           
-          if (hasValidData) {
-            // For percentage columns, calculate average instead of sum
-            if (header.toLowerCase().includes('percent') || header.includes('%')) {
-              const validRows = rows.filter(row => 
-                row[originalColIndex] !== '' && 
-                row[originalColIndex] !== null && 
-                !isNaN(parseFloat(row[originalColIndex]))
-              );
-              const average = validRows.length > 0 ? total / validRows.length : 0;
-              
-              // Format total percentage properly
-              cell.value = average;
-              cell.numFmt = '0.00%';
-              cell.font = { bold: true };
-              
-              // Style totals row with same formatting as +/- cells
-              cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF5F5F5' }
-              };
-              cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
-            } else {
+          // For percentage columns, calculate average across ALL rows (treat empties as 0)
+          if (header.toLowerCase().includes('percent') || header.includes('%')) {
+            const count = rows.length;
+            let totalNormalized = 0;
+            rows.forEach(r => {
+              const raw = r[originalColIndex];
+              if (raw === undefined || raw === null || raw === '') return; // 0 contribution
+              if (typeof raw === 'number') {
+                const num = raw > 1 ? raw / 100 : raw;
+                if (!isNaN(num) && isFinite(num)) totalNormalized += num;
+              } else if (typeof raw === 'string') {
+                const s = raw.trim();
+                if (!s) return; // treat empty as 0
+                if (s.endsWith('%')) {
+                  const p = parseFloat(s);
+                  if (!isNaN(p)) totalNormalized += p / 100;
+                } else {
+                  const p = parseFloat(s);
+                  if (!isNaN(p)) totalNormalized += p <= 1 ? p : p / 100;
+                }
+              }
+            });
+            const average = count > 0 ? totalNormalized / count : 0;
+            
+            // Format total percentage properly
+            cell.value = average;
+            cell.numFmt = '0.00%';
+            cell.font = { bold: true };
+            
+            // Style totals row with same formatting as +/- cells
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFF5F5F5' }
+            };
+            cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
+          } else {
+            if (hasValidData) {
               cell.value = total;
               cell.font = { bold: true };
               
@@ -2552,10 +2660,10 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
               } else {
                 cell.numFmt = '0';
               }
+            } else {
+              // Even if no valid data, set empty string to ensure cell is properly formatted
+              cell.value = '';
             }
-          } else {
-            // Even if no valid data, set empty string to ensure cell is properly formatted
-            cell.value = '';
           }
         }
         
@@ -2688,20 +2796,47 @@ function calculateChange(currentValue, previousData, rowIndex, colIndex) {
 app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
+    const { templateKey } = req.query;
     
     // Try both storage methods for backwards compatibility
     let previousData = null;
     
-    // First try the centralized method (preferred)
+    // Preferred: centralized volume storage with template grouping
     try {
-      const previousReportsPath = 'data/previous-reports.json';
-      const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
-      previousData = previousReports[collegeId] || null;
-    } catch (error) {
-      console.log('Centralized previous report data not found, trying individual file method');
+      const previousReportsPath = 'previous-reports.json';
+      const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+      const entry = previousReports[collegeId];
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        if (templateKey && entry[templateKey]) {
+          previousData = entry[templateKey];
+        } else {
+          // fallback to any available previous data
+          const anyKey = Object.keys(entry)[0];
+          previousData = anyKey ? entry[anyKey] : null;
+        }
+      }
+    } catch (_) {}
+    
+    // Legacy centralized (file system path inside data/)
+    if (!previousData) {
+      try {
+        const legacyPath = 'data/previous-reports.json';
+        const previousReports = await fs.readJson(legacyPath).catch(() => ({}));
+        const entry = previousReports[collegeId];
+        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+          if (templateKey && entry[templateKey]) previousData = entry[templateKey];
+          else {
+            const anyKey = Object.keys(entry)[0];
+            previousData = anyKey ? entry[anyKey] : null;
+          }
+        } else if (entry) {
+          // very old format
+          previousData = entry;
+        }
+      } catch (_) {}
     }
     
-    // Fallback to individual file method
+    // Very old fallback: individual file method
     if (!previousData) {
       try {
         const previousReportPath = `data/reports/${collegeId}_previous.json`;
@@ -2709,37 +2844,69 @@ app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req
           const data = await fs.readJson(previousReportPath);
           previousData = { data: data, timestamp: new Date().toISOString() };
         }
-      } catch (error) {
-        console.log('Individual previous report file not found');
-      }
+      } catch (_) {}
     }
     
-    // Return consistent response structure for all clients
-    if (previousData) {
-      res.json({ 
-        success: true, 
-        previousData: previousData,
-        data: previousData // For backwards compatibility with generate-report.html
-      });
-    } else {
-      res.json({ 
-        success: true, 
-        previousData: null,
-        data: null
-      });
+    // Final fallback: derive from existing reports for this college filtered by templateKey
+    if (!previousData && templateKey) {
+      try {
+        const reports = await getCollegeReports(parseInt(collegeId));
+        if (Array.isArray(reports) && reports.length > 0) {
+          const sorted = reports.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+          // Find the most recent report for this templateKey (not necessarily the latest overall)
+          const match = sorted.find(r => {
+            const tk = r.templateKey || r.data?.meta?.templateKey || null;
+            return tk && String(tk) === String(templateKey);
+          });
+          if (match && match.data) {
+            previousData = { data: match.data, timestamp: match.createdAt };
+            // Cache it for future
+            try {
+              const previousReportsPath = 'previous-reports.json';
+              const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+              if (!prevMap[collegeId] || typeof prevMap[collegeId] !== 'object' || Array.isArray(prevMap[collegeId])) prevMap[collegeId] = {};
+              prevMap[collegeId][String(templateKey)] = previousData;
+              await volumeService.writeFile(previousReportsPath, prevMap);
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
     }
+    
+    res.json({ success: true, previousData, data: previousData || null });
   } catch (error) {
     console.error('Get previous report error:', error);
     res.status(500).json({ error: 'Failed to get previous report data' });
   }
 });
 
+// Store previous report (template-scoped)
+app.post('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
+  try {
+    const { collegeId } = req.params;
+    const { data, templateKey } = req.body || {};
+    if (!data) return res.status(400).json({ success: false, error: 'No data provided' });
+    await storeCurrentReportAsPrevious(collegeId, data, templateKey);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Store previous report API error:', e);
+    res.status(500).json({ success: false, error: 'Failed to store previous report' });
+  }
+});
+
 // Helper function to get previous report data - use centralized method
-async function getPreviousReportData(collegeId) {
+async function getPreviousReportData(collegeId, templateKey) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    return previousReports[collegeId] || null;
+    const entry = previousReports[collegeId];
+    if (!entry) return null;
+    if (typeof entry === 'object' && !Array.isArray(entry)) {
+      if (templateKey && entry[templateKey]) return entry[templateKey];
+      const anyKey = Object.keys(entry)[0];
+      return anyKey ? entry[anyKey] : null;
+    }
+    return entry;
   } catch (error) {
     console.error('Get previous report error:', error);
     return null;
@@ -2747,12 +2914,15 @@ async function getPreviousReportData(collegeId) {
 }
 
 // Store current report as previous - use centralized method
-async function storeCurrentReportAsPrevious(collegeId, reportData) {
+async function storeCurrentReportAsPrevious(collegeId, reportData, templateKey) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    
-    previousReports[collegeId] = {
+    const tk = templateKey || '_default';
+    if (!previousReports[collegeId] || typeof previousReports[collegeId] !== 'object' || Array.isArray(previousReports[collegeId])) {
+      previousReports[collegeId] = {};
+    }
+    previousReports[collegeId][tk] = {
       data: reportData,
       timestamp: new Date().toISOString()
     };
@@ -2787,6 +2957,126 @@ app.get('/api/dashboard/college/:collegeId', authService.requireAuth(), async (r
 });
 
 // File Upload Routes
+// Handler for header extraction only
+async function handleHeaderExtractionOnly(req, res) {
+  try {
+    const XLSX = require('xlsx');
+    const allHeaders = [];
+    const headerFileMap = {};
+    const fileInfo = [];
+
+    // Process each file to extract headers with a per-file label to avoid mixing
+    for (let fileIndex = 0; fileIndex < req.files.length; fileIndex++) {
+      const file = req.files[fileIndex];
+      console.log(`Extracting headers from: ${file.originalname}`);
+
+      // Build a short label from the filename
+      const parsedName = path.parse(file.originalname || 'file');
+      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+      fileInfo.push({ originalName: file.originalname, filename: file.filename, label: fileLabel });
+
+      const workbook = XLSX.readFile(file.path);
+
+      // Process each sheet in the workbook
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+        if (jsonData && jsonData.length > 0) {
+          const headers = jsonData[0]; // First row contains headers
+          if (Array.isArray(headers)) {
+            headers.forEach(header => {
+              if (header && header.toString().trim() !== '') {
+                const labeled = `${header.toString().trim()} [${fileLabel}]`;
+                allHeaders.push(labeled);
+                headerFileMap[labeled] = fileIndex;
+              }
+            });
+          }
+        }
+      });
+    }
+
+    console.log(`Extracted ${allHeaders.length} headers (file-labeled):`, allHeaders);
+
+    res.json({
+      success: true,
+      message: `Extracted ${allHeaders.length} headers (file-labeled) from ${req.files.length} files`,
+      headers: allHeaders,
+      fileCount: req.files.length,
+      headerFileMap,
+      fileInfo
+    });
+  } catch (error) {
+    console.error('Header extraction error:', error);
+    res.status(500).json({ error: 'Header extraction failed: ' + error.message });
+  }
+}
+
+// Handler for manual assignment processing
+async function handleManualAssignment(req, res) {
+  try {
+    console.log('Processing files with manual header assignments');
+    
+    // Get header assignments from request body
+    let headerAssignments = {};
+    if (req.body.headerAssignments) {
+      try {
+        headerAssignments = JSON.parse(req.body.headerAssignments);
+        console.log('Header assignments received:', headerAssignments);
+      } catch (error) {
+        console.warn('Could not parse header assignments:', error.message);
+      }
+    }
+    
+    // Optional: file-level type/color selections (for per-file colours)
+    let manualFileSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        manualFileSelections = JSON.parse(req.body.fileTypes);
+        console.log('Manual assignment file type selections received:', manualFileSelections);
+      } catch (error) {
+        console.warn('Could not parse manual file type selections:', error.message);
+      }
+    }
+    
+    // Map files with manual assignment logic
+    const mappedFiles = req.files.map((file, index) => {
+      return {
+        filename: file.filename,
+        path: file.path,
+        originalName: file.originalname,
+        userSelectedType: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].type) ? manualFileSelections[index].type : 'manual',
+        userSelectedColor: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].color) ? manualFileSelections[index].color : '#dbeafe',
+        headerAssignments: headerAssignments // Pass assignments to each file
+      };
+    });
+    
+    console.log('Mapped files for manual assignment:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
+    
+    // Process files with the manual assignment logic
+    const result = await dataImporter.processFilesWithManualAssignment(mappedFiles, headerAssignments);
+    
+    if (result) {
+      console.log('Files processed successfully with manual assignments');
+      res.json({
+        success: true,
+        message: `${req.files.length} files processed successfully with manual assignments`,
+        data: result,
+        filename: req.files.map(f => f.originalname).join(', '),
+        headerAssignments: headerAssignments
+      });
+    } else {
+      console.log('Failed to process files with manual assignments');
+      res.status(400).json({ error: 'Failed to process files with manual assignments' });
+    }
+  } catch (error) {
+    console.error('Manual assignment processing error:', error);
+    res.status(500).json({ error: 'Manual assignment processing failed: ' + error.message });
+  }
+}
+
 app.post('/api/upload', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
     console.log('📁 File upload request received');
@@ -2800,12 +3090,42 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
     
     console.log(`📄 Processing ${req.files.length} files:`, req.files.map(f => f.originalname));
     
-    // Map files to the expected format
-    const mappedFiles = req.files.map(file => ({
-      filename: file.filename,
-      path: file.path,
-      originalName: file.originalname
-    }));
+    // Check if this is a header extraction only request
+    if (req.body.extractHeadersOnly === 'true') {
+      console.log('🔍 Header extraction only requested');
+      return await handleHeaderExtractionOnly(req, res);
+    }
+    
+    // Check if this is a manual assignment request
+    if (req.body.useManualAssignment === 'true') {
+      console.log('🎨 Manual assignment requested');
+      return await handleManualAssignment(req, res);
+    }
+    
+    // Get file type selections from request body
+    let fileTypeSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        fileTypeSelections = JSON.parse(req.body.fileTypes);
+        console.log('📋 File type selections received:', fileTypeSelections);
+      } catch (error) {
+        console.warn('⚠️ Could not parse file type selections:', error.message);
+      }
+    }
+    
+    // Map files to the expected format with user-selected types and colours
+    const mappedFiles = req.files.map((file, index) => {
+      const selection = fileTypeSelections[index];
+      return {
+        filename: file.filename,
+        path: file.path,
+        originalName: file.originalname,
+        userSelectedType: selection?.type || selection || 'default',
+        userSelectedColor: selection?.color || '#dbeafe'
+      };
+    });
+    
+    console.log('📋 Mapped files with types:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
     
     // Process all files and combine them
     const result = await dataImporter.processFiles(mappedFiles);
@@ -2828,8 +3148,431 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
   }
 });
 
-// Template Upload Route - Upload spreadsheet files to create templates
-app.post('/api/upload-template', authService.requireAuth(), upload.array('files'), async (req, res) => {
+// NEW: Raw Template Preview Route - Process files for template creation WITHOUT DataImporter filtering
+app.post('/api/template-preview', authService.requireAuth(), upload.array('files'), async (req, res) => {
+  try {
+    console.log('📋 Template preview request received - RAW processing');
+    console.log('👤 User:', req.user);
+    
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    const XLSX = require('xlsx');
+    const ExcelJS = require('exceljs');
+    
+    // Helper function to convert indexed colors to hex
+    function getIndexedColor(index) {
+      // Basic Excel indexed color palette
+      const colors = {
+        0: '#000000', 1: '#FFFFFF', 2: '#FF0000', 3: '#00FF00', 4: '#0000FF',
+        5: '#FFFF00', 6: '#FF00FF', 7: '#00FFFF', 8: '#000000', 9: '#FFFFFF',
+        10: '#FF0000', 11: '#00FF00', 12: '#0000FF', 13: '#FFFF00', 14: '#FF00FF',
+        15: '#00FFFF', 16: '#800000', 17: '#008000', 18: '#000080', 19: '#808000',
+        20: '#800080', 21: '#008080', 22: '#C0C0C0', 23: '#808080', 24: '#9999FF',
+        25: '#993366', 26: '#FFFFCC', 27: '#CCFFFF', 28: '#660066', 29: '#FF8080',
+        30: '#0066CC', 31: '#CCCCFF', 32: '#000080', 33: '#FF00FF', 34: '#FFFF00',
+        35: '#00FFFF', 36: '#800080', 37: '#800000', 38: '#008080', 39: '#0000FF',
+        40: '#00CCFF', 41: '#CCFFFF', 42: '#CCFFCC', 43: '#FFFF99', 44: '#99CCFF',
+        45: '#FF99CC', 46: '#CC99FF', 47: '#FFCC99', 48: '#3366FF', 49: '#33CCCC',
+        50: '#99CC00', 51: '#FFCC00', 52: '#FF9900', 53: '#FF6600', 54: '#666699',
+        55: '#969696', 56: '#003366', 57: '#339966', 58: '#003300', 59: '#333300',
+        60: '#993300', 61: '#993366', 62: '#333399', 63: '#333333'
+      };
+      return colors[index] || '#FFFFFF'; // Default to white if unknown
+    }
+    
+    // Process files with raw Excel/CSV reading - NO filtering
+    const rawData = {
+      headers: [],
+      headerColors: [], // Store header background colors
+      departments: [],
+      rows: [],
+      timestamp: new Date().toISOString(),
+      rawGrid: []
+    };
+
+    // Store headers from each file separately for proper mapping
+    const fileHeaders = [];
+    const allFileData = []; // Store data from all files
+
+    for (const file of req.files) {
+      console.log(`📄 Reading raw file: ${file.originalname}`);
+      
+      // Read the Excel/CSV file directly
+      const workbook = XLSX.readFile(file.path);
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      // Store data from this file
+      allFileData.push({
+        filename: file.originalname,
+        data: jsonData
+      });
+      
+      // Use the first file's raw grid as the main structure
+      if (Array.isArray(jsonData) && jsonData.length && rawData.rawGrid.length === 0) {
+        rawData.rawGrid = jsonData;
+      }
+      
+      if (jsonData && jsonData.length > 0) {
+        // Find the header row - look for the row with the most non-empty cells
+        let headerRowIndex = 0;
+        let maxHeaderCells = 0;
+        
+        // Check first 5 rows to find the best header row
+        for (let i = 0; i < Math.min(5, jsonData.length); i++) {
+          const row = jsonData[i] || [];
+          const nonEmptyCells = row.filter(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '').length;
+          console.log(`Row ${i} has ${nonEmptyCells} non-empty cells:`, row);
+          
+          if (nonEmptyCells > maxHeaderCells) {
+            maxHeaderCells = nonEmptyCells;
+            headerRowIndex = i;
+          }
+        }
+        
+        console.log(`📋 Using row ${headerRowIndex} as header row with ${maxHeaderCells} columns`);
+        const rawHeaders = jsonData[headerRowIndex] || [];
+        console.log(`📋 Raw headers from ${file.originalname}:`, rawHeaders);
+        
+        // Store headers from this specific file
+        const cleanHeaders = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
+        fileHeaders.push(cleanHeaders);
+
+        // Derive a per-file label to keep identical header names distinct across files
+        const parsedName = path.parse(file.originalname || 'file');
+        let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+        if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+        
+        // Combine headers from all files WITHOUT de-duplicating across files.
+        // Always append a file label suffix to preserve per-file structure.
+        cleanHeaders.forEach(header => {
+          const labeledHeader = `${header} [${fileLabel}]`;
+          rawData.headers.push(labeledHeader);
+        });
+        console.log(`✅ Clean headers from ${file.originalname}:`, cleanHeaders);
+        
+        // Combine data rows from all files
+        if (jsonData.length > headerRowIndex + 1) {
+          const dataRows = jsonData.slice(headerRowIndex + 1);
+          // Build a quick lookup from this file's raw header -> index
+          const headerIndexMap = new Map();
+          cleanHeaders.forEach((h, i) => headerIndexMap.set(h, i));
+          
+          dataRows.forEach(row => {
+            if (row && row.some(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '')) {
+              // Align this row to the combined labeled headers, only filling values for this file's headers
+              const aligned = rawData.headers.map(h => {
+                // Expect headers in format: "Header [Label]"
+                const match = String(h).match(/^(.*) \[(.*)\]$/);
+                if (!match) return '';
+                const baseHeader = match[1];
+                const labelInHeader = match[2];
+                if (labelInHeader !== fileLabel) return '';
+                const idx = headerIndexMap.get(baseHeader);
+                return (idx !== undefined && row[idx] !== undefined) ? row[idx] : '';
+              });
+              rawData.rows.push(aligned);
+            }
+          });
+        }
+        
+        // Extract header colors from Excel file
+        rawData.headerColors = [];
+        try {
+          // For Excel files, try to extract cell styling
+          if (file.originalname.toLowerCase().includes('.xlsx') || file.originalname.toLowerCase().includes('.xls')) {
+            console.log('📎 Trying ExcelJS for better color extraction...');
+            
+            // Try ExcelJS first - better color support
+            try {
+              const excelWorkbook = new ExcelJS.Workbook();
+              await excelWorkbook.xlsx.readFile(file.path);
+              const excelWorksheet = excelWorkbook.getWorksheet(1);
+              
+              if (excelWorksheet) {
+                console.log('📎 ExcelJS: Successfully loaded worksheet');
+                console.log('📎 ExcelJS: Worksheet row count:', excelWorksheet.rowCount);
+                console.log('📎 ExcelJS: Looking for header row at index:', headerRowIndex + 1);
+                
+                // Try scanning first few rows to find any colors
+                for (let rowNum = 1; rowNum <= Math.min(5, excelWorksheet.rowCount); rowNum++) {
+                  const testRow = excelWorksheet.getRow(rowNum);
+                  console.log(`📎 ExcelJS: Row ${rowNum} has ${testRow.cellCount} cells`);
+                  
+                  for (let colNum = 1; colNum <= Math.min(10, testRow.cellCount); colNum++) {
+                    const testCell = testRow.getCell(colNum);
+                    if (testCell && testCell.fill) {
+                      console.log(`📎 ExcelJS: FOUND FILL in row ${rowNum}, col ${colNum}:`, JSON.stringify(testCell.fill, null, 2));
+                    }
+                  }
+                }
+                
+                const headerRow = excelWorksheet.getRow(headerRowIndex + 1); // ExcelJS is 1-indexed
+                console.log('📎 ExcelJS: Header row cell count:', headerRow.cellCount);
+                
+                for (let colIndex = 0; colIndex < rawHeaders.length; colIndex++) {
+                  const cell = headerRow.getCell(colIndex + 1); // ExcelJS is 1-indexed
+                  let backgroundColor = null;
+                  
+                  console.log(`📎 ExcelJS: Examining cell ${colIndex + 1} (${rawHeaders[colIndex]})`);
+                  console.log(`📎 ExcelJS: Cell object:`, cell ? 'exists' : 'null');
+                  
+                  if (cell) {
+                    console.log(`📎 ExcelJS: Cell value:`, cell.value);
+                    console.log(`📎 ExcelJS: Cell fill:`, cell.fill);
+                    console.log(`📎 ExcelJS: Cell style:`, cell.style);
+                    console.log(`📎 ExcelJS: All cell properties:`, Object.keys(cell));
+                    
+                    if (cell.fill) {
+                      console.log(`📎 ExcelJS: Fill object:`, JSON.stringify(cell.fill, null, 2));
+                      console.log(`📎 ExcelJS: Fill type:`, cell.fill.type);
+                      console.log(`📎 ExcelJS: Fill pattern:`, cell.fill.pattern);
+                    
+                      // Check for different color formats in ExcelJS
+                      if (cell.fill.bgColor) {
+                        console.log(`📎 ExcelJS: bgColor object:`, JSON.stringify(cell.fill.bgColor, null, 2));
+                        
+                        if (cell.fill.bgColor.argb) {
+                          const argb = cell.fill.bgColor.argb;
+                          backgroundColor = `#${argb.substring(2)}`; // Remove alpha channel
+                          console.log(`📎 ExcelJS: Found ARGB color ${argb} -> ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.rgb) {
+                          backgroundColor = `#${cell.fill.bgColor.rgb}`;
+                          console.log(`📎 ExcelJS: Found RGB color ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.indexed !== undefined) {
+                          backgroundColor = getIndexedColor(cell.fill.bgColor.indexed);
+                          console.log(`📎 ExcelJS: Found indexed color ${cell.fill.bgColor.indexed} -> ${backgroundColor}`);
+                        } else if (cell.fill.bgColor.theme !== undefined) {
+                          backgroundColor = '#E0E0E0'; // Default theme color
+                          console.log(`📎 ExcelJS: Found theme color ${cell.fill.bgColor.theme} -> ${backgroundColor}`);
+                        }
+                      }
+                      
+                      if (!backgroundColor && cell.fill.fgColor) {
+                        console.log(`📎 ExcelJS: fgColor object:`, JSON.stringify(cell.fill.fgColor, null, 2));
+                        
+                        if (cell.fill.fgColor.argb) {
+                          const argb = cell.fill.fgColor.argb;
+                          backgroundColor = `#${argb.substring(2)}`;
+                          console.log(`📎 ExcelJS: Found foreground ARGB color ${argb} -> ${backgroundColor}`);
+                        } else if (cell.fill.fgColor.rgb) {
+                          backgroundColor = `#${cell.fill.fgColor.rgb}`;
+                          console.log(`📎 ExcelJS: Found foreground RGB color ${backgroundColor}`);
+                        }
+                      }
+                      
+                      // Check for pattern-based fills
+                      if (!backgroundColor && cell.fill.pattern) {
+                        console.log(`📎 ExcelJS: Pattern:`, cell.fill.pattern);
+                        if (cell.fill.pattern === 'solid' && cell.fill.bgColor) {
+                          console.log(`📎 ExcelJS: Solid pattern with bgColor`);
+                        }
+                      }
+                    } else {
+                      console.log(`📎 ExcelJS: Cell has no fill property`);
+                    }
+                  } else {
+                    console.log(`📎 ExcelJS: Cell is null or undefined`);
+                  }
+                  
+                  rawData.headerColors.push(backgroundColor);
+                  console.log(`✅ ExcelJS: Header "${rawHeaders[colIndex]}" color: ${backgroundColor || 'none'}`);
+                }
+                
+                console.log('📎 ExcelJS extraction completed successfully');
+              } else {
+                throw new Error('No worksheet found');
+              }
+            } catch (exceljsError) {
+              console.log('📎 ExcelJS failed, falling back to XLSX:', exceljsError.message);
+              
+              // Fallback to XLSX method
+              console.log('📎 Extracting header colors from Excel file using XLSX...');
+              console.log('📎 Workbook sheets:', workbook.SheetNames);
+              console.log('📎 Worksheet object keys:', Object.keys(worksheet));
+              
+              // Re-read with cell styling enabled
+            const workbookWithStyles = XLSX.readFile(file.path, { cellStyles: true });
+            const worksheetWithStyles = workbookWithStyles.Sheets[workbookWithStyles.SheetNames[0]];
+            
+            console.log('📎 Reading colors for', rawHeaders.length, 'headers at row', headerRowIndex);
+            
+            // Get the worksheet to read cell styles
+            for (let colIndex = 0; colIndex < rawHeaders.length; colIndex++) {
+              const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: colIndex });
+              const cell = worksheetWithStyles[cellAddress];
+              
+              console.log(`📎 Cell ${cellAddress}:`, cell ? 'exists' : 'missing');
+              
+              let backgroundColor = null;
+              if (cell) {
+                console.log(`📎 Cell ${cellAddress} full object:`, JSON.stringify(cell, null, 2));
+                
+                if (cell.s) {
+                  console.log(`📎 Cell ${cellAddress} style:`, JSON.stringify(cell.s, null, 2));
+                  
+                  if (cell.s.fill) {
+                    console.log(`📎 Cell ${cellAddress} fill:`, JSON.stringify(cell.s.fill, null, 2));
+                    
+                    if (cell.s.fill.bgColor) {
+                      console.log(`📎 Cell ${cellAddress} bgColor:`, JSON.stringify(cell.s.fill.bgColor, null, 2));
+                      
+                      // Try to get the background color
+                      if (cell.s.fill.bgColor.rgb) {
+                        backgroundColor = `#${cell.s.fill.bgColor.rgb}`;
+                        console.log(`📎 Found RGB color: ${backgroundColor}`);
+                      } else if (cell.s.fill.bgColor.indexed !== undefined) {
+                        // Handle indexed colors - convert to hex
+                        const colorIndex = cell.s.fill.bgColor.indexed;
+                        backgroundColor = getIndexedColor(colorIndex);
+                        console.log(`📎 Found indexed color ${colorIndex}: ${backgroundColor}`);
+                      } else if (cell.s.fill.bgColor.theme !== undefined) {
+                        // Handle theme colors
+                        console.log(`📎 Found theme color: ${cell.s.fill.bgColor.theme}`);
+                        backgroundColor = '#E0E0E0'; // Default theme color
+                      }
+                    } else if (cell.s.fill.patternType) {
+                      console.log(`📎 Cell has pattern type: ${cell.s.fill.patternType}`);
+                    }
+                  } else {
+                    console.log(`📎 Cell ${cellAddress} has no fill property`);
+                  }
+                } else {
+                  console.log(`📎 Cell ${cellAddress} has no style property`);
+                }
+              }
+              
+              rawData.headerColors.push(backgroundColor);
+              console.log(`✅ Header "${rawHeaders[colIndex]}" (col ${colIndex}) color: ${backgroundColor || 'none'}`);
+            }
+            } // Close XLSX fallback block
+          } else {
+            // For CSV files, no color information available
+            console.log('📎 CSV file - no color information available');
+            rawData.headerColors = rawData.headers.map(() => null);
+          }
+        } catch (colorError) {
+          console.warn('❌ Could not extract header colors:', colorError.message, colorError.stack);
+          rawData.headerColors = rawData.headers.map(() => null);
+        }
+        
+        // Build departments list based on detected department column for this file
+        // Find department column (first non-empty column by default)
+        const deptColIndex = rawHeaders.findIndex(h => h && h.toString().trim() !== '');
+        console.log(`📍 Department column index: ${deptColIndex}`);
+        const dataRowsForDepts = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
+        dataRowsForDepts.forEach(row => {
+          const dept = row[deptColIndex];
+          if (dept && dept.toString().trim() !== '' && !rawData.departments.includes(dept)) {
+            rawData.departments.push(dept);
+          }
+        });
+      }
+      
+      // Clean up uploaded file
+      fs.remove(file.path).catch(console.error);
+    }
+    
+    // Build headerFileMap and fileInfo for section-based coloring
+    const headerFileMap = {};
+    const fileInfo = [];
+    
+    // Get file type selections from request body
+    let fileTypeSelections = {};
+    if (req.body.fileTypes) {
+      try {
+        fileTypeSelections = JSON.parse(req.body.fileTypes);
+        console.log('📋 Template preview file type selections received:', fileTypeSelections);
+      } catch (error) {
+        console.warn('⚠️ Could not parse template preview file type selections:', error.message);
+      }
+    }
+    
+    // Process each file and map its specific headers
+    req.files.forEach((file, fileIndex) => {
+      // Use user-selected type if available, otherwise detect from filename
+      let contentType = fileTypeSelections[fileIndex] || 'default';
+      
+      if (!fileTypeSelections[fileIndex]) {
+        // Fallback to filename detection
+        const filenameLower = file.originalname.toLowerCase();
+        if (filenameLower.includes('placement') || filenameLower.includes('placed')) {
+          contentType = 'placements';
+        } else if (filenameLower.includes('employer') || filenameLower.includes('engagement') || 
+                   filenameLower.includes('employer activity') || filenameLower.includes('employer activities') ||
+                   filenameLower.includes('employer engagement')) {
+          contentType = 'employment';
+        } else if (filenameLower.includes('enrichment') || filenameLower.includes('enrich')) {
+          contentType = 'enrichment';
+        } else if (filenameLower.includes('career') || filenameLower.includes('careers') || filenameLower.includes('my futures') || filenameLower.includes('myfutures') || filenameLower.includes('my-futures')) {
+          contentType = 'careers';
+        } else if (filenameLower.includes('assessment') || filenameLower.includes('assess')) {
+          contentType = 'assessments';
+        } else if (filenameLower.includes('target') || filenameLower.includes('targets')) {
+          contentType = 'targets';
+        } else if (filenameLower.includes('login') || filenameLower.includes('access')) {
+          contentType = 'login';
+        }
+      }
+      
+      // Normalize content type names to match frontend expectations
+      if (contentType === 'employer') {
+        contentType = 'employment';
+      }
+      
+      fileInfo.push({
+        originalName: file.originalname,
+        filename: file.filename,
+        contentType: contentType,
+        customColor: fileTypeSelections[fileIndex]?.color || '#dbeafe'
+      });
+      
+      // Map headers from THIS specific file to this file index (file-based coloring)
+      const headersForThisFile = fileHeaders[fileIndex] || [];
+      // Compute the label used above for headers from this file
+      const parsedName = path.parse(file.originalname || 'file');
+      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
+      headersForThisFile.forEach(header => {
+        if (header && header.toString().trim() !== '') {
+          const labeledHeader = `${header} [${fileLabel}]`;
+          headerFileMap[labeledHeader] = fileIndex;
+          console.log(`Mapped header "${labeledHeader}" to file ${fileIndex} (${file.originalname}) - type: ${contentType}`);
+        }
+      });
+    });
+    
+    // Add headerFileMap and fileInfo to response
+    rawData.headerFileMap = headerFileMap;
+    rawData.fileInfo = fileInfo;
+    
+    console.log('📊 Raw template preview data prepared:');
+    console.log(`  - Files processed: ${req.files.length}`);
+    console.log(`  - Headers: ${rawData.headers.length}`, rawData.headers);
+    console.log(`  - Departments: ${rawData.departments.length}`, rawData.departments);
+    console.log(`  - Rows: ${rawData.rows.length}`);
+    console.log(`  - FileHeaders array:`, fileHeaders);
+    console.log(`  - HeaderFileMap:`, headerFileMap);
+    console.log(`  - FileInfo:`, fileInfo);
+    console.log(`  - All file data:`, allFileData.map(f => ({ filename: f.filename, rows: f.data.length })));
+    
+    res.json({
+      success: true,
+      data: rawData,
+      message: 'Template preview generated successfully'
+    });
+    
+  } catch (error) {
+    console.error('Template preview error:', error);
+    res.status(500).json({ error: 'Template preview failed: ' + error.message });
+  }
+});
+
+// DISABLED: Template Upload Route - Upload spreadsheet files to create templates  
+// Use /api/upload + Save as Template workflow instead
+app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
     console.log('📋 Template upload request received');
     console.log('👤 User:', req.user);
@@ -2971,6 +3714,30 @@ app.post('/api/upload-template', authService.requireAuth(), upload.array('files'
     // Save template
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
+
+    // Also save to database if available so /api/templates (DB-preferred) can return it
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Saving preview-created template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(template);
+        console.log('✅ Preview-created template saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save preview-created template to database:', dbError.message);
+      }
+    }
+
+    // Also save to database if available so /api/templates (DB-preferred) can return it
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Saving uploaded template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(template);
+        console.log('✅ Uploaded template saved to database');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to save uploaded template to database:', dbError.message);
+      }
+    }
     
     // Create backup snapshot
     try {
@@ -3002,7 +3769,6 @@ app.post('/api/upload-template', authService.requireAuth(), upload.array('files'
     console.error('Template upload error:', error);
     res.status(500).json({ 
       error: 'Template upload failed: ' + error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -3091,17 +3857,15 @@ app.post('/api/create-template-from-preview', authService.requireAuth(), async (
     });
   }
 });
-
-// Report Generation Routes
 app.post('/api/reports/generate', authService.requireAuth(), async (req, res) => {
   try {
-    const { collegeId, reportData, reportName, summary } = req.body;
+    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
     
     if (!collegeId || !reportData) {
       return res.status(400).json({ error: 'College ID and report data are required' });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
     
     if (result.success) {
       res.json({
@@ -3129,7 +3893,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       reportDataLength: req.body.reportData?.length || 0
     });
     
-    const { collegeId, reportData, reportName, summary } = req.body;
+    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
     
     if (!collegeId || !reportData) {
       console.log('❌ Missing required data:', { 
@@ -3149,7 +3913,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
     
     if (result.success) {
       res.json({
@@ -3813,7 +4577,7 @@ app.post('/api/templates/restore', authService.requireAuth(), async (req, res) =
 // Export Excel from editor payload, preserving basic formatting
 app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
   try {
-    const { headers = [], rows = [], name = 'Report', createdAt } = req.body || {};
+    const { headers = [], rows = [], name = 'Report', createdAt, meta = {} } = req.body || {};
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report Data');
@@ -3840,11 +4604,30 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       department: 'FFFED7AA',    // amber-ish
       default: 'FFF3F4F6'        // light grey
     };
+    // Map Tailwind bg-* classes to ARGB for Excel
+    const classToArgb = {
+      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
+      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
+      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
+      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
+      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
+      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
+      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
+    };
+    const toArgb = (hex) => {
+      if (!hex || typeof hex !== 'string') return null;
+      const clean = hex.replace('#', '').toUpperCase();
+      const rgb = clean.length === 8 ? clean.slice(2) : clean;
+      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
+      return `FF${rgb}`;
+    };
+    const headerHexColors = (meta && meta.headerHexColors) ? meta.headerHexColors : {};
+    const headerColorClasses = (meta && meta.headerColorClasses) ? meta.headerColorClasses : {};
     function sectionFromHeader(h) {
       const s = String(h || '').toLowerCase();
       if (s.includes('placements')) return 'placements';
       if (s.includes('enrichment')) return 'enrichment';
-      if (s.includes('employment')) return 'employment';
+      if (s.includes('employment') || (s.includes('employer') && !s.includes('enrichment'))) return 'employment';
       if (s.includes('careers')) return 'careers';
       if (s.includes('assessments')) return 'assessments';
       if (s.includes('targets')) return 'targets';
@@ -3859,8 +4642,20 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
         const cell = headerRow.getCell(idx + 1);
         cell.value = h;
         cell.font = { bold: true, color: { argb: 'FF111111' } };
-        const sec = sectionFromHeader(h);
-        const argb = uiArgbBySection[sec] || uiArgbBySection.default;
+        // Prefer explicit saved hex colours, then saved class, then section fallback
+        let argb = null;
+        const savedHex = headerHexColors && headerHexColors[h] ? headerHexColors[h] : null;
+        if (savedHex) {
+          argb = toArgb(savedHex);
+        }
+        if (!argb) {
+          const cls = headerColorClasses && headerColorClasses[h] ? headerColorClasses[h] : null;
+          if (cls && classToArgb[cls]) argb = classToArgb[cls];
+        }
+        if (!argb) {
+          const sec = sectionFromHeader(h);
+          argb = uiArgbBySection[sec] || uiArgbBySection.default;
+        }
         columnArgb[idx] = argb;
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -3897,7 +4692,9 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
             cell.value = num;
             cell.numFmt = '0.0%';
           } else {
-            cell.value = val == null ? '' : val;
+            // No info/unparseable => treat as 0%
+            cell.value = 0;
+            cell.numFmt = '0.0%';
           }
         } else {
           cell.value = val == null ? '' : val;
@@ -3931,10 +4728,12 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       }
     }
 
+    const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
+    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx"`);
-    await workbook.xlsx.write(res);
-    res.end();
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', Buffer.byteLength(buffer));
+    res.status(200).send(Buffer.from(buffer));
   } catch (e) {
     console.error('Export Excel error:', e);
     res.status(500).json({ error: 'Failed to export Excel' });
@@ -4063,7 +4862,7 @@ async function getCollegeReports(collegeId) {
   }
 }
 
-async function saveCollegeReport(collegeId, reportData, reportName, summary) {
+async function saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName) {
   try {
     console.log(`💾 Saving report for college ${collegeId} to volume...`);
     console.log(`📄 Report name: ${reportName}`);
@@ -4109,6 +4908,15 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       validationChecksum: validationResult.checksum,
       validationTime: validationResult.validationTime
     };
+    // Attach template metadata (file JSON top-level + embedded in data for DB)
+    if (templateKey) report.templateKey = String(templateKey);
+    if (templateName) report.templateName = String(templateName);
+    report.data = report.data || {};
+    const incomingMeta = (reportData && reportData.meta) ? reportData.meta : {};
+    report.data.meta = Object.assign({}, report.data.meta, incomingMeta, {
+      templateKey: templateKey || report.data?.meta?.templateKey || null,
+      templateName: templateName || report.data?.meta?.templateName || null
+    });
     
     console.log(`📋 Adding new report with ID: ${report.id}`);
     reports.push(report);
@@ -4125,7 +4933,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
         const dbReportData = {
           name: report.name,
           collegeId: parseInt(collegeId),
-          data: report.data,
+          data: report.data, // contains meta.templateKey/templateName
           summary: report.summary,
           createdBy: report.createdBy,
           validationChecksum: report.validationChecksum,
@@ -4150,8 +4958,9 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary) {
       // Don't fail the save if backup fails
     }
     
-    // Store as previous report for comparison
-    await storeCurrentReportAsPrevious(collegeId, reportData);
+    // Store as previous report for comparison (template-scoped)
+    const tk = templateKey || report.templateKey || null;
+    await storeCurrentReportAsPrevious(collegeId, reportData, tk);
     
     // Update analytics with the new report
     try {
