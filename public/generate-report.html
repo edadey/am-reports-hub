@@ -201,7 +201,9 @@
               <option value="">-- No template --</option>
             </select>
           </div>
-          <!-- Removed Use template for preview control -->
+          <div class="flex items-end">
+            <button id="applyTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors font-medium w-full md:w-auto">Apply</button>
+          </div>
         </div>
         
         <!-- Template File Type Selection (shown when using templates) -->
@@ -721,105 +723,27 @@
       }
       
       
-      // Template selection event listener
+      // Template selection event listener (selection only; use Apply button to apply)
       const templateSelect = document.getElementById('templateSelect');
       if (templateSelect) {
         templateSelect.addEventListener('change', async function() {
           const selectedTemplate = getSelectedTemplate();
+          const applyBtn = document.getElementById('applyTemplateBtn');
+          if (applyBtn) applyBtn.disabled = !selectedTemplate;
           if (selectedTemplate) {
             console.log('Template selected:', selectedTemplate.name);
-            showStatus(`Template "${selectedTemplate.name}" selected`, 'success');
-            
-            // Optionally load template data immediately to preview
-            if (selectedTemplate.headers) {
-              tableHeaders = [...selectedTemplate.headers];
-              const haveProcessed = (window.latestProcessedData && typeof window.latestProcessedData === 'object');
-              if (haveProcessed) {
-                // We have freshly processed data – remap it to the template structure
-                // Do not preload template.tableData to avoid overriding the new data
-                window.previewingTemplateRows = false;
-              } else if (selectedTemplate.tableData) {
-                // Fallback: if no processed data exists, allow previewing saved template rows
-                tableData = selectedTemplate.tableData.map(row => [...row]);
-                window.previewingTemplateRows = true;
-              }
-              // Propagate headerFileMap and fileInfo for proper header coloring
-              try {
-                // Helper to synthesize fileInfo from headerFileMap
-                function synthesizeFileInfoFromMap(hmap) {
-                  const indices = new Set();
-                  Object.values(hmap || {}).forEach(v => { if (typeof v === 'number') indices.add(v); });
-                  const maxIdx = indices.size ? Math.max(...Array.from(indices)) : -1;
-                  const out = [];
-                  for (let i = 0; i <= maxIdx; i++) {
-                    out.push({ originalName: `File ${i + 1}` , filename: `file_${i+1}` , customColor: undefined, label: `File ${i + 1}` });
-                  }
-                  return out;
-                }
-                if (selectedTemplate.headerFileMap && typeof selectedTemplate.headerFileMap === 'object') {
-                  window.headerFileMap = { ...selectedTemplate.headerFileMap };
-                  console.log('Applied template headerFileMap:', window.headerFileMap);
-                } else {
-                  // Reset to avoid bleeding colors from a previous template
-                  window.headerFileMap = {};
-                  console.log('Template had no headerFileMap; reset to empty');
-                }
-                headerFileMap = window.headerFileMap;
-                if (Array.isArray(selectedTemplate.fileInfo)) {
-                  window.fileInfo = [...selectedTemplate.fileInfo];
-                  console.log('Applied template fileInfo:', window.fileInfo);
-                  // Overlay saved selections onto template fileInfo too
-                  try {
-                    if (window.__fileLevelSelections && Array.isArray(window.fileInfo)) {
-                      Object.keys(window.__fileLevelSelections).forEach(k => {
-                        const idx = parseInt(k); const sel = window.__fileLevelSelections[k];
-                        if (!isNaN(idx) && window.fileInfo[idx]) {
-                          if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
-                          if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
-                        }
-                      });
-                    }
-                  } catch(_) {}
-                } else if (Object.keys(window.headerFileMap).length > 0) {
-                  // Synthesize minimal fileInfo from headerFileMap to keep per-template grouping/colors distinct
-                  window.fileInfo = synthesizeFileInfoFromMap(window.headerFileMap);
-                  console.log('Synthesized fileInfo from headerFileMap:', window.fileInfo);
-                } else {
-                  // Reset to avoid using a previous template's fileInfo/colors
-                  window.fileInfo = [];
-                  console.log('Template had no fileInfo; reset to empty');
-                }
-                // Enforce strict template mode to keep column order
-                window.strictTemplateMode = true;
-                window.useOriginalHeaders = false;
-              } catch (e) { console.warn('Failed to apply template metadata:', e?.message || e); }
-              // Update legend to reflect selected template file colors
-              try {
-                const legend = document.getElementById('fileLegend');
-                if (legend && Array.isArray(window.fileInfo)) {
-                  legend.innerHTML = window.fileInfo.map((fi, idx) => {
-                    const c = (fi && fi.customColor) ? fi.customColor : ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'][idx % 7];
-                    const name = (fi && (fi.originalName || fi.filename)) ? (fi.originalName || fi.filename) : `File ${idx + 1}`;
-                    return `<span style="display:inline-flex;align-items:center;margin-right:12px;margin-bottom:6px;">
-                      <span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;margin-right:6px;"></span>
-                      <span style="font-size:12px;color:#374151;">${name}</span>
-                    </span>`;
-                  }).join('');
-                }
-              } catch (_) {}
-              if (window.latestProcessedData && typeof window.latestProcessedData === 'object') {
-                // Remap current data to the selected template columns
-                try { await adaptTableToData(window.latestProcessedData, true); } catch (e) { console.warn('Remap after template select failed:', e?.message || e); }
-                showStatus(`Template "${selectedTemplate.name}" applied to current data`, 'info');
-              } else {
-                // No processed data available, preview saved template rows
-                renderTable();
-                showStatus(`Template "${selectedTemplate.name}" loaded for preview`, 'info');
-              }
-            }
+            showStatus(`Template "${selectedTemplate.name}" selected. Click Apply to apply.`, 'info');
           } else {
             showStatus('Template deselected - using new data structure', 'info');
           }
+        });
+      }
+
+      // Apply button wiring
+      const applyTemplateBtn = document.getElementById('applyTemplateBtn');
+      if (applyTemplateBtn) {
+        applyTemplateBtn.addEventListener('click', async function() {
+          await applySelectedTemplate();
         });
       }
 
@@ -1444,7 +1368,12 @@
       try { window.latestProcessedData = data; } catch (_) {}
       if (typeof window.previewingTemplateRows === 'undefined') { window.previewingTemplateRows = false; }
       // Store the headerFileMap and fileInfo for color assignment
-      if (data.headerFileMap) {
+      const __selectedTpl = useTemplateForPreview ? getSelectedTemplate() : null;
+      if (useTemplateForPreview && __selectedTpl && __selectedTpl.headerFileMap && typeof __selectedTpl.headerFileMap === 'object') {
+        headerFileMap = { ...__selectedTpl.headerFileMap };
+        window.headerFileMap = { ...__selectedTpl.headerFileMap };
+        console.log('Using template headerFileMap for colouring');
+      } else if (data.headerFileMap) {
         headerFileMap = data.headerFileMap;
         window.headerFileMap = data.headerFileMap; // Also set on window
         console.log('Header file mapping:', headerFileMap);
@@ -1456,39 +1385,41 @@
       }
       
       // Store file information for content type detection
-      if (data.fileInfo) {
+      if (useTemplateForPreview && __selectedTpl && Array.isArray(__selectedTpl.fileInfo)) {
+        window.fileInfo = [...__selectedTpl.fileInfo];
+        console.log('Using template fileInfo for colouring');
+      } else if (data.fileInfo) {
         window.fileInfo = data.fileInfo;
         console.log('File info received:', window.fileInfo);
         globalThis.fileInfoData = data.fileInfo;
-        // Overlay any saved selections (type/color) to persist user-chosen colours across renders
-        try {
-          if (window.__fileLevelSelections && Array.isArray(window.fileInfo)) {
-            Object.keys(window.__fileLevelSelections).forEach(k => {
-              const idx = parseInt(k);
-              const sel = window.__fileLevelSelections[k];
-              if (!isNaN(idx) && window.fileInfo[idx]) {
-                if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
-                if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
-              }
-            });
-          }
-        } catch (_) { console.warn('Failed to overlay saved file selections'); }
-        // Render legend for file colours if container exists
-        try {
-          const legend = document.getElementById('fileLegend');
-          if (legend && Array.isArray(window.fileInfo)) {
-            legend.innerHTML = window.fileInfo.map((fi, idx) => {
-              // Use custom colour if available, otherwise fallback to accent colours
-              const c = (fi && fi.customColor) ? fi.customColor : ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'][idx % 7];
-              const name = (fi && (fi.originalName || fi.filename)) ? (fi.originalName || fi.filename) : `File ${idx + 1}`;
-              return `<span style="display:inline-flex;align-items:center;margin-right:12px;margin-bottom:6px;">
-                <span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;margin-right:6px;"></span>
-                <span style="font-size:12px;color:#374151;">${name}</span>
-              </span>`;
-            }).join('');
-          }
-        } catch (_) {}
       }
+      // Overlay any saved selections (type/color) to persist user-chosen colours across renders
+      try {
+        if (window.__fileLevelSelections && Array.isArray(window.fileInfo)) {
+          Object.keys(window.__fileLevelSelections).forEach(k => {
+            const idx = parseInt(k);
+            const sel = window.__fileLevelSelections[k];
+            if (!isNaN(idx) && window.fileInfo[idx]) {
+              if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
+              if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
+            }
+          });
+        }
+      } catch (_) { console.warn('Failed to overlay saved file selections'); }
+      // Render legend for file colours if container exists
+      try {
+        const legend = document.getElementById('fileLegend');
+        if (legend && Array.isArray(window.fileInfo)) {
+          legend.innerHTML = window.fileInfo.map((fi, idx) => {
+            const c = (fi && fi.customColor) ? fi.customColor : ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'][idx % 7];
+            const name = (fi && (fi.originalName || fi.filename)) ? (fi.originalName || fi.filename) : `File ${idx + 1}`;
+            return `<span style="display:inline-flex;align-items:center;margin-right:12px;margin-bottom:6px;">
+              <span style="display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;margin-right:6px;"></span>
+              <span style="font-size:12px;color:#374151;">${name}</span>
+            </span>`;
+          }).join('');
+        }
+      } catch (_) {}
       
       if (data.departments) {
         const selectedTemplate = useTemplateForPreview ? getSelectedTemplate() : null;
@@ -2759,6 +2690,101 @@
       }
       
       return null;
+    }
+
+    // Explicitly apply the currently selected template
+    async function applySelectedTemplate() {
+      try {
+        const selectedTemplate = getSelectedTemplate();
+        if (!selectedTemplate) {
+          showStatus('Please select a template first', 'error');
+          return;
+        }
+        showStatus(`Applying template "${selectedTemplate.name}"...`, 'info');
+
+        if (selectedTemplate.headers) {
+          tableHeaders = [...selectedTemplate.headers];
+          const haveProcessed = (window.latestProcessedData && typeof window.latestProcessedData === 'object');
+          if (haveProcessed) {
+            // We have freshly processed data – remap it to the template structure
+            // Do not preload template.tableData to avoid overriding the new data
+            window.previewingTemplateRows = false;
+          } else if (selectedTemplate.tableData) {
+            // Fallback: if no processed data exists, allow previewing saved template rows
+            tableData = selectedTemplate.tableData.map(row => [...row]);
+            window.previewingTemplateRows = true;
+          }
+
+          // Propagate headerFileMap and fileInfo for proper header coloring
+          try {
+            function synthesizeFileInfoFromMap(hmap) {
+              const indices = new Set();
+              Object.values(hmap || {}).forEach(v => { if (typeof v === 'number') indices.add(v); });
+              const maxIdx = indices.size ? Math.max(...Array.from(indices)) : -1;
+              const out = [];
+              for (let i = 0; i <= maxIdx; i++) {
+                out.push({ originalName: `File ${i + 1}`, filename: `file_${i+1}`, customColor: undefined, label: `File ${i + 1}` });
+              }
+              return out;
+            }
+            if (selectedTemplate.headerFileMap && typeof selectedTemplate.headerFileMap === 'object') {
+              window.headerFileMap = { ...selectedTemplate.headerFileMap };
+            } else {
+              window.headerFileMap = {};
+            }
+            headerFileMap = window.headerFileMap;
+            if (Array.isArray(selectedTemplate.fileInfo)) {
+              window.fileInfo = [...selectedTemplate.fileInfo];
+              try {
+                if (window.__fileLevelSelections && Array.isArray(window.fileInfo)) {
+                  Object.keys(window.__fileLevelSelections).forEach(k => {
+                    const idx = parseInt(k); const sel = window.__fileLevelSelections[k];
+                    if (!isNaN(idx) && window.fileInfo[idx]) {
+                      if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
+                      if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
+                    }
+                  });
+                }
+              } catch(_) {}
+            } else if (Object.keys(window.headerFileMap).length > 0) {
+              window.fileInfo = synthesizeFileInfoFromMap(window.headerFileMap);
+            } else {
+              window.fileInfo = [];
+            }
+            // Enforce strict template mode to keep column order and template colouring
+            window.strictTemplateMode = true;
+            window.useOriginalHeaders = false;
+
+            // Update legend to reflect selected template file colors
+            try {
+              const legend = document.getElementById('fileLegend');
+              if (legend && Array.isArray(window.fileInfo)) {
+                legend.innerHTML = window.fileInfo.map((fi, idx) => {
+                  const c = (fi && fi.customColor) ? fi.customColor : ['#1d4ed8', '#9333ea', '#059669', '#ea580c', '#dc2626', '#0ea5e9', '#f59e0b'][idx % 7];
+                  const name = (fi && (fi.originalName || fi.filename)) ? (fi.originalName || fi.filename) : `File ${idx + 1}`;
+                  return `<span style="display:inline-flex;align-items:center;margin-right:12px;margin-bottom:6px;">
+                    <span style=\"display:inline-block;width:10px;height:10px;background:${c};border-radius:2px;margin-right:6px;\"></span>
+                    <span style=\"font-size:12px;color:#374151;\">${name}</span>
+                  </span>`;
+                }).join('');
+              }
+            } catch (_) {}
+          } catch (e) {
+            console.warn('Failed to apply template metadata:', e?.message || e);
+          }
+
+          if (window.latestProcessedData && typeof window.latestProcessedData === 'object') {
+            try { await adaptTableToData(window.latestProcessedData, true); } catch (e) { console.warn('Remap after template apply failed:', e?.message || e); }
+            showStatus(`Template "${selectedTemplate.name}" applied to current data`, 'success');
+          } else {
+            renderTable();
+            showStatus(`Template "${selectedTemplate.name}" loaded for preview`, 'success');
+          }
+        }
+      } catch (e) {
+        console.warn('applySelectedTemplate failed:', e?.message || e);
+        showStatus('Failed to apply template: ' + (e?.message || e), 'error');
+      }
     }
 
     function getTemplateMode() {
