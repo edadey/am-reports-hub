@@ -2704,15 +2704,14 @@
 
         if (selectedTemplate.headers) {
           tableHeaders = [...selectedTemplate.headers];
-          const haveProcessed = (window.latestProcessedData && typeof window.latestProcessedData === 'object');
-          if (haveProcessed) {
-            // We have freshly processed data – remap it to the template structure
-            // Do not preload template.tableData to avoid overriding the new data
-            window.previewingTemplateRows = false;
-          } else if (selectedTemplate.tableData) {
-            // Fallback: if no processed data exists, allow previewing saved template rows
+          // Always prefer the template's saved rows when applying a template.
+          // This preserves the exact row content the user saved with the template.
+          if (Array.isArray(selectedTemplate.tableData) && selectedTemplate.tableData.length > 0) {
             tableData = selectedTemplate.tableData.map(row => [...row]);
             window.previewingTemplateRows = true;
+          } else {
+            // No saved rows in the template; fall back to rebuilding from data
+            window.previewingTemplateRows = false;
           }
 
           // Propagate headerFileMap and fileInfo for proper header coloring
