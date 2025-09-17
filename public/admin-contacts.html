@@ -31,6 +31,7 @@
                         <option value="Key Stakeholders">Key Stakeholders</option>
                         <option value="Super Users">Super Users</option>
                         <option value="MIS Contact">MIS Contact</option>
+                        <option value="Marketing/Communications">Marketing/Communications</option>
                     </select>
                 </div>
                 <div>
@@ -123,7 +124,20 @@
                         if (collegeId && String(college.id) !== String(collegeId) && parseInt(college.id) !== parseInt(collegeId)) return;
                         (Array.isArray(college.keyStakeholders) ? college.keyStakeholders : []).forEach(s => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Key Stakeholders', name: s?.name || '', position: s?.position || '', email: s?.email || '' }));
                         (Array.isArray(college.superUsers) ? college.superUsers : []).forEach(u => contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Super Users', name: u?.name || '', position: u?.position || '', email: u?.email || '' }));
-                        if (college.misContactName || college.misContactEmail) contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
+                        // MIS contact (handle both camelCase and lowercase variants)
+                        const misName = college.misContactName || college.miscontactname || '';
+                        const misEmail = college.misContactEmail || college.miscontactemail || '';
+                        const dataTransfer = college.dataTransferMethod || college.datatransfermethod || '';
+                        if (misName || misEmail) {
+                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: misName, position: 'MIS Contact', email: misEmail, dataTransferMethod: dataTransfer });
+                        }
+                        // Marketing/Communications contact (handle both camelCase and lowercase variants)
+                        const mktName = college.marketingName || college.marketingname || '';
+                        const mktEmail = college.marketingEmail || college.marketingemail || '';
+                        const mktPosition = college.marketingPosition || college.marketingposition || 'Marketing/Comms';
+                        if (mktName || mktEmail || mktPosition) {
+                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Marketing/Communications', name: mktName, position: mktPosition, email: mktEmail });
+                        }
                     });
                     if (category) contacts = contacts.filter(c => (c.category || '').toLowerCase() === String(category).toLowerCase());
                 }
