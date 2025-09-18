@@ -913,7 +913,7 @@
         const upDisabled = idx === 0 ? 'opacity-40 cursor-not-allowed' : '';
         const downDisabled = idx === files.length - 1 ? 'opacity-40 cursor-not-allowed' : '';
         return `
-          <div class="flex items-center justify-between border border-gray-200 rounded px-3 py-2 bg-white">
+          <div class="flex items-center justify-between border border-gray-200 rounded px-3 py-2 bg-white file-item" draggable="true" data-index="${idx}">
             <div class="text-sm text-gray-800 truncate">
               <span class="inline-block w-6 text-gray-500">${idx + 1}.</span>
               <span title="${f.name}">${f.name}</span>
@@ -928,8 +928,72 @@
         <div class="text-sm text-gray-700 mb-2">Reorder files (top = first columns in report)</div>
         <div class="space-y-2">${items}</div>
       `;
+      // Attach drag-and-drop handlers after rendering
+      attachSelectedFilesDnD();
     }
     
+    // Add drag-and-drop behavior to file items
+    function attachSelectedFilesDnD() {
+      const container = document.getElementById('selectedFilesList');
+      if (!container) return;
+      const items = container.querySelectorAll('.file-item');
+      items.forEach(item => {
+        item.addEventListener('dragstart', onFileItemDragStart);
+        item.addEventListener('dragover', onFileItemDragOver);
+        item.addEventListener('drop', onFileItemDrop);
+        item.addEventListener('dragend', onFileItemDragEnd);
+        item.addEventListener('dragleave', onFileItemDragLeave);
+      });
+    }
+
+    let __dragSourceIndex = null;
+    function onFileItemDragStart(e) {
+      try {
+        const el = e.currentTarget;
+        __dragSourceIndex = parseInt(el.getAttribute('data-index'), 10);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(__dragSourceIndex));
+        el.classList.add('ring-2', 'ring-blue-300', 'bg-blue-50');
+      } catch (_) {}
+    }
+    function onFileItemDragOver(e) {
+      e.preventDefault();
+      try {
+        const el = e.currentTarget;
+        e.dataTransfer.dropEffect = 'move';
+        el.classList.add('bg-gray-50');
+      } catch (_) {}
+    }
+    function onFileItemDragLeave(e) {
+      try {
+        const el = e.currentTarget;
+        el.classList.remove('bg-gray-50');
+      } catch (_) {}
+    }
+    function onFileItemDrop(e) {
+      e.preventDefault();
+      try {
+        const el = e.currentTarget;
+        el.classList.remove('bg-gray-50');
+        const fromStr = e.dataTransfer.getData('text/plain');
+        const from = parseInt(fromStr, 10);
+        const to = parseInt(el.getAttribute('data-index'), 10);
+        if (!Number.isInteger(from) || !Number.isInteger(to) || from === to) return;
+        const files = Array.from(window.__selectedFiles || []);
+        const [moved] = files.splice(from, 1);
+        files.splice(to, 0, moved);
+        window.__selectedFiles = files;
+        renderSelectedFilesList();
+      } catch (_) {}
+    }
+    function onFileItemDragEnd(e) {
+      try {
+        const el = e.currentTarget;
+        el.classList.remove('ring-2', 'ring-blue-300', 'bg-blue-50', 'bg-gray-50');
+      } catch (_) {}
+      __dragSourceIndex = null;
+    }
+
     // Move a selected file up (-1) or down (+1) in the order
     function moveSelectedFile(index, direction) {
       try {
