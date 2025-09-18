@@ -34,15 +34,33 @@
       return url.searchParams.get(name);
     }
 
-    // Helpers for template grouping
-    function headerSig(arr) {
-      try { return Array.isArray(arr) ? arr.join('|') : ''; } catch (_) { return ''; }
+    // Helpers for template grouping (normalized header signature)
+    function normHeader(h) {
+      try {
+        return String(h || '')
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .replace(/\s*\([^)]*\)\s*$/, '')
+          .trim()
+          .toLowerCase();
+      } catch (_) { return String(h || ''); }
     }
-    function getTemplateKey(report) {
-      return report.templateKey || report.data?.meta?.templateKey || ('hdr_' + (headerSig(report.data?.headers) || '')); 
+    function normalizedHeaderSig(arr) {
+      try {
+        const cleaned = (Array.isArray(arr) ? arr : [])
+          .map(normHeader)
+          .filter(h => h && h !== 'department');
+        const unique = Array.from(new Set(cleaned)).sort();
+        return unique.join('|');
+      } catch (_) { return ''; }
     }
     function getTemplateName(report) {
       return report.templateName || report.data?.meta?.templateName || 'Ad-hoc';
+    }
+    function getTemplateKey(report) {
+      const name = getTemplateName(report);
+      const fallback = 'hdr_' + normalizedHeaderSig(report.data?.headers);
+      if (name === 'Ad-hoc') return fallback;
+      return report.templateKey || report.data?.meta?.templateKey || fallback;
     }
 
     async function init() {
@@ -305,10 +323,10 @@
         // Totals and previous totals (for +/- in totals row)
         const totals = {};
         const prevTotals = {};
-        headers.forEach((header, colIndex) => { const isDept = colIndex === 0 || isDepartmentHeader(header); if (isDept) { totals[colIndex] = ''; prevTotals[colIndex] = ''; return; } let total = 0; let count = 0; let has = false; rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } }); if (has) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; } else { totals[colIndex] = total; } } else { totals[colIndex] = ''; } const prev = window.previousReportData; if (prev && Array.isArray(prev.rows)) { let pTotal = 0; let pCount = 0; let pHas = false; prev.rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } }); if (pHas) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { prevTotals[colIndex] = pCount > 0 ? (pTotal / pCount) : 0; } else { prevTotals[colIndex] = pTotal; } } else { prevTotals[colIndex] = ''; } } else { prevTotals[colIndex] = ''; } });
+        headers.forEach((header, colIndex) => { const isDept = colIndex === 0 || isDepartmentHeader(header); if (isDept) { totals[colIndex] = ''; prevTotals[colIndex] = ''; return; } let total = 0; let count = 0; let has = false; rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } }); if (has) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; } else { totals[colIndex] = total; } } else { totals[colIndex] = ''; } const prev = window.previousReportData; if (prev && Array.isArray(prev.rows)) { let pTotal = 0; let pCount = 0; let pHas = false; prev.rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } }); if (pHas) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { prevTotals[colIndex] = pCount > 0 ? (pTotal / pCount) : 0; } else { prevTotals[colIndex] = pTotal; } } else { prevTotals[colIndex] = 0; } } else { prevTotals[colIndex] = 0; } });
 
         const bodyRows = rows.map((row, rowIdx) => { let cells = []; headers.forEach((header, originalColIdx) => { const cell = row[originalColIdx]; let displayValue = cell; let percentageBar=''; let align='left'; if (header && (String(header).toLowerCase().includes('percent') || String(header).includes('%'))) { if (typeof cell === 'number' || !isNaN(parseFloat(cell))) { let percentage = parseFloat(cell) <= 1 ? parseFloat(cell) * 100 : parseFloat(cell); displayValue = percentage.toFixed(1) + '%'; align='right'; const width = Math.min(percentage, 100); let barColor = '#22c55e'; if (percentage < 40) barColor = '#ef4444'; else if (percentage >= 40 && percentage <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } } else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) { displayValue = parseFloat(cell).toLocaleString(); align='right'; } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : ''; cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:${align};${sticky}\"><div>${displayValue ?? ''}</div>${percentageBar}</td>`);
-          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563;font-size:12px;">N/A</span>'; if (!isDepartmentHeader(header) && prev && prev.rows) { const previousRow = prev.rows.find(r => r[0] === row[0]); if (previousRow && previousRow[originalColIdx] !== undefined) { const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[originalColIdx]) || 0; const change = currentValue - previousValue; if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\\\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\\\">${changeText}</span>`; } } } if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); } }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
+          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;">0</span>'; if (!isDepartmentHeader(header) && prev && prev.rows) { const previousRow = prev.rows.find(r => r[0] === row[0]); if (previousRow && previousRow[originalColIdx] !== undefined) { const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[originalColIdx]) || 0; const change = currentValue - previousValue; if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${changeText}</span>`; } } } if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); } }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
 
         // Totals row with +/- values
         let totalsRowCells = [];
@@ -324,7 +342,7 @@
                 totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${diff === 0 ? '0' : text}</span>`;
               }
             } else {
-              totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:#f3f4f6;color:#4b5563;font-size:12px;\">-</span>`;
+              totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;\">0</span>`;
             }
             totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:center;font-weight:600;color:#2563eb;\">${totalsChange}</td>`);
           } });

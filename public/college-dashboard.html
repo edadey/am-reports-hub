@@ -1776,9 +1776,32 @@
       try {
         const tplSel = document.getElementById('templateFilter');
         if (tplSel && Array.isArray(collegeReports)) {
-          const headerSig = (arr) => { try { return Array.isArray(arr) ? arr.join('|') : ''; } catch(_) { return ''; } };
-          const getTemplateKey = (r) => r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || ('hdr_' + headerSig(r.data && r.data.headers));
+          // Normalized header signature: strip [FileLabel] and trailing (...) to avoid splitting Ad-hoc groups by file-specific suffixes
+          const normHeader = (h) => {
+            try {
+              return String(h || '')
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim()
+                .toLowerCase();
+            } catch(_) { return String(h || ''); }
+          };
+          const normalizedHeaderSig = (arr) => {
+            try {
+              const cleaned = (Array.isArray(arr) ? arr : [])
+                .map(normHeader)
+                .filter(h => h && h !== 'department');
+              const unique = Array.from(new Set(cleaned)).sort();
+              return unique.join('|');
+            } catch(_) { return ''; }
+          };
           const getTemplateName = (r) => r.templateName || (r.data && r.data.meta && r.data.meta.templateName) || 'Ad-hoc';
+          const getTemplateKey = (r) => {
+            const name = getTemplateName(r);
+            const fallback = 'hdr_' + normalizedHeaderSig(r.data && r.data.headers);
+            if (name === 'Ad-hoc') return fallback;
+            return r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || fallback;
+          };
           const seen = new Map();
           collegeReports.forEach(r => {
             const k = getTemplateKey(r), n = getTemplateName(r);
@@ -3497,18 +3520,50 @@
           if (result.success && result.reports) {
             // Sort reports by date (newest first)
             const sortedReports = result.reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            // Helper to compute normalized template key for grouping
+            const normHeader = (h) => {
+              try {
+                return String(h || '')
+                  .replace(/\s*\[[^\]]+\]\s*$/, '')
+                  .replace(/\s*\([^)]*\)\s*$/, '')
+                  .trim()
+                  .toLowerCase();
+              } catch(_) { return String(h || ''); }
+            };
+            const normalizedHeaderSig = (arr) => {
+              try {
+                const cleaned = (Array.isArray(arr) ? arr : [])
+                  .map(normHeader)
+                  .filter(h => h && h !== 'department');
+                const unique = Array.from(new Set(cleaned)).sort();
+                return unique.join('|');
+              } catch(_) { return ''; }
+            };
+            const getTemplateName = (r) => r.templateName || (r.data && r.data.meta && r.data.meta.templateName) || 'Ad-hoc';
+            const getTemplateKey = (r) => {
+              const name = getTemplateName(r);
+              const fallback = 'hdr_' + normalizedHeaderSig(r.data && r.data.headers);
+              if (name === 'Ad-hoc') return fallback;
+              return r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || fallback;
+            };
             
-            // Find the current report index
-            const currentReportIndex = sortedReports.findIndex(r => new Date(r.createdAt).getTime() === new Date(currentReportDate).getTime());
-            
-            // Get the previous report (next in the array since it's sorted newest first)
-            if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
-              const previousReport = sortedReports[currentReportIndex + 1];
-              window.previousReportData = previousReport.data;
-              console.log('Loaded previous report for comparison:', previousReport.name, previousReport.createdAt);
+            // Find the current report and its template key
+            const currentIdx = sortedReports.findIndex(r => new Date(r.createdAt).getTime() === new Date(currentReportDate).getTime());
+            if (currentIdx >= 0) {
+              const currentReport = sortedReports[currentIdx];
+              const currentTK = getTemplateKey(currentReport);
+              // Search the next items (older ones) for same-template previous
+              const prevSame = sortedReports.slice(currentIdx + 1).find(r => String(getTemplateKey(r)) === String(currentTK));
+              if (prevSame) {
+                window.previousReportData = prevSame.data;
+                console.log('Loaded previous same-template report for comparison:', prevSame.name, prevSame.createdAt);
+              } else {
+                window.previousReportData = null; // no previous of same template
+                console.log('No previous same-template report found for comparison');
+              }
             } else {
               window.previousReportData = null;
-              console.log('No previous report found for comparison');
+              console.log('Current report not found in list for comparison');
             }
           } else {
             window.previousReportData = null;
@@ -3939,10 +3994,12 @@
                   changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
                 }
               } else {
-                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">N/A</span>`;
+                // No previous same-template data found, treat as baseline (0)
+                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
               }
             } else {
-              changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">N/A</span>`;
+              // No previous same-template report data available, treat as baseline (0)
+              changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
             }
             
             completeRowCells.push(`
@@ -4011,7 +4068,7 @@
         if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
           totalsRowCells.push(`
             <td class="px-2 py-4 whitespace-nowrap text-sm font-bold text-blue-600 border-r border-gray-100 text-center bg-gray-50">
-              ${window.previousReportData ? calculateTotalChange(originalColIdx, totals, window.previousReportData) : ''}
+              ${window.previousReportData ? calculateTotalChange(originalColIdx, totals, window.previousReportData) : '<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>'}
             </td>
           `);
         }
@@ -6055,21 +6112,58 @@
             </tr>
           `;
         } else {
-          // Group by templateKey (fallback to header signature)
-          const headerSig = (arr) => { try { return Array.isArray(arr) ? arr.join('|') : ''; } catch(_) { return ''; } };
-          const getTemplateKey = (r) => r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || ('hdr_' + headerSig(r.data && r.data.headers));
+          // Group by templateKey (fallback to normalized header signature)
+          const normHeader = (h) => {
+            try {
+              return String(h || '')
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim()
+                .toLowerCase();
+            } catch(_) { return String(h || ''); }
+          };
+          const normalizedHeaderSig = (arr) => {
+            try {
+              const cleaned = (Array.isArray(arr) ? arr : [])
+                .map(normHeader)
+                .filter(h => h && h !== 'department');
+              const unique = Array.from(new Set(cleaned)).sort();
+              return unique.join('|');
+            } catch(_) { return ''; }
+          };
           const getTemplateName = (r) => r.templateName || (r.data && r.data.meta && r.data.meta.templateName) || 'Ad-hoc';
+          const getTemplateKey = (r) => {
+            const name = getTemplateName(r);
+            const fallback = 'hdr_' + normalizedHeaderSig(r.data && r.data.headers);
+            if (name === 'Ad-hoc') return fallback;
+            return r.templateKey || (r.data && r.data.meta && r.data.meta.templateKey) || fallback;
+          };
           const groups = new Map();
+          const debugList = [];
+          const getTokens = (arr) => {
+            try {
+              const cleaned = (Array.isArray(arr) ? arr : [])
+                .map(normHeader)
+                .filter(h => h && h !== 'department');
+              return Array.from(new Set(cleaned)).sort();
+            } catch(_) { return []; }
+          };
           reportsToShow.forEach(r => {
             const k = getTemplateKey(r);
-            if (!groups.has(k)) groups.set(k, { name: getTemplateName(r), items: [] });
+            const n = getTemplateName(r);
+            if (!groups.has(k)) groups.set(k, { name: n, items: [] });
             groups.get(k).items.push(r);
+            // Collect debug info (id, name, createdAt, key length)
+            debugList.push({ id: r.id, name: r.name, createdAt: r.createdAt, templateName: n, key: String(k), keyLen: String(k).length, tokens: getTokens(r.data && r.data.headers) });
           });
+          try { if (new URLSearchParams(window.location.search).get('debugTpl') === '1') console.log('TEMPLATE GROUP DEBUG', debugList); } catch (_) {}
           const chunks = [];
           for (const [k, g] of groups.entries()) {
+            const showDebug = (() => { try { return new URLSearchParams(window.location.search).get('debugTpl') === '1'; } catch(_) { return false; } })();
+            const debugHint = showDebug ? `<span class=\"ml-2 text-xs text-gray-400\">key:${String(k).slice(0,16)}…</span>` : '';
             chunks.push(`
               <tr>
-                <td colspan="4" class="px-6 py-3 bg-gray-50 text-sm font-semibold text-gray-700 border-t border-gray-200">Template: ${g.name} <span class=\"ml-2 text-xs text-gray-500\">(${g.items.length} reports)</span></td>
+                <td colspan="4" class="px-6 py-3 bg-gray-50 text-sm font-semibold text-gray-700 border-t border-gray-200">Template: ${g.name} <span class=\"ml-2 text-xs text-gray-500\">(${g.items.length} reports)</span> ${debugHint}</td>
               </tr>
             `);
             g.items.forEach(report => {

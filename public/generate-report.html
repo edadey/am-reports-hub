@@ -469,7 +469,20 @@
     // Compute a stable signature for headers to act like a template key when no saved template is selected
     function computeHeaderSignature(headers) {
       try {
-        const s = Array.isArray(headers) ? headers.join('|') : String(headers || '');
+        const norm = (h) => {
+          try {
+            return String(h || '')
+              .replace(/\s*\[[^\]]+\]\s*$/, '')
+              .replace(/\s*\([^)]*\)\s*$/, '')
+              .trim()
+              .toLowerCase();
+          } catch(_) { return String(h || ''); }
+        };
+        const cleaned = (Array.isArray(headers) ? headers : [])
+          .map(norm)
+          .filter(h => h && h !== 'department');
+        const uniqueSorted = Array.from(new Set(cleaned)).sort();
+        const s = uniqueSorted.join('|');
         let hash = 0;
         for (let i = 0; i < s.length; i++) {
           hash = ((hash << 5) - hash) + s.charCodeAt(i);
@@ -2826,7 +2839,6 @@
                 
                 if (change !== 0) {
                   const changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
-                  // Green for increase, red for decrease, orange for no change
                   const changeColor = change > 0 ? 'text-green-600' : 'text-red-600';
                   const changeBg = change > 0 ? 'bg-green-100' : 'bg-red-100';
                   changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium ${changeBg} ${changeColor}">${changeText}</span>`;
@@ -2834,12 +2846,12 @@
                   changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
                 }
               } else {
-                // No previous data found, show neutral indicator
-                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
+                // No previous same-template data found, treat as baseline (0)
+                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
               }
             } else {
-              // No previous report data available, show neutral indicator
-              changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
+              // No previous same-template report data available, treat as baseline (0)
+              changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
             }
             
             completeRowCells.push(`
