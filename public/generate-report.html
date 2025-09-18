@@ -471,6 +471,14 @@
       } catch (_) { return 'hdr_unknown'; }
     }
 
+    // Return a user-facing version of a header without any trailing [FileLabel] suffix
+    // e.g., "Hours Scheduled to date [data1]" -> "Hours Scheduled to date"
+    function stripFileLabel(h) {
+      try {
+        return String(h || '').replace(/\s*\[[^\]]+\]\s*$/, '');
+      } catch(_) { return h; }
+    }
+
     // Success modal after report generation
     async function showReportSuccessDialog(name, collegeId, reportId, headers, rows, meta) {
       return new Promise((resolve) => {
@@ -2284,7 +2292,16 @@
         for (const key in headerFileMap) {
           if (key.startsWith(base + ' (')) return headerFileMap[key];
         }
-        // Fallback 2: resolve by [FileLabel] suffix
+        // Fallback 2: match by stripped [FileLabel] suffix
+        try {
+          const strippedH = stripFileLabel(h);
+          for (const key in headerFileMap) {
+            if (stripFileLabel(key) === strippedH) {
+              return headerFileMap[key];
+            }
+          }
+        } catch(_) {}
+        // Fallback 3: resolve by [FileLabel] suffix in the provided header
         const m = String(h).match(/\[([^\]]+)\]\s*$/);
         if (m && m[1] && Array.isArray(window.fileInfo)) {
           const label = m[1].trim();
@@ -2361,7 +2378,7 @@
             console.log(`Rendering original header "${h}" with default styling (no color found)`);
           }
           
-          return `<th class="${headerStyle}" style="${inlineStyle}">${h}</th>`;
+          return `<th class="${headerStyle}" style="${inlineStyle}">${stripFileLabel(h)}</th>`;
         } else {
           // Determine if this is a change column and get section color
           const isChangeColumn = h.endsWith(' +/-');
@@ -2386,7 +2403,8 @@
             ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colkey="${encodeURIComponent(originalHeader)}" ${selectedColumns.has(originalHeader) ? 'checked' : ''}>`
             : '';
           const draggable = editMode && !isChangeColumn ? 'draggable="true"' : '';
-          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${inline} !important;${accentStyle}; cursor:pointer;">${checkbox}${dot}${h}</th>`;
+          const displayText = isChangeColumn ? (stripFileLabel(originalHeader) + ' +/-') : stripFileLabel(originalHeader);
+          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${inline} !important;${accentStyle}; cursor:pointer;">${checkbox}${dot}${displayText}</th>`;
         }
       }).join('');
       
@@ -2748,16 +2766,20 @@
         const tKey = selectedTemplate ? String(selectedTemplate.id) : computeHeaderSignature(tableHeaders);
         const tName = selectedTemplate ? selectedTemplate.name : 'Ad-hoc';
 
+        // Build display headers without trailing [FileLabel] suffixes
+        const displayHeaders = (tableHeaders || []).map(h => stripFileLabel(h));
+
         // Build header color metadata to preserve preview styling in saved report
         const headerSections = {};
         const headerColorClasses = {};
         const headerHexColors = {};
         // Prefer explicit user assignments; otherwise infer from header content
         (tableHeaders || []).forEach((h, idx) => {
+          const disp = displayHeaders[idx];
           const sec = (window.headerAssignments && window.headerAssignments[h]) || getSectionType(h);
           const cls = SECTION_COLORS[sec] || SECTION_COLORS.default;
-          headerSections[h] = sec;
-          headerColorClasses[h] = cls; // e.g. 'bg-blue-100'
+          headerSections[disp] = sec;
+          headerColorClasses[disp] = cls; // e.g. 'bg-blue-100'
 
           // Derive Hex color preference order:
           // 1) Explicit file-level selection (from UI Apply) -> window.__fileLevelSelections
@@ -2785,9 +2807,9 @@
               if (m) {
                 const clean = hex.replace('#','');
                 const rgb = clean.length === 8 ? clean.slice(2) : clean;
-                headerHexColors[h] = `#${rgb.toUpperCase()}`;
+                headerHexColors[disp] = `#${rgb.toUpperCase()}`;
               } else if (/^#[0-9A-Fa-f]{6}$/.test(hex)) {
-                headerHexColors[h] = hex.toUpperCase();
+                headerHexColors[disp] = hex.toUpperCase();
               }
             }
           } catch(_) {}
@@ -2795,7 +2817,7 @@
 
         const response = await axios.post('/api/reports/generate', {
           collegeId: currentCollegeId,
-          reportData: { headers: tableHeaders, rows: tableData, meta: { headerSections, headerColorClasses, headerHexColors } },
+          reportData: { headers: displayHeaders, rows: tableData, meta: { headerSections, headerColorClasses, headerHexColors } },
           reportName: meta.name,
           summary: meta.summary,
           templateKey: tKey,
@@ -2808,7 +2830,7 @@
           try {
             const rpt = response.data.report;
             // Pass meta so Excel export can use saved colours
-            await showReportSuccessDialog(meta.name, currentCollegeId, rpt?.id, tableHeaders, tableData, { headerSections, headerColorClasses, headerHexColors });
+            await showReportSuccessDialog(meta.name, currentCollegeId, rpt?.id, displayHeaders, tableData, { headerSections, headerColorClasses, headerHexColors });
           } catch (_) {}
         } else {
           const err = response.data?.error || 'Unknown error';
@@ -3003,13 +3025,15 @@
 
           showStatus('Saving template...', 'info');
           try {
+            // Use display headers (without trailing [FileLabel]) for saved templates
+            const displayHeaders = (tableHeaders || []).map(h => stripFileLabel(h));
             const templateData = {
               templateName,
               templateDescription,
-              headers: tableHeaders,
+              headers: displayHeaders,
               tableData: tableData,
               processedData: { 
-                headers: tableHeaders, 
+                headers: displayHeaders, 
                 data: tableData, 
                 headerFileMap: (window.headerFileMap || headerFileMap || {}),
                 fileInfo: Array.isArray(window.fileInfo) ? window.fileInfo : []
@@ -3848,7 +3872,7 @@
             headerDiv.innerHTML = `
               <div class="font-medium text-sm text-gray-800 mb-1">
                 ${accent ? `<span class="file-accent-dot" data-file-idx="${fileIdx !== undefined ? fileIdx : ''}" style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : ''}
-                ${header}
+                ${stripFileLabel(header)}
               </div>
               <div class="text-xs text-gray-500 assignment-status">Click to assign</div>
             `;
@@ -4088,7 +4112,7 @@
       modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
       modal.innerHTML = `
         <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-          <h3 class="text-lg font-semibold mb-4">Assign "${header}" to Section</h3>
+          <h3 class="text-lg font-semibold mb-4">Assign "${stripFileLabel(header)}" to Section</h3>
           <div class="space-y-2 mb-6">
             ${Object.entries(sectionConfig).map(([key, config]) => `
               <button class="section-option w-full text-left p-3 border rounded-lg hover:bg-gray-50 transition-colors"
