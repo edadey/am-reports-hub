@@ -348,6 +348,14 @@
     } catch(e) { 
       console.warn('⚠️ Could not clear excelEditorData:', e.message); 
     }
+    // Also clear any previously saved per-file colour/type selections so a refresh resets colours
+    try {
+      localStorage.removeItem('fileLevelSelections');
+      window.__fileLevelSelections = {};
+      console.log('✅ Cleared fileLevelSelections to reset colours on refresh');
+    } catch(e) {
+      console.warn('⚠️ Could not clear fileLevelSelections:', e.message);
+    }
     let isSelectionMode = false; // legacy selection mode
     let editMode = false;        // new edit mode with checkboxes + drag and drop
     let selectedRows = new Set();
@@ -550,17 +558,35 @@
     // Resolve the file label for a given header using headerFileMap and fileInfo
     function getFileLabelForHeader(header) {
       try {
-        if (!header || !window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
+        if (!header) return null;
+        // 1) If the header already contains a [Label] suffix, extract it directly
+        const m = String(header).match(/\[([^\]]+)\]\s*$/);
+        if (m && m[1]) {
+          return m[1];
+        }
+        // 2) Otherwise, consult headerFileMap to find the originating file and return its label
+        if (!window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
         const base = String(header).replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
-        // Try multiple variants similar to renderTable()
         const candidates = [
           header,
           base,
-          base.replace(/ \(.*\)$/,'')
+          base.replace(/ \(.*\)$/,'').trim(),
+          `${base} (enrichment)`,
+          `${base} (employer)`,
+          `${base} (employment)`
         ];
         let idx;
+        // Try direct key hit first
         for (const k of candidates) {
           if (window.headerFileMap[k] !== undefined) { idx = window.headerFileMap[k]; break; }
+        }
+        // If not found, try case-insensitive lookup across keys
+        if (idx === undefined) {
+          const mapEntries = Object.entries(window.headerFileMap);
+          const lower = candidates.map(c => c.toLowerCase());
+          for (const [mk, mv] of mapEntries) {
+            if (lower.includes(String(mk).toLowerCase())) { idx = mv; break; }
+          }
         }
         if (idx === undefined || idx === null) return null;
         const fi = window.fileInfo[idx];
@@ -582,6 +608,89 @@
         const fi = window.fileInfo[idx];
         return fi && fi.contentType ? String(fi.contentType).toLowerCase() : null;
       } catch (_) { return null; }
+    }
+
+    // Unified cell value resolver for all sections (placements, assessments, careers, enrichment, employer engagement)
+    function resolveCellValue(header, dept, data) {
+      try {
+        const metrics = (data.metrics || {})[dept] || {};
+        const emp = data.activities?.employerEngagement?.[dept] || {};
+        const enr = data.activities?.enrichment?.[dept] || {};
+
+        const hasEmpSuffix = /\(Employer Engagement\)|\(Employer Activity\)/i.test(header);
+        const hasEnrSuffix = /\(Enrichment\)|\(Enrichment Activity\)/i.test(header);
+        const label = getFileLabelForHeader(header);
+
+        let base = String(header)
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .replace(/\s*\((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity|[^)]*)\)\s*$/i, '')
+          .trim();
+
+        const suffixEmp = ' (Employer Engagement)';
+        const suffixEnr = ' (Enrichment)';
+
+        // Build candidate variants in descending priority
+        const variantsFor = (b, lab, withEmp) => {
+          const sfx = withEmp ? suffixEmp : suffixEnr;
+          const arr = [];
+          if (lab) arr.push(`${b}${sfx} [${lab}]`);
+          if (lab) arr.push(`${b} [${lab}]`);
+          arr.push(`${b}${sfx}`);
+          arr.push(b);
+          return arr;
+        };
+
+        // Resolve activity type hint from header or mapping
+        let t = hasEmpSuffix ? 'employer' : (hasEnrSuffix ? 'enrichment' : '');
+        if (!t) {
+          const mapped = getContentTypeForHeader(header);
+          if (mapped === 'employment' || mapped === 'employer') t = 'employer';
+          else if (mapped === 'enrichment') t = 'enrichment';
+        }
+
+        // Activity lookups
+        if (t === 'employer' || t === 'enrichment') {
+          const map = (t === 'employer') ? emp : enr;
+          const otherMap = (t === 'employer') ? enr : emp;
+          const primary = variantsFor(base, label, t === 'employer');
+          for (const k of primary) { if (map[k] !== undefined) return map[k]; }
+          // Cross-activity fallback if type inference was off
+          for (const k of primary) { if (otherMap[k] !== undefined) return otherMap[k]; }
+          // Fuzzy: strip [label] and any (...) from keys
+          const baseLower = base.toLowerCase();
+          const fuzzyFind = obj => {
+            const mk = Object.keys(obj).find(k => {
+              const stripped = k
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim().toLowerCase();
+              if (stripped === baseLower) return true;
+              if (stripped.endsWith('s') && stripped.slice(0, -1) === baseLower) return true;
+              if (baseLower.endsWith('s') && baseLower.slice(0, -1) === stripped) return true;
+              return false;
+            });
+            return mk ? obj[mk] : undefined;
+          };
+          const fuzzyPrimary = fuzzyFind(map);
+          if (fuzzyPrimary !== undefined) return fuzzyPrimary;
+          const fuzzyOther = fuzzyFind(otherMap);
+          if (fuzzyOther !== undefined) return fuzzyOther;
+          return '';
+        }
+
+        // Regular metrics (placements, assessments, careers, etc.)
+        const type = getContentTypeForHeader(header);
+        const base2 = String(header).replace(/ \([^)]*\)$/, '').trim();
+        const candidates = [];
+        if (type && label) candidates.push(`${base2} (${type}) [${label}]`);
+        if (label) candidates.push(`${base2} [${label}]`);
+        if (type) candidates.push(`${base2} (${type})`);
+        candidates.push(base2);
+        for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+        return '';
+      } catch (e) {
+        return '';
+      }
     }
 
     // Load initial data
@@ -1456,7 +1565,18 @@
                   const idx = parseInt(k); const sel = window.__fileLevelSelections[k];
                   if (!isNaN(idx) && window.fileInfo[idx]) {
                     if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
-                    if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
+                    // Preserve activity types; only override when not an activity or when types match
+                    try {
+                      const origType = (window.fileInfo[idx].contentType || '').toLowerCase();
+                      const newType = (sel && sel.type) ? String(sel.type).toLowerCase() : '';
+                      const isActivity = origType === 'enrichment' || origType === 'employment' || origType === 'employer';
+                      const matchesActivity = (isActivity && (newType === origType || (origType === 'employment' && newType === 'employer')));
+                      if (!isActivity) {
+                        if (newType) window.fileInfo[idx].contentType = newType;
+                      } else if (matchesActivity) {
+                        window.fileInfo[idx].contentType = (newType === 'employer') ? 'employment' : origType;
+                      }
+                    } catch(_) {}
                   }
                 });
               }
@@ -1586,7 +1706,19 @@
             const sel = window.__fileLevelSelections[k];
             if (!isNaN(idx) && window.fileInfo[idx]) {
               if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
-              if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
+              // Preserve detected activity types; only override when not an activity or when types match
+              try {
+                const origType = (window.fileInfo[idx].contentType || '').toLowerCase();
+                const newType = (sel && sel.type) ? String(sel.type).toLowerCase() : '';
+                const isActivity = origType === 'enrichment' || origType === 'employment' || origType === 'employer';
+                const matchesActivity = (isActivity && (newType === origType || (origType === 'employment' && newType === 'employer')));
+                if (!isActivity) {
+                  if (newType) window.fileInfo[idx].contentType = newType;
+                } else if (matchesActivity) {
+                  // normalise employer -> employment
+                  window.fileInfo[idx].contentType = (newType === 'employer') ? 'employment' : origType;
+                }
+              } catch(_) {}
             }
           });
         }
@@ -1729,27 +1861,10 @@
           
           // Build table data
           tableData = data.departments.map(dept => {
-            const row = [dept]; // Department column
-            
-            // Add regular metrics
-            const metrics = data.metrics[dept] || {};
+            const row = [dept];
             tableHeaders.slice(1).forEach(header => {
-              // Normalize header for lookups: remove activity suffixes and bracketed file labels
-              const isEmployer = header.includes('(Employer Engagement)') || header.includes('(Employer Activity)');
-              const isEnrichment = header.includes('(Enrichment)') || header.includes('(Enrichment Activity)');
-              let baseHeader = header.replace(/ \((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity)\)/, '');
-              baseHeader = baseHeader.replace(/\s*\[[^\]]+\]\s*$/, '');
-              if (isEmployer || isEnrichment) {
-                // Handle activity columns
-                const activityType = isEmployer ? 'employerEngagement' : 'enrichment';
-                const activityData = data.activities?.[activityType]?.[dept] || {};
-                row.push(activityData[baseHeader] ?? '');
-              } else {
-                // Handle regular metrics
-                row.push(metrics[baseHeader] ?? metrics[header] ?? '');
-              }
+              row.push(resolveCellValue(header, dept, data));
             });
-            
             return row;
           });
           
@@ -1784,35 +1899,8 @@
           // Build table data following the headers as-is
           tableData = data.departments.map(dept => {
             const row = [dept];
-            const metrics = data.metrics[dept] || {};
             tableHeaders.slice(1).forEach(header => {
-              // Activities: keys are stored with [FileLabel] in activities maps
-              if (header.includes('(Employer Engagement)') || header.includes('(Enrichment)')) {
-                const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
-                const baseHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
-                const label = getFileLabelForHeader(header);
-                const activityData = data.activities?.[activityType]?.[dept] || {};
-                const withLabel = label ? `${baseHeader} [${label}]` : null;
-                const val = (withLabel && activityData[withLabel] !== undefined)
-                  ? activityData[withLabel]
-                  : (activityData[baseHeader] !== undefined ? activityData[baseHeader] : '');
-                row.push(val);
-              } else {
-                // Regular metrics: keys are stored as `${metric} (${contentType}) [${label}]`
-                const type = getContentTypeForHeader(header);
-                const label = getFileLabelForHeader(header);
-                const base = String(header).replace(/ \([^)]*\)$/, '').trim();
-                const variants = [];
-                if (type && label) variants.push(`${base} (${type}) [${label}]`);
-                if (label) variants.push(`${base} [${label}]`);
-                if (type) variants.push(`${base} (${type})`);
-                variants.push(base);
-                let value = '';
-                for (const k of variants) {
-                  if (metrics[k] !== undefined) { value = metrics[k]; break; }
-                }
-                row.push(value);
-              }
+              row.push(resolveCellValue(header, dept, data));
             });
             return row;
           });
@@ -2497,8 +2585,48 @@
             headerStyle += ' bg-gray-50';
             console.log(`Rendering original header "${h}" with default styling (no color found)`);
           }
+          // Ensure activity headers display section suffix even in original-headers mode
+          const isChange = h.endsWith(' +/-');
+          const baseH = isChange ? h.replace(' +/-', '') : h;
+          const baseDisp = stripFileLabel(baseH);
+          const hasSuffix = /\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)/i.test(baseDisp);
+          let displayText;
+          if (!hasSuffix) {
+            // Determine type via fileIndex -> fileInfo and activityHeaderTypeMap
+            let t = '';
+            try {
+              const idx = (typeof getHeaderFileIndex === 'function') ? getHeaderFileIndex(baseH) : undefined;
+              const fiType = (Array.isArray(window.fileInfo) && window.fileInfo[idx] && window.fileInfo[idx].contentType) ? String(window.fileInfo[idx].contentType).toLowerCase() : '';
+              if (fiType) t = fiType;
+            } catch(_) {}
+            if (!t || t === 'activities' || t === 'default') {
+              try {
+                const b = baseDisp.replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '');
+                const map = window.activityHeaderTypeMap || {};
+                let foundType = '';
+                Object.keys(map).some(k => {
+                  const stripped = String(k)
+                    .replace(/\s*\[[^\]]+\]\s*$/, '')
+                    .replace(/\s*\([^)]*\)\s*$/, '');
+                  if (stripped === b) { foundType = map[k]; return true; }
+                  return false;
+                });
+                if (foundType) t = foundType;
+              } catch(_) {}
+            }
+            if (t === 'employment' || t === 'employer') {
+              displayText = `${baseDisp} (Employer Engagement)`;
+            } else if (t === 'enrichment') {
+              displayText = `${baseDisp} (Enrichment)`;
+            } else {
+              displayText = baseDisp;
+            }
+          } else {
+            displayText = baseDisp;
+          }
+          if (isChange) displayText += ' +/-';
           
-          return `<th class="${headerStyle}" style="${inlineStyle}">${stripFileLabel(h)}</th>`;
+          return `<th class="${headerStyle}" style="${inlineStyle}">${displayText}</th>`;
         } else {
           // Determine if this is a change column and get section color
           const isChangeColumn = h.endsWith(' +/-');
@@ -2523,7 +2651,81 @@
             ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colkey="${encodeURIComponent(originalHeader)}" ${selectedColumns.has(originalHeader) ? 'checked' : ''}>`
             : '';
           const draggable = editMode && !isChangeColumn ? 'draggable="true"' : '';
-          const displayText = isChangeColumn ? (stripFileLabel(originalHeader) + ' +/-') : stripFileLabel(originalHeader);
+          // Build display text: keep header key intact, but ensure activity columns show the section name
+          let displayText;
+          const baseDisp = stripFileLabel(originalHeader);
+          if (isChangeColumn) {
+            // Determine type for +/- companion as well
+            let t = (sectionInfo && sectionInfo.contentType) ? String(sectionInfo.contentType).toLowerCase() : '';
+            if (!t || t === 'activities' || t === 'default') {
+              try {
+                const idx = getHeaderFileIndex(originalHeader);
+                const fiType = (Array.isArray(window.fileInfo) && window.fileInfo[idx] && window.fileInfo[idx].contentType) ? String(window.fileInfo[idx].contentType).toLowerCase() : '';
+                if (fiType) t = fiType;
+              } catch(_) {}
+            }
+            if (!t || t === 'activities' || t === 'default') {
+              try {
+                const b = baseDisp.replace(/\s*\[[^\]]+\]\s*$/, '');
+                const map = window.activityHeaderTypeMap || {};
+                let foundType = '';
+                Object.keys(map).some(k => {
+                  const stripped = String(k).replace(/\s*\[[^\]]+\]\s*$/, '');
+                  if (stripped === b) { foundType = map[k]; return true; }
+                  return false;
+                });
+                if (foundType) t = foundType;
+              } catch(_) {}
+            }
+            if (/\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)/i.test(baseDisp)) {
+              displayText = baseDisp + ' +/-';
+            } else if (t === 'employment' || t === 'employer') {
+              displayText = `${baseDisp} (Employer Engagement) +/-`;
+            } else if (t === 'enrichment') {
+              displayText = `${baseDisp} (Enrichment) +/-`;
+            } else {
+              displayText = baseDisp + ' +/-';
+            }
+          } else {
+            const hasSuffix = /\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)/i.test(baseDisp);
+            if (!hasSuffix) {
+              // Determine type robustly: sectionInfo -> file index -> activity map
+              let t = (sectionInfo && sectionInfo.contentType) ? String(sectionInfo.contentType).toLowerCase() : '';
+              if (!t || t === 'activities' || t === 'default') {
+                // Try file-based detection
+                try {
+                  const idx = getHeaderFileIndex(originalHeader);
+                  const fiType = (Array.isArray(window.fileInfo) && window.fileInfo[idx] && window.fileInfo[idx].contentType) ? String(window.fileInfo[idx].contentType).toLowerCase() : '';
+                  if (fiType) t = fiType;
+                } catch(_) {}
+              }
+              if (!t || t === 'activities' || t === 'default') {
+                // Try activity header type map (using base without [Label] or (suffix))
+                try {
+                  const b = baseDisp.replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '');
+                  const map = window.activityHeaderTypeMap || {};
+                  let foundType = '';
+                  Object.keys(map).some(k => {
+                    const stripped = String(k)
+                      .replace(/\s*\[[^\]]+\]\s*$/, '')
+                      .replace(/\s*\([^)]*\)\s*$/, '');
+                    if (stripped === b) { foundType = map[k]; return true; }
+                    return false;
+                  });
+                  if (foundType) t = foundType;
+                } catch(_) {}
+              }
+              if (t === 'employment' || t === 'employer') {
+                displayText = `${baseDisp} (Employer Engagement)`;
+              } else if (t === 'enrichment') {
+                displayText = `${baseDisp} (Enrichment)`;
+              } else {
+                displayText = baseDisp;
+              }
+            } else {
+              displayText = baseDisp;
+            }
+          }
           return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${inline} !important;${accentStyle}; cursor:pointer;">${checkbox}${dot}${displayText}</th>`;
         }
       }).join('');
@@ -3028,7 +3230,18 @@
                     const idx = parseInt(k); const sel = window.__fileLevelSelections[k];
                     if (!isNaN(idx) && window.fileInfo[idx]) {
                       if (sel && sel.color) window.fileInfo[idx].customColor = sel.color;
-                      if (sel && sel.type) window.fileInfo[idx].contentType = sel.type;
+                      // Preserve activity types; only override when not an activity or when types match
+                      try {
+                        const origType = (window.fileInfo[idx].contentType || '').toLowerCase();
+                        const newType = (sel && sel.type) ? String(sel.type).toLowerCase() : '';
+                        const isActivity = origType === 'enrichment' || origType === 'employment' || origType === 'employer';
+                        const matchesActivity = (isActivity && (newType === origType || (origType === 'employment' && newType === 'employer')));
+                        if (!isActivity) {
+                          if (newType) window.fileInfo[idx].contentType = newType;
+                        } else if (matchesActivity) {
+                          window.fileInfo[idx].contentType = (newType === 'employer') ? 'employment' : origType;
+                        }
+                      } catch(_) {}
                     }
                   });
                 }
@@ -3991,10 +4204,25 @@
             const headerDiv = document.createElement('div');
             headerDiv.className = 'header-item p-3 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors';
             headerDiv.dataset.header = header;
+            // Compute display name with section suffix so activity tables are distinguishable
+            let baseName = stripFileLabel(header);
+            try {
+              let t = getContentTypeForHeader(header);
+              // If not resolved via mapping, infer from current file selection
+              if ((!t || t === 'default' || t === 'activities') && Array.isArray(window.fileInfo) && fileIdx !== undefined) {
+                const ft = (window.fileInfo[fileIdx] && window.fileInfo[fileIdx].contentType) ? String(window.fileInfo[fileIdx].contentType).toLowerCase() : '';
+                t = ft || t;
+              }
+              const hasSuffix = /(Employer Engagement|Enrichment)/i.test(baseName);
+              if (!hasSuffix) {
+                if (t === 'employment' || t === 'employer') baseName += ' (Employer Engagement)';
+                else if (t === 'enrichment') baseName += ' (Enrichment)';
+              }
+            } catch(_) {}
             headerDiv.innerHTML = `
               <div class="font-medium text-sm text-gray-800 mb-1">
                 ${accent ? `<span class="file-accent-dot" data-file-idx="${fileIdx !== undefined ? fileIdx : ''}" style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : ''}
-                ${stripFileLabel(header)}
+                ${baseName}
               </div>
               <div class="text-xs text-gray-500 assignment-status">Click to assign</div>
             `;
@@ -4136,10 +4364,80 @@
           headerAssignments[h] = sectionKey;
           updateHeaderCardVisual(h, sectionKey, color);
         });
+        // Extend headerFileMap with typed and synonym variants for robust lookups
+        try {
+          const normType = (sectionKey === 'employer') ? 'employment' : sectionKey;
+          const addKey = (k) => { if (k && map[k] === undefined) map[k] = fileIdx; };
+          affected.forEach(h => {
+            const base = String(h).replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+            // Try to recover label text from original key if present
+            const labelMatch = String(h).match(/\[([^\]]+)\]\s*$/);
+            const label = labelMatch && labelMatch[1] ? labelMatch[1] : null;
+            const typed = `${base} (${normType})`;
+            const empEng = `${base} (Employer Engagement)`;
+            const empAct = `${base} (Employer Activity)`;
+            const enr = `${base} (Enrichment)`;
+            [typed, empEng, empAct, enr, base].forEach(k => addKey(k));
+            if (label) {
+              [
+                `${typed} [${label}]`,
+                `${empEng} [${label}]`,
+                `${empAct} [${label}]`,
+                `${enr} [${label}]`,
+                `${base} [${label}]`
+              ].forEach(k => addKey(k));
+            }
+          });
+        } catch(_) {}
+
+        // Mirror the same augmentation onto the fully processed dataset so header rebuilding preserves columns
+        try {
+          const lpd = window.latestProcessedData;
+          if (lpd && lpd.headerFileMap && typeof lpd.headerFileMap === 'object') {
+            const normType2 = (sectionKey === 'employer') ? 'employment' : sectionKey;
+            const addKey2 = (k) => { if (k && lpd.headerFileMap[k] === undefined) lpd.headerFileMap[k] = fileIdx; };
+            // Determine headers belonging to this file within the processed dataset
+            const affected2 = Object.keys(lpd.headerFileMap).filter(k => lpd.headerFileMap[k] === fileIdx);
+            affected2.forEach(h => {
+              const base = String(h).replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+              const labelMatch = String(h).match(/\[([^\]]+)\]\s*$/);
+              const label = labelMatch && labelMatch[1] ? labelMatch[1] : null;
+              const typed = `${base} (${normType2})`;
+              const empEng = `${base} (Employer Engagement)`;
+              const empAct = `${base} (Employer Activity)`;
+              const enr = `${base} (Enrichment)`;
+              [typed, empEng, empAct, enr, base].forEach(k => addKey2(k));
+              if (label) {
+                [
+                  `${typed} [${label}]`,
+                  `${empEng} [${label}]`,
+                  `${empAct} [${label}]`,
+                  `${enr} [${label}]`,
+                  `${base} [${label}]`
+                ].forEach(k => addKey2(k));
+              }
+            });
+          }
+        } catch(_) {}
         // Persist chosen colour on extractedData.fileInfo so other UI (e.g., dots, legends) can read it
         try {
           if (extractedData && extractedData.fileInfo && extractedData.fileInfo[fileIdx]) {
             extractedData.fileInfo[fileIdx].customColor = color;
+            // Also update content type immediately so activity tables render data without waiting for server
+            const normType = (sectionKey === 'employer') ? 'employment' : sectionKey;
+            extractedData.fileInfo[fileIdx].contentType = normType;
+          }
+          if (Array.isArray(window.fileInfo) && window.fileInfo[fileIdx]) {
+            window.fileInfo[fileIdx].customColor = color;
+            const normType = (sectionKey === 'employer') ? 'employment' : sectionKey;
+            window.fileInfo[fileIdx].contentType = normType;
+          }
+        } catch(_) {}
+        // Also update processed dataset fileInfo contentType if present
+        try {
+          if (window.latestProcessedData && Array.isArray(window.latestProcessedData.fileInfo) && window.latestProcessedData.fileInfo[fileIdx]) {
+            const normType = (sectionKey === 'employer') ? 'employment' : sectionKey;
+            window.latestProcessedData.fileInfo[fileIdx].contentType = normType;
           }
         } catch(_) {}
         // Update all accent dots for this file index
@@ -4152,6 +4450,18 @@
         if (!window.__fileLevelSelections) window.__fileLevelSelections = {};
         window.__fileLevelSelections[fileIdx] = { type: sectionKey, color };
         showStatus(`Applied ${sectionKey} to ${affected.length} headers for file #${fileIdx + 1}`, 'success');
+        // Refresh view safely. Only rebuild from a fully processed dataset (if available).
+        try {
+          window.previewingTemplateRows = false;
+          if (window.latestProcessedData && Array.isArray(window.latestProcessedData.departments)) {
+            adaptTableToData(window.latestProcessedData);
+          } else {
+            // No full data yet (header-only mode). Just refresh the legend/cards and keep existing table.
+            renderTable();
+          }
+        } catch(e) {
+          console.warn('Could not refresh table after assignment:', e?.message || e);
+        }
       } catch (e) {
         console.warn('applyAssignmentsForFileIndex failed:', e?.message || e);
       }
@@ -4336,8 +4646,49 @@
         formData.append('files', file);
       }
       
-      // Add header assignments
-      formData.append('headerAssignments', JSON.stringify(headerAssignments));
+      // Build normalised header assignments:
+      // - Keys must be the raw headers as they appear in the sheet (no [Label], no (Type) suffix)
+      // - Also propagate per-file dropdown selections to all original headers of that file
+      try {
+        const normalised = {};
+        const baseOf = (h) => String(h || '')
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .replace(/\s*\([^)]*\)\s*$/, '')
+          .trim();
+        // 1) Normalise any manual per-header assignments the user made by clicking header cards
+        Object.keys(headerAssignments || {}).forEach(k => {
+          const base = baseOf(k);
+          if (base) normalised[base] = headerAssignments[k];
+        });
+        // 2) Overlay per-file selections for all file headers so assignment applies broadly
+        if (extractedData && extractedData.headerFileMap && window.__fileLevelSelections) {
+          // If originalHeaders are present, prefer them; otherwise derive from headerFileMap keys
+          const byFile = {};
+          Object.keys(extractedData.headerFileMap).forEach(k => {
+            const fi = extractedData.headerFileMap[k];
+            if (fi === undefined || fi === null) return;
+            if (!byFile[fi]) byFile[fi] = new Set();
+            byFile[fi].add(baseOf(k));
+          });
+          Object.keys(window.__fileLevelSelections).forEach(fiKey => {
+            const fi = parseInt(fiKey, 10);
+            if (Number.isNaN(fi)) return;
+            const sel = window.__fileLevelSelections[fiKey];
+            const t = sel && sel.type ? String(sel.type).toLowerCase() : '';
+            if (!t) return;
+            const headersForFile = byFile[fi] || new Set();
+            headersForFile.forEach(hBase => {
+              if (!hBase || /^\d+$/.test(hBase) || hBase.toLowerCase() === 'department') return;
+              normalised[hBase] = t; // For employer/enrichment this drives activities routing
+            });
+          });
+        }
+        console.log('Normalised header assignments to send:', normalised);
+        formData.append('headerAssignments', JSON.stringify(normalised));
+      } catch (e) {
+        console.warn('Failed to normalise header assignments, sending raw:', e?.message || e);
+        formData.append('headerAssignments', JSON.stringify(headerAssignments || {}));
+      }
       // Include file-level selections (section + color per file) for backend coloring/ordering
       try {
         const fileSelections = getFileLevelSelectionsFromUI();
