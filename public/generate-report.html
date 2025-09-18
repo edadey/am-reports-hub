@@ -9,7 +9,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <!-- Version: 2025-09-09-14:15 - Force browser refresh -->
+  <!-- Version: 2025-09-18-12:14 - Header strip patch -->
   <style>
     /* Custom styles for table headers to ensure background colors are applied */
     .bg-blue-100 { background-color: #dbeafe !important; }
@@ -545,6 +545,43 @@
         console.error('Auth check failed:', error);
         window.location.href = '/login';
       }
+    }
+
+    // Resolve the file label for a given header using headerFileMap and fileInfo
+    function getFileLabelForHeader(header) {
+      try {
+        if (!header || !window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
+        const base = String(header).replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
+        // Try multiple variants similar to renderTable()
+        const candidates = [
+          header,
+          base,
+          base.replace(/ \(.*\)$/,'')
+        ];
+        let idx;
+        for (const k of candidates) {
+          if (window.headerFileMap[k] !== undefined) { idx = window.headerFileMap[k]; break; }
+        }
+        if (idx === undefined || idx === null) return null;
+        const fi = window.fileInfo[idx];
+        return fi && (fi.label || fi.originalName || fi.filename) ? (fi.label || fi.originalName || fi.filename) : null;
+      } catch (_) { return null; }
+    }
+
+    // Resolve the content type for a given header using headerFileMap -> fileInfo
+    function getContentTypeForHeader(header) {
+      try {
+        if (!header || !window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
+        const base = String(header).replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
+        const candidates = [header, base, base.replace(/ \(.*\)$/,'')];
+        let idx;
+        for (const k of candidates) {
+          if (window.headerFileMap[k] !== undefined) { idx = window.headerFileMap[k]; break; }
+        }
+        if (idx === undefined || idx === null) return null;
+        const fi = window.fileInfo[idx];
+        return fi && fi.contentType ? String(fi.contentType).toLowerCase() : null;
+      } catch (_) { return null; }
     }
 
     // Load initial data
@@ -1718,42 +1755,12 @@
           
           console.log('Table data built:', tableData.length, 'rows');
         } else {
-          console.log('adaptTableToData: No template selected, building from data');
-          // Build headers with proper section organization
-          const allHeaders = new Set();
-          
-          // Add regular metrics
-          data.departments.forEach(dept => {
-            const metrics = data.metrics[dept] || {};
-            Object.keys(metrics).forEach(key => {
-              if (key !== 'Department') {
-                allHeaders.add(key);
-              }
-            });
-          });
-          
-          // Add activity metrics
-          console.log('Processing activity metrics...');
-          data.departments.forEach(dept => {
-            const employerEngagement = data.activities?.employerEngagement?.[dept] || {};
-            const enrichment = data.activities?.enrichment?.[dept] || {};
-            
-            console.log(`Department ${dept} - Employer Engagement keys:`, Object.keys(employerEngagement));
-            console.log(`Department ${dept} - Enrichment keys:`, Object.keys(enrichment));
-            
-            Object.keys(employerEngagement).forEach(key => {
-              allHeaders.add(`${key} (Employer Engagement)`);
-            });
-            
-            Object.keys(enrichment).forEach(key => {
-              allHeaders.add(`${key} (Enrichment)`);
-            });
-          });
-          
-          console.log('All headers found:', Array.from(allHeaders));
-          console.log('All headers found (detailed):', Array.from(allHeaders).map(h => ({ header: h, type: h.includes('(Employer Engagement)') ? 'employer' : h.includes('(Enrichment)') ? 'enrichment' : 'other' })));
-          
-          // Build a map of activity header -> type using actual data to aid classification
+          console.log('adaptTableToData: No template selected, building from data with strict original file order');
+
+          // Build headers strictly preserving per-file original order
+          tableHeaders = buildHeadersPreservingOriginalFileOrder(data);
+
+          // Build a map of activity header -> type using actual data to aid classification (for coloring only)
           try {
             const employerSet = new Set();
             const enrichmentSet = new Set();
@@ -1770,46 +1777,46 @@
           } catch (e) {
             console.warn('Failed to build activityHeaderTypeMap:', e?.message || e);
           }
-          
-          // Organize headers by section
-          const organizedHeaders = organizeHeadersBySection(['Department', ...Array.from(allHeaders)]);
-          tableHeaders = reorderHeadersByFile(organizedHeaders);
-          
-          // Update headerFileMap for any missing headers
-          if (Object.keys(headerFileMap).length === 0) {
-            console.log('Creating fallback headerFileMap');
-            tableHeaders.forEach((header, index) => {
-              if (header !== 'Department' && !headerFileMap.hasOwnProperty(header)) {
-                headerFileMap[header] = Math.floor(index / 5); // Distribute across files
-              }
-            });
-          }
-          
-          console.log('Organized headers:', tableHeaders);
+
+          console.log('Headers (original order):', tableHeaders);
           console.log('Final headerFileMap:', headerFileMap);
-          
-          // Build table data
+
+          // Build table data following the headers as-is
           tableData = data.departments.map(dept => {
-            const row = [dept]; // Department column
-            
-            // Add regular metrics
+            const row = [dept];
             const metrics = data.metrics[dept] || {};
             tableHeaders.slice(1).forEach(header => {
+              // Activities: keys are stored with [FileLabel] in activities maps
               if (header.includes('(Employer Engagement)') || header.includes('(Enrichment)')) {
-                // Handle activity columns
                 const activityType = header.includes('(Employer Engagement)') ? 'employerEngagement' : 'enrichment';
-                const cleanHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '');
+                const baseHeader = header.replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
+                const label = getFileLabelForHeader(header);
                 const activityData = data.activities?.[activityType]?.[dept] || {};
-                row.push(activityData[cleanHeader] ?? '');
+                const withLabel = label ? `${baseHeader} [${label}]` : null;
+                const val = (withLabel && activityData[withLabel] !== undefined)
+                  ? activityData[withLabel]
+                  : (activityData[baseHeader] !== undefined ? activityData[baseHeader] : '');
+                row.push(val);
               } else {
-                // Handle regular metrics
-                row.push(metrics[header] ?? '');
+                // Regular metrics: keys are stored as `${metric} (${contentType}) [${label}]`
+                const type = getContentTypeForHeader(header);
+                const label = getFileLabelForHeader(header);
+                const base = String(header).replace(/ \([^)]*\)$/, '').trim();
+                const variants = [];
+                if (type && label) variants.push(`${base} (${type}) [${label}]`);
+                if (label) variants.push(`${base} [${label}]`);
+                if (type) variants.push(`${base} (${type})`);
+                variants.push(base);
+                let value = '';
+                for (const k of variants) {
+                  if (metrics[k] !== undefined) { value = metrics[k]; break; }
+                }
+                row.push(value);
               }
             });
-            
             return row;
           });
-          
+
           console.log('Table data built:', tableData.length, 'rows');
         }
         
@@ -1951,6 +1958,119 @@
       } catch (e) {
         console.warn('reorderHeadersByFile failed, returning original order:', e?.message || e);
         return headers;
+      }
+    }
+
+    // Build headers preserving the strict original per-file column order
+    // Uses processed data: originalHeaders (first-seen order), headerFileMap (header -> fileIdx), and fileInfo (upload order)
+    function buildHeadersPreservingOriginalFileOrder(data) {
+      try {
+        const out = ['Department'];
+        const seen = new Set(out);
+
+        const hasFiles = Array.isArray(data?.fileInfo) && data.fileInfo.length > 0;
+        const hasMap = data && data.headerFileMap && typeof data.headerFileMap === 'object';
+        const hasOriginal = Array.isArray(data?.originalHeaders) && data.originalHeaders.length > 0;
+
+        if (!hasFiles || !hasMap) {
+          // Fallback to current behavior if required structures are missing
+          return out;
+        }
+
+        // Helper to map content type to activity suffix expected by the front-end rows builder
+        function activitySuffixForType(t) {
+          const tt = String(t || '').toLowerCase();
+          if (tt === 'employment' || tt === 'employer') return ' (Employer Engagement)';
+          if (tt === 'enrichment') return ' (Enrichment)';
+          return '';
+        }
+
+        // Iterate files in upload order
+        for (let fileIdx = 0; fileIdx < data.fileInfo.length; fileIdx++) {
+          const info = data.fileInfo[fileIdx] || {};
+          const suffix = activitySuffixForType(info.contentType);
+
+          if (hasOriginal) {
+            // Walk original headers in their recorded first-seen order
+            for (const h of data.originalHeaders) {
+              if (!h) continue;
+              const hs = String(h).trim();
+              if (!hs || hs.toLowerCase() === 'department' || /^[0-9]+$/.test(hs)) continue;
+              // Prefer file-specific mapping to avoid collisions across files
+              const label = (data.fileInfo[fileIdx] && (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename))
+                ? (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename)
+                : null;
+              let type = (data.fileInfo[fileIdx] && data.fileInfo[fileIdx].contentType) ? String(data.fileInfo[fileIdx].contentType).toLowerCase() : '';
+              if (type === 'employer') type = 'employment';
+
+              // Build candidate keys that DataImporter added to headerFileMap
+              const typed = type ? `${hs} (${type})` : null;
+              const employerSyn = `${hs} (employer engagement)`;
+              const employerActSyn = `${hs} (employer activity)`;
+              const enrichSyn = `${hs} (enrichment)`;
+              const candidates = [
+                // Most specific: typed + label
+                (label && typed) ? `${typed} [${label}]` : null,
+                // Labelled without type
+                label ? `${hs} [${label}]` : null,
+                // Type-only variations
+                typed,
+                // Synonyms for activities
+                (type === 'employment') ? employerSyn : null,
+                (type === 'employment') ? employerActSyn : null,
+                (type === 'enrichment') ? enrichSyn : null,
+                // Raw header last
+                hs
+              ].filter(Boolean);
+
+              let belongsToThisFile = false;
+              for (const key of candidates) {
+                if (data.headerFileMap[key] === fileIdx) { belongsToThisFile = true; break; }
+              }
+
+              if (belongsToThisFile) {
+                const labelOut = (data.fileInfo[fileIdx] && (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename))
+                  ? (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename)
+                  : null;
+                const baseOut = suffix ? `${hs}${suffix}` : hs;
+                const headerOut = labelOut ? `${baseOut} [${labelOut}]` : baseOut;
+                if (!seen.has(headerOut)) {
+                  out.push(headerOut);
+                  seen.add(headerOut);
+                }
+              }
+            }
+          } else {
+            // Fallback: derive from headerFileMap keys belonging to this file
+            const keys = Object.keys(data.headerFileMap)
+              .filter(k => data.headerFileMap[k] === fileIdx)
+              // Prefer base headers without [Label] and without any typed duplicates
+              .map(k => String(k).replace(/\s*\[[^\]]+\]\s*$/, ''));
+            // Maintain stable order by first appearance
+            const orderedUnique = [];
+            const added = new Set();
+            for (const k of keys) {
+              const base = k;
+              if (!added.has(base)) {
+                added.add(base);
+                orderedUnique.push(base);
+              }
+            }
+            for (const base of orderedUnique) {
+              if (!base || base.toLowerCase() === 'department' || /^[0-9]+$/.test(base)) continue;
+              const headerOut = suffix ? `${base}${suffix}` : base;
+              if (!seen.has(headerOut)) {
+                out.push(headerOut);
+                seen.add(headerOut);
+              }
+            }
+          }
+        }
+
+        return out;
+      } catch (e) {
+        console.warn('buildHeadersPreservingOriginalFileOrder failed:', e?.message || e);
+        return ['Department'];
       }
     }
 
@@ -2410,6 +2530,8 @@
       
       const selectHeaderCell = editMode ? `<th class="px-2 py-3 text-left text-xs font-medium text-gray-700">Sel</th>` : '';
       headerHTML += `<tr>${selectHeaderCell}${headerCells}</tr>`;
+      // Final safety: strip any trailing [Label] right before closing th, in case any slipped through
+      try { headerHTML = headerHTML.replace(/\s*\[[^\]]+\](?=\s*<\/th>)/gi, ''); } catch(_) {}
       header.innerHTML = headerHTML;
       
       // Render body with proper column alignment
