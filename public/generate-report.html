@@ -106,7 +106,7 @@
         </div>
         <label class="block text-sm font-medium text-gray-700 mb-2">Choose Excel/CSV Files</label>
         <input id="fileInput" type="file" multiple class="mb-4 w-full" accept=".xlsx,.xls,.csv">
-        
+        <div id="selectedFilesList" class="mb-4"></div>
         <button id="processBtn" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm w-full sm:w-auto">
           📤 Upload & Process Files
         </button>
@@ -355,6 +355,8 @@
     let lastSelectedColIndex = null;
     let lastSelectedRowIndex = null;
     let headerFileMap = {}; // Track which file each header came from
+    // Ordered list of selected files to control upload order
+    window.__selectedFiles = [];
 
     // Define consistent colors for each section type
     const SECTION_COLORS = {
@@ -563,6 +565,18 @@
         });
       } else {
         console.error('=== processBtn not found ===');
+      }
+      // Track and render selected files for reordering
+      const fileInputEl = document.getElementById('fileInput');
+      if (fileInputEl) {
+        fileInputEl.addEventListener('change', (e) => {
+          try {
+            window.__selectedFiles = Array.from(e.target.files || []);
+            renderSelectedFilesList();
+          } catch (err) {
+            console.warn('Failed to capture selected files:', err?.message || err);
+          }
+        });
       }
       
       const testActivityBtn = document.getElementById('testActivityBtn');
@@ -872,6 +886,66 @@
     let extractedHeaders = null;
     let extractedData = null;
     
+    // Returns the current ordered list of files to upload
+    function getOrderedFiles() {
+      try {
+        if (Array.isArray(window.__selectedFiles) && window.__selectedFiles.length) {
+          return window.__selectedFiles;
+        }
+        const fi = document.getElementById('fileInput');
+        return fi && fi.files ? Array.from(fi.files) : [];
+      } catch (_) {
+        const fi = document.getElementById('fileInput');
+        return fi && fi.files ? Array.from(fi.files) : [];
+      }
+    }
+    
+    // Render selected files with Up/Down controls to change order
+    function renderSelectedFilesList() {
+      const container = document.getElementById('selectedFilesList');
+      if (!container) return;
+      const files = getOrderedFiles();
+      if (!files.length) {
+        container.innerHTML = '';
+        return;
+      }
+      const items = files.map((f, idx) => {
+        const upDisabled = idx === 0 ? 'opacity-40 cursor-not-allowed' : '';
+        const downDisabled = idx === files.length - 1 ? 'opacity-40 cursor-not-allowed' : '';
+        return `
+          <div class="flex items-center justify-between border border-gray-200 rounded px-3 py-2 bg-white">
+            <div class="text-sm text-gray-800 truncate">
+              <span class="inline-block w-6 text-gray-500">${idx + 1}.</span>
+              <span title="${f.name}">${f.name}</span>
+            </div>
+            <div class="flex gap-2">
+              <button type="button" class="px-2 py-1 text-sm bg-gray-100 rounded border border-gray-300 hover:bg-gray-200 ${upDisabled}" onclick="moveSelectedFile(${idx}, -1)" title="Move up">▲</button>
+              <button type="button" class="px-2 py-1 text-sm bg-gray-100 rounded border border-gray-300 hover:bg-gray-200 ${downDisabled}" onclick="moveSelectedFile(${idx}, 1)" title="Move down">▼</button>
+            </div>
+          </div>`;
+      }).join('');
+      container.innerHTML = `
+        <div class="text-sm text-gray-700 mb-2">Reorder files (top = first columns in report)</div>
+        <div class="space-y-2">${items}</div>
+      `;
+    }
+    
+    // Move a selected file up (-1) or down (+1) in the order
+    function moveSelectedFile(index, direction) {
+      try {
+        const files = Array.from(window.__selectedFiles || []);
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= files.length) return;
+        const tmp = files[index];
+        files[index] = files[newIndex];
+        files[newIndex] = tmp;
+        window.__selectedFiles = files;
+        renderSelectedFilesList();
+      } catch (e) {
+        console.warn('Failed to move file:', e?.message || e);
+      }
+    }
+    
     async function extractHeadersOnly() {
       console.log('=== extractHeadersOnly called ===');
       
@@ -884,7 +958,8 @@
       console.log(`Extracting headers from ${fileInput.files.length} files:`, Array.from(fileInput.files).map(f => f.name));
       
       const formData = new FormData();
-      for (const file of fileInput.files) {
+      const orderedFiles = getOrderedFiles();
+      for (const file of orderedFiles) {
         formData.append('files', file);
       }
       
@@ -933,9 +1008,10 @@
       console.log(`Processing ${fileInput.files.length} files:`, Array.from(fileInput.files).map(f => f.name));
       
       const formData = new FormData();
-      for (const file of fileInput.files) {
+      const orderedFiles2 = getOrderedFiles();
+      for (const file of orderedFiles2) {
         formData.append('files', file);
-        console.log(`Added file to FormData: ${file.name}`);
+        console.log(`Added file to FormData (ordered): ${file.name}`);
       }
       
       showStatus('Processing files...', 'info');
@@ -4045,7 +4121,8 @@
       const formData = new FormData();
       const fileInput = document.getElementById('fileInput');
       
-      for (const file of fileInput.files) {
+      const orderedFiles3 = getOrderedFiles();
+      for (const file of orderedFiles3) {
         formData.append('files', file);
       }
       
