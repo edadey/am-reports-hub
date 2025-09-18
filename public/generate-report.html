@@ -357,6 +357,8 @@
     let headerFileMap = {}; // Track which file each header came from
     // Ordered list of selected files to control upload order
     window.__selectedFiles = [];
+    // Track indices of derived, read-only columns (e.g., computed percentages)
+    let derivedColumnIndices = new Set();
 
     // Define consistent colors for each section type
     const SECTION_COLORS = {
@@ -2246,6 +2248,213 @@
       return result;
     }
 
+    // Helpers for derived columns detection and calculation
+    function normalizeHeaderName(h) {
+      try {
+        const s = String(h || '')
+          .replace(/\[[^\]]*\]\s*$/,'') // remove [File] suffix
+          .trim()
+          .toLowerCase();
+        return s;
+      } catch (_) { return String(h || '').toLowerCase(); }
+    }
+
+    function headerIncludesAllTokens(h, tokens) {
+      const s = normalizeHeaderName(h);
+      return tokens.every(t => s.includes(t));
+    }
+
+    function findHeaderIndexByTokens(tokenSets) {
+      // tokenSets: Array of token arrays; return first match index
+      for (let i = 0; i < tableHeaders.length; i++) {
+        const h = tableHeaders[i];
+        if (!h) continue;
+        const name = normalizeHeaderName(h);
+        // Skip derived and +/- columns when searching for base columns
+        if (name.includes('%') || name.includes('percent') || /\+\/-\s*$/.test(h) || / \+\/\-$/.test(h) || /\+\/\-$/.test(name)) {
+          continue;
+        }
+        for (const tokens of tokenSets) {
+          if (headerIncludesAllTokens(h, tokens)) return i;
+        }
+      }
+      return -1;
+    }
+
+    function findExistingHeaderIndexByName(name) {
+      const target = normalizeHeaderName(name);
+      for (let i = 0; i < tableHeaders.length; i++) {
+        if (normalizeHeaderName(tableHeaders[i]) === target) return i;
+      }
+      return -1;
+    }
+
+    function ensureColumnExists(headerName, insertAfterIdx) {
+      let idx = findExistingHeaderIndexByName(headerName);
+      if (idx !== -1) return idx;
+      const insertIdx = Math.min(Math.max(0, insertAfterIdx + 1), tableHeaders.length);
+      tableHeaders.splice(insertIdx, 0, headerName);
+      tableData.forEach(row => row.splice(insertIdx, 0, ''));
+      return insertIdx;
+    }
+
+    // Determine indices for numerators/denominators and ensure derived columns exist
+    function deriveHeaderIndices() {
+      const res = {
+        deptIdx: 0,
+        placementsNumeratorIdx: -1,
+        placementsDenominatorIdx: -1,
+        placementsPercentIdx: -1,
+        studentConfirmedIdx: -1,
+        employerConfirmedIdx: -1,
+        hoursScheduledIdx: -1,
+        studentConfirmedPercentIdx: -1,
+        employerConfirmedPercentIdx: -1
+      };
+      try {
+        // Department assumed at index 0
+        res.deptIdx = 0;
+        // Find base columns by tokens
+        // Prefer "Students with Placements"; fallback to "Total Placements"
+        res.placementsNumeratorIdx = findHeaderIndexByTokens([
+          ['students','with','placement'],
+          ['students','with','placements'],
+          ['total','placements'],
+          ['placements']
+        ]);
+        res.placementsDenominatorIdx = findHeaderIndexByTokens([
+          ['total','students'], ['students','total']
+        ]);
+        res.studentConfirmedIdx = findHeaderIndexByTokens([
+          ['student','confirmed'], ['students','confirmed']
+        ]);
+        res.employerConfirmedIdx = findHeaderIndexByTokens([
+          ['employer','confirmed']
+        ]);
+        res.hoursScheduledIdx = findHeaderIndexByTokens([
+          ['hours','scheduled','date'], ['hours','scheduled']
+        ]);
+
+        // Ensure derived columns exist (no per-file duplication)
+        derivedColumnIndices = new Set();
+        if (res.placementsNumeratorIdx !== -1 && res.placementsDenominatorIdx !== -1) {
+          const insertAfter = res.placementsNumeratorIdx;
+          res.placementsPercentIdx = ensureColumnExists('% with Placements', insertAfter);
+          derivedColumnIndices.add(res.placementsPercentIdx);
+        }
+        if (res.studentConfirmedIdx !== -1 && res.hoursScheduledIdx !== -1) {
+          const insertAfter = res.studentConfirmedIdx;
+          res.studentConfirmedPercentIdx = ensureColumnExists('Student confirmed %', insertAfter);
+          derivedColumnIndices.add(res.studentConfirmedPercentIdx);
+        }
+        if (res.employerConfirmedIdx !== -1 && res.hoursScheduledIdx !== -1) {
+          const insertAfter = res.employerConfirmedIdx;
+          res.employerConfirmedPercentIdx = ensureColumnExists('Employer confirmed %', insertAfter);
+          derivedColumnIndices.add(res.employerConfirmedPercentIdx);
+        }
+      } catch (e) {
+        console.warn('deriveHeaderIndices failed:', e?.message || e);
+      }
+      return res;
+    }
+
+    function computeDerivedForRow(rowIdx, indices) {
+      try {
+        const row = tableData[rowIdx];
+        if (!row) return;
+        const i = indices || deriveHeaderIndices();
+        // Placements % = Students with Placements / Total Students
+        if (i.placementsPercentIdx !== -1 && i.placementsNumeratorIdx !== -1 && i.placementsDenominatorIdx !== -1) {
+          const num = parseFloat(row[i.placementsNumeratorIdx]);
+          const den = parseFloat(row[i.placementsDenominatorIdx]);
+          if (isFinite(num) && isFinite(den) && den > 0) {
+            row[i.placementsPercentIdx] = (num / den) * 100;
+          } else {
+            row[i.placementsPercentIdx] = '';
+          }
+        }
+        // Student confirmed % = Student confirmed (hours) / Hours Scheduled to date
+        if (i.studentConfirmedPercentIdx !== -1 && i.studentConfirmedIdx !== -1 && i.hoursScheduledIdx !== -1) {
+          const num = parseFloat(row[i.studentConfirmedIdx]);
+          const den = parseFloat(row[i.hoursScheduledIdx]);
+          if (isFinite(num) && isFinite(den) && den > 0) {
+            row[i.studentConfirmedPercentIdx] = (num / den) * 100;
+          } else {
+            row[i.studentConfirmedPercentIdx] = '';
+          }
+        }
+        // Employer confirmed % = Employer confirmed (hours) / Hours Scheduled to date
+        if (i.employerConfirmedPercentIdx !== -1 && i.employerConfirmedIdx !== -1 && i.hoursScheduledIdx !== -1) {
+          const num = parseFloat(row[i.employerConfirmedIdx]);
+          const den = parseFloat(row[i.hoursScheduledIdx]);
+          if (isFinite(num) && isFinite(den) && den > 0) {
+            row[i.employerConfirmedPercentIdx] = (num / den) * 100;
+          } else {
+            row[i.employerConfirmedPercentIdx] = '';
+          }
+        }
+      } catch (e) {
+        console.warn('computeDerivedForRow failed:', e?.message || e);
+      }
+    }
+
+    function computeDerivedForAllRows() {
+      const i = deriveHeaderIndices();
+      // Row-wise compute
+      for (let r = 0; r < tableData.length; r++) {
+        computeDerivedForRow(r, i);
+      }
+      // Totals row handling (optional): if a row has Department = Total
+      try {
+        const totalRowIdx = tableData.findIndex(r => String(r?.[0] || '').trim().toLowerCase() === 'total');
+        if (totalRowIdx !== -1) {
+          const i2 = i;
+          if (i2.placementsPercentIdx !== -1 && i2.placementsNumeratorIdx !== -1 && i2.placementsDenominatorIdx !== -1) {
+            let sumNum = 0, sumDen = 0;
+            for (let r = 0; r < tableData.length; r++) {
+              if (r === totalRowIdx) continue;
+              const num = parseFloat(tableData[r][i2.placementsNumeratorIdx]);
+              const den = parseFloat(tableData[r][i2.placementsDenominatorIdx]);
+              if (isFinite(num)) sumNum += num;
+              if (isFinite(den)) sumDen += den;
+            }
+            tableData[totalRowIdx][i2.placementsPercentIdx] = (sumDen > 0) ? (sumNum / sumDen) * 100 : '';
+          }
+          if (i2.studentConfirmedPercentIdx !== -1 && i2.studentConfirmedIdx !== -1 && i2.hoursScheduledIdx !== -1) {
+            let sumNum = 0, sumDen = 0;
+            for (let r = 0; r < tableData.length; r++) {
+              if (r === totalRowIdx) continue;
+              const num = parseFloat(tableData[r][i2.studentConfirmedIdx]);
+              const den = parseFloat(tableData[r][i2.hoursScheduledIdx]);
+              if (isFinite(num)) sumNum += num;
+              if (isFinite(den)) sumDen += den;
+            }
+            tableData[totalRowIdx][i2.studentConfirmedPercentIdx] = (sumDen > 0) ? (sumNum / sumDen) * 100 : '';
+          }
+          if (i2.employerConfirmedPercentIdx !== -1 && i2.employerConfirmedIdx !== -1 && i2.hoursScheduledIdx !== -1) {
+            let sumNum = 0, sumDen = 0;
+            for (let r = 0; r < tableData.length; r++) {
+              if (r === totalRowIdx) continue;
+              const num = parseFloat(tableData[r][i2.employerConfirmedIdx]);
+              const den = parseFloat(tableData[r][i2.hoursScheduledIdx]);
+              if (isFinite(num)) sumNum += num;
+              if (isFinite(den)) sumDen += den;
+            }
+            tableData[totalRowIdx][i2.employerConfirmedPercentIdx] = (sumDen > 0) ? (sumNum / sumDen) * 100 : '';
+          }
+        }
+      } catch (_) {}
+    }
+
+    function ensureDerivedColumnsAndCompute() {
+      try {
+        if (!Array.isArray(tableHeaders) || !Array.isArray(tableData) || !tableHeaders.length) return;
+        computeDerivedForAllRows();
+      } catch (e) {
+        console.warn('ensureDerivedColumnsAndCompute failed:', e?.message || e);
+      }
+    }
+
     function renderTable() {
       console.log('=== renderTable called ===');
       console.log('tableHeaders:', tableHeaders);
@@ -2260,6 +2469,9 @@
         return;
       }
       
+      // Ensure derived columns exist and are computed prior to rendering
+      ensureDerivedColumnsAndCompute();
+
       // Helper: normalise header to match headerFileMap keys
       function normaliseHeaderForMap(h) {
         if (!h) return h;
@@ -2366,11 +2578,23 @@
           // Determine if this is a change column and get section color
           const isChangeColumn = h.endsWith(' +/-');
           const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
-          const sectionInfo = getColumnSection(originalHeader);
+          let sectionInfo = getColumnSection(originalHeader);
           const originalIdx = tableHeaders.indexOf(originalHeader);
+          // If this is a derived column, inherit section from its base (previous) column
+          const isDerived = derivedColumnIndices && derivedColumnIndices.has(originalIdx);
+          let baseHeaderForDerived = null;
+          if (isDerived) {
+            const baseIdx = Math.max(0, originalIdx - 1);
+            baseHeaderForDerived = tableHeaders[baseIdx] || originalHeader;
+            sectionInfo = getColumnSection(baseHeaderForDerived);
+          }
           
           // File-based accent
-          const fileIdx = getHeaderFileIndex(originalHeader);
+          let fileIdx = getHeaderFileIndex(originalHeader);
+          if (isDerived && baseHeaderForDerived) {
+            const baseFileIdx = getHeaderFileIndex(baseHeaderForDerived);
+            if (baseFileIdx !== undefined) fileIdx = baseFileIdx;
+          }
           const accent = getFileAccentColor(fileIdx);
           const accentStyle = accent ? ` border-left: 4px solid ${accent} !important; box-shadow: inset 0 4px 0 ${accent};` : '';
           const dot = accent ? `<span style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : '';
@@ -2417,7 +2641,7 @@
               } else {
                 percentage = parseFloat(cell);
               }
-              displayValue = percentage.toFixed(1) + '%';
+              displayValue = percentage.toFixed(0) + '%';
               
               // Add percentage bar with gradient colors
               const barWidth = Math.min(percentage, 100);
@@ -2440,8 +2664,8 @@
                 </div>
               `;
             } else {
-              // No info => display 0% and a 0-width bar
-              displayValue = '0.0%';
+              // No info => display em dash and a 0-width bar
+              displayValue = '—';
               percentageBar = `
                 <div class="mt-1 w-full bg-gray-200 rounded-full h-2">
                   <div class="h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
@@ -2459,9 +2683,12 @@
           const isRowSelected = editMode && (selectedRows.has(rowIdx) || lastSelectedRowIndex === rowIdx);
           const isColSelected = editMode && (selectedColumns.has(headerKey) || lastSelectedColIndex === originalColIdx);
           const tdHighlight = isRowSelected || isColSelected ? ' bg-yellow-50' : '';
+          const isDerived = derivedColumnIndices && derivedColumnIndices.has(originalColIdx);
+          const contentEditableAttr = isDerived ? 'false' : 'true';
+          const readOnlyClass = isDerived ? ' opacity-70 cursor-not-allowed' : '';
           completeRowCells.push(`
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900${tdHighlight}" data-row-idx="${rowIdx}">
-              <div class="editable-cell" contenteditable="true" data-row="${rowIdx}" data-col="${originalColIdx}">${displayValue}</div>
+              <div class="editable-cell${readOnlyClass}" contenteditable="${contentEditableAttr}" data-row="${rowIdx}" data-col="${originalColIdx}">${displayValue}</div>
               ${percentageBar}
             </td>
           `);
@@ -2522,6 +2749,9 @@
           const row = parseInt(e.target.dataset.row);
           const col = parseInt(e.target.dataset.col);
           tableData[row][col] = e.target.textContent;
+          // Recompute derived values for this row and refresh view
+          computeDerivedForRow(row);
+          renderTable();
         });
         cell.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
