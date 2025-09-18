@@ -359,6 +359,8 @@
     window.__selectedFiles = [];
     // Track indices of derived, read-only columns (e.g., computed percentages)
     let derivedColumnIndices = new Set();
+    // Map derived column index -> base column index for inheritance (coloring, accents)
+    let derivedBaseIndexMap = new Map();
 
     // Define consistent colors for each section type
     const SECTION_COLORS = {
@@ -2185,8 +2187,10 @@
 
       // 4) Keyword fallback
       function getKeywordType() {
-        // IMPORTANT: Check for placements BEFORE employer engagement to differentiate them
-        if (headerWithoutChange.includes('placement') || headerWithoutChange.includes('student confirmed') || headerWithoutChange.includes('employer confirmed')) return 'placements';
+        // Refined keyword mapping: handle "employer confirmed" as employment and "student confirmed" as placements
+        if (headerWithoutChange.includes('employer confirmed')) return 'employment';
+        if (headerWithoutChange.includes('student confirmed')) return 'placements';
+        if (headerWithoutChange.includes('placement')) return 'placements';
         if (headerWithoutChange.includes('enrichment') || headerWithoutChange.includes('enrich')) return 'enrichment';
         if ((headerWithoutChange.includes('employer') && (headerWithoutChange.includes('engagement') || headerWithoutChange.includes('activity') || headerWithoutChange.includes('activities'))) || headerWithoutChange.includes('(employer)')) return 'employment';
         if (headerWithoutChange.includes('career') || headerWithoutChange.includes('job profile') || headerWithoutChange.includes('quiz') || headerWithoutChange.includes('mapped')) return 'careers';
@@ -2281,6 +2285,23 @@
       return -1;
     }
 
+    function findLastBaseIndexByTokens(tokenSets) {
+      // Like findHeaderIndexByTokens but returns the LAST base column match
+      let last = -1;
+      for (let i = 0; i < tableHeaders.length; i++) {
+        const h = tableHeaders[i];
+        if (!h) continue;
+        const name = normalizeHeaderName(h);
+        if (name.includes('%') || name.includes('percent') || /\+\/-\s*$/.test(h) || / \+\/\-$/.test(h) || /\+\/\-$/.test(name)) {
+          continue;
+        }
+        for (const tokens of tokenSets) {
+          if (headerIncludesAllTokens(h, tokens)) { last = i; break; }
+        }
+      }
+      return last;
+    }
+
     function findExistingHeaderIndexByName(name) {
       const target = normalizeHeaderName(name);
       for (let i = 0; i < tableHeaders.length; i++) {
@@ -2289,12 +2310,21 @@
       return -1;
     }
 
-    function ensureColumnExists(headerName, insertAfterIdx) {
+    function ensureColumnExists(headerName, insertAfterIdx, baseIdxForMap) {
       let idx = findExistingHeaderIndexByName(headerName);
-      if (idx !== -1) return idx;
+      if (idx !== -1) {
+        // Keep mapping if not set yet
+        if (Number.isInteger(baseIdxForMap)) {
+          try { derivedBaseIndexMap.set(idx, baseIdxForMap); } catch (_) {}
+        }
+        return idx;
+      }
       const insertIdx = Math.min(Math.max(0, insertAfterIdx + 1), tableHeaders.length);
       tableHeaders.splice(insertIdx, 0, headerName);
       tableData.forEach(row => row.splice(insertIdx, 0, ''));
+      if (Number.isInteger(baseIdxForMap)) {
+        try { derivedBaseIndexMap.set(insertIdx, baseIdxForMap); } catch (_) {}
+      }
       return insertIdx;
     }
 
@@ -2325,10 +2355,10 @@
         res.placementsDenominatorIdx = findHeaderIndexByTokens([
           ['total','students'], ['students','total']
         ]);
-        res.studentConfirmedIdx = findHeaderIndexByTokens([
+        res.studentConfirmedIdx = findLastBaseIndexByTokens([
           ['student','confirmed'], ['students','confirmed']
         ]);
-        res.employerConfirmedIdx = findHeaderIndexByTokens([
+        res.employerConfirmedIdx = findLastBaseIndexByTokens([
           ['employer','confirmed']
         ]);
         res.hoursScheduledIdx = findHeaderIndexByTokens([
@@ -2339,23 +2369,37 @@
         derivedColumnIndices = new Set();
         if (res.placementsNumeratorIdx !== -1 && res.placementsDenominatorIdx !== -1) {
           const insertAfter = res.placementsNumeratorIdx;
-          res.placementsPercentIdx = ensureColumnExists('% with Placements', insertAfter);
+          res.placementsPercentIdx = ensureColumnExists('% with Placements', insertAfter, res.placementsNumeratorIdx);
           derivedColumnIndices.add(res.placementsPercentIdx);
         }
         if (res.studentConfirmedIdx !== -1 && res.hoursScheduledIdx !== -1) {
           const insertAfter = res.studentConfirmedIdx;
-          res.studentConfirmedPercentIdx = ensureColumnExists('Student confirmed %', insertAfter);
+          res.studentConfirmedPercentIdx = ensureColumnExists('Student confirmed %', insertAfter, res.studentConfirmedIdx);
           derivedColumnIndices.add(res.studentConfirmedPercentIdx);
         }
         if (res.employerConfirmedIdx !== -1 && res.hoursScheduledIdx !== -1) {
           const insertAfter = res.employerConfirmedIdx;
-          res.employerConfirmedPercentIdx = ensureColumnExists('Employer confirmed %', insertAfter);
+          res.employerConfirmedPercentIdx = ensureColumnExists('Employer confirmed %', insertAfter, res.employerConfirmedIdx);
           derivedColumnIndices.add(res.employerConfirmedPercentIdx);
         }
       } catch (e) {
         console.warn('deriveHeaderIndices failed:', e?.message || e);
       }
       return res;
+    }
+
+    function parseNumber(val) {
+      if (val === null || val === undefined) return NaN;
+      const s = String(val).replace(/[,\s%]/g, '').trim();
+      const n = parseFloat(s);
+      return isNaN(n) ? NaN : n;
+    }
+
+    function clampPercent(p) {
+      if (!isFinite(p)) return p;
+      if (p < 0) return 0;
+      if (p > 100) return 100;
+      return p;
     }
 
     function computeDerivedForRow(rowIdx, indices) {
@@ -2365,30 +2409,30 @@
         const i = indices || deriveHeaderIndices();
         // Placements % = Students with Placements / Total Students
         if (i.placementsPercentIdx !== -1 && i.placementsNumeratorIdx !== -1 && i.placementsDenominatorIdx !== -1) {
-          const num = parseFloat(row[i.placementsNumeratorIdx]);
-          const den = parseFloat(row[i.placementsDenominatorIdx]);
+          const num = parseNumber(row[i.placementsNumeratorIdx]);
+          const den = parseNumber(row[i.placementsDenominatorIdx]);
           if (isFinite(num) && isFinite(den) && den > 0) {
-            row[i.placementsPercentIdx] = (num / den) * 100;
+            row[i.placementsPercentIdx] = clampPercent((num / den) * 100);
           } else {
             row[i.placementsPercentIdx] = '';
           }
         }
         // Student confirmed % = Student confirmed (hours) / Hours Scheduled to date
         if (i.studentConfirmedPercentIdx !== -1 && i.studentConfirmedIdx !== -1 && i.hoursScheduledIdx !== -1) {
-          const num = parseFloat(row[i.studentConfirmedIdx]);
-          const den = parseFloat(row[i.hoursScheduledIdx]);
+          const num = parseNumber(row[i.studentConfirmedIdx]);
+          const den = parseNumber(row[i.hoursScheduledIdx]);
           if (isFinite(num) && isFinite(den) && den > 0) {
-            row[i.studentConfirmedPercentIdx] = (num / den) * 100;
+            row[i.studentConfirmedPercentIdx] = clampPercent((num / den) * 100);
           } else {
             row[i.studentConfirmedPercentIdx] = '';
           }
         }
         // Employer confirmed % = Employer confirmed (hours) / Hours Scheduled to date
         if (i.employerConfirmedPercentIdx !== -1 && i.employerConfirmedIdx !== -1 && i.hoursScheduledIdx !== -1) {
-          const num = parseFloat(row[i.employerConfirmedIdx]);
-          const den = parseFloat(row[i.hoursScheduledIdx]);
+          const num = parseNumber(row[i.employerConfirmedIdx]);
+          const den = parseNumber(row[i.hoursScheduledIdx]);
           if (isFinite(num) && isFinite(den) && den > 0) {
-            row[i.employerConfirmedPercentIdx] = (num / den) * 100;
+            row[i.employerConfirmedPercentIdx] = clampPercent((num / den) * 100);
           } else {
             row[i.employerConfirmedPercentIdx] = '';
           }
@@ -2590,8 +2634,14 @@
           }
           
           // File-based accent
+          // Allow derived columns to inherit accent from their exact base index when we have a mapping
           let fileIdx = getHeaderFileIndex(originalHeader);
-          if (isDerived && baseHeaderForDerived) {
+          if (derivedBaseIndexMap && derivedBaseIndexMap.has(originalIdx)) {
+            const mappedBaseIdx = derivedBaseIndexMap.get(originalIdx);
+            const baseHeader = tableHeaders[mappedBaseIdx];
+            const baseFileIdx = getHeaderFileIndex(baseHeader);
+            if (baseFileIdx !== undefined) fileIdx = baseFileIdx;
+          } else if (isDerived && baseHeaderForDerived) {
             const baseFileIdx = getHeaderFileIndex(baseHeaderForDerived);
             if (baseFileIdx !== undefined) fileIdx = baseFileIdx;
           }
@@ -2599,8 +2649,8 @@
           const accentStyle = accent ? ` border-left: 4px solid ${accent} !important; box-shadow: inset 0 4px 0 ${accent};` : '';
           const dot = accent ? `<span style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : '';
           
-          // Prefer custom accent as the header background if available
-          const inline = accent ? `background-color: ${accent} !important; border-color: ${accent} !important;` : sectionInfo.inlineColor;
+          // Always use section background color; keep file accent as a left border only
+          const inline = sectionInfo.inlineColor;
           
           console.log(`Rendering header "${h}" (original: "${originalHeader}") with class: "${sectionInfo.color}", inline: "${inline}", fileIdx: ${fileIdx}, accent: ${accent}`);
           
