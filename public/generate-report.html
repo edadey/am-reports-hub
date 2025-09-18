@@ -1695,8 +1695,12 @@
       };
       
       headers.forEach(header => {
-        // Skip headers that are "1" or contain "1"
-        if (!header || header.toString().toLowerCase().includes('1')) {
+        // Skip purely numeric headers like "1", "2", etc., but allow headers containing digits (e.g., "[data1]")
+        if (!header) {
+          return;
+        }
+        const hStr = header.toString().trim();
+        if (/^[0-9]+$/.test(hStr)) {
           return;
         }
         
