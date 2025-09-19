@@ -1420,6 +1420,8 @@
             headers = await buildHeadersFromProcessed(response.data.data);
             rows = await buildRowsFromProcessed(response.data.data, headers);
           }
+          // When new uploads are processed, ensure we map to the new data rather than showing any saved template rows
+          try { window.previewingTemplateRows = false; } catch (_) {}
           try { localStorage.removeItem('excelEditorData'); } catch(_) {}
           localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
           const hint = document.getElementById('excelEditorHint');
@@ -3382,11 +3384,11 @@
 
         if (selectedTemplate.headers) {
           tableHeaders = [...selectedTemplate.headers];
-          // Always prefer the template's saved rows when applying a template.
-          // This preserves the exact row content the user saved with the template.
+          // Prefer remapping to current uploads if available; otherwise preview saved rows
           if (Array.isArray(selectedTemplate.tableData) && selectedTemplate.tableData.length > 0) {
             tableData = selectedTemplate.tableData.map(row => [...row]);
-            window.previewingTemplateRows = true;
+            // Only use static preview if there is no processed data yet
+            window.previewingTemplateRows = !(window.latestProcessedData && typeof window.latestProcessedData === 'object');
           } else {
             // No saved rows in the template; fall back to rebuilding from data
             window.previewingTemplateRows = false;
@@ -3462,6 +3464,8 @@
           }
 
           if (window.latestProcessedData && typeof window.latestProcessedData === 'object') {
+            // Ensure we rebuild from current uploads
+            try { window.previewingTemplateRows = false; } catch(_) {}
             try { await adaptTableToData(window.latestProcessedData, true); } catch (e) { console.warn('Remap after template apply failed:', e?.message || e); }
             showStatus(`Template "${selectedTemplate.name}" applied to current data`, 'success');
           } else {

@@ -17,6 +17,11 @@
     .borders-on { border-collapse: collapse; border: 1px solid #e5e7eb; }
     .borders-on th, .borders-on td { border: 1px solid #e5e7eb !important; }
     .borders-on thead th { border: 1px solid #e5e7eb !important; }
+    /* Custom scrollbar styling (consistent with Generate Report) */
+    .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 2px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
     /* Thicker horizontal scrollbar for report preview */
     .custom-scrollbar-thick::-webkit-scrollbar:horizontal { height: 14px; }
     .custom-scrollbar-thick::-webkit-scrollbar-thumb { border-radius: 7px; }
@@ -553,8 +558,8 @@
           } });
 
         const tableHTML = `
-          <div id=\"sharedTopScroll\" class=\"custom-scrollbar-thick\" style=\"overflow-x:auto;height:16px;\"><div id=\"sharedTopScrollInner\" style=\"height:1px;\"></div></div>
-          <div id=\"reportScroll\" class=\"custom-scrollbar-thick\" style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\">
+          <div id=\"sharedTopScroll\" class=\"custom-scrollbar custom-scrollbar-thick\" style=\"overflow-x:auto;height:16px;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;\"><div id=\"sharedTopScrollInner\" style=\"height:1px;\"></div></div>
+          <div id=\"reportScroll\" class=\"custom-scrollbar custom-scrollbar-thick\" style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\">
             <table id=\"sharedReportTable\" style=\"width:100%;border-collapse:separate;border-spacing:0;\">
               <thead><tr>${headerCells}</tr></thead>
               <tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody>
