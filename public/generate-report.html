@@ -61,6 +61,32 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: #a8a8a8;
     }
+    /* Thicker horizontal scrollbar for report preview */
+    .custom-scrollbar-thick::-webkit-scrollbar:horizontal {
+      height: 14px;
+    }
+    .custom-scrollbar-thick::-webkit-scrollbar-thumb {
+      border-radius: 7px;
+    }
+    /* Firefox */
+    #tableScrollContainer {
+      scrollbar-width: auto;
+      scrollbar-color: #c1c1c1 #f1f1f1;
+    }
+
+    /* Toggleable table cell borders */
+    .borders-on {
+      border-collapse: collapse;
+      border: 1px solid #e5e7eb; /* outer border for clarity */
+    }
+    .borders-on th,
+    .borders-on td {
+      border: 1px solid #e5e7eb !important; /* gray-200 */
+    }
+    /* Ensure header section rows also get borders */
+    .borders-on thead th { 
+      border: 1px solid #e5e7eb !important; 
+    }
     
     /* Touch-friendly buttons */
     .touch-button {
@@ -140,11 +166,11 @@
                     <span>Placements</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-green-200 rounded"></div>
+                    <div class="w-4 h-4 bg-purple-100 rounded"></div>
                     <span>Employer Engagement</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-purple-200 rounded"></div>
+                    <div class="w-4 h-4 bg-green-100 rounded"></div>
                     <span>Enrichment Activities</span>
                   </div>
                   <div class="flex items-center gap-2">
@@ -255,13 +281,19 @@
         <div class="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
             <h3 class="text-base sm:text-lg font-semibold text-gray-900">Data Table</h3>
+            <div class="flex items-center gap-3">
+              <label class="inline-flex items-center text-sm text-gray-700">
+                <input type="checkbox" id="toggleCellBorders" class="mr-2">
+                Show cell borders
+              </label>
+            </div>
           </div>
         </div>
         
-        <div class="overflow-x-auto custom-scrollbar">
+        <div id="tableScrollContainer" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick">
           <!-- File legend (maps header accent colours to filenames) -->
           <div id="fileLegend" class="px-3 sm:px-6 py-2 text-xs text-gray-600 flex flex-wrap gap-2"></div>
-          <table class="min-w-full divide-y divide-gray-200">
+          <table id="dataTable" class="min-w-full divide-y divide-gray-200">
             <thead id="tableHeader">
               <!-- Headers will be populated here -->
             </thead>
@@ -411,7 +443,10 @@
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
         
-        // First check for new activity suffixes
+        // First check for explicit engagement/activity suffixes
+        if (headerLower.includes('(employer engagement)')) {
+          return 'employment';
+        }
         if (headerLower.includes('(employer activity)')) {
           return 'employer-activity';
         }
@@ -548,6 +583,27 @@
       checkAuthStatus();
       setupEventListeners();
       loadInitialData();
+
+      // Restore border toggle state and bind listener
+      try {
+        const dataTable = document.getElementById('dataTable');
+        const borderToggle = document.getElementById('toggleCellBorders');
+        if (dataTable && borderToggle) {
+          const saved = localStorage.getItem('tableBordersOn');
+          const on = saved === 'true';
+          borderToggle.checked = on;
+          if (on) dataTable.classList.add('borders-on'); else dataTable.classList.remove('borders-on');
+          borderToggle.addEventListener('change', () => {
+            if (borderToggle.checked) {
+              dataTable.classList.add('borders-on');
+              localStorage.setItem('tableBordersOn', 'true');
+            } else {
+              dataTable.classList.remove('borders-on');
+              localStorage.setItem('tableBordersOn', 'false');
+            }
+          });
+        }
+      } catch (e) { console.warn('Border toggle init failed:', e?.message || e); }
     });
 
     // Authentication check

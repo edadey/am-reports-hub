@@ -60,8 +60,11 @@
         return unique.join('|');
       } catch (_) { return ''; }
     }
+    // Backward-compat alias used elsewhere in this file
+    function headerSig(arr) { return normalizedHeaderSig(arr); }
     function getTemplateName(report) {
-      return report.templateName || report.data?.meta?.templateName || 'Ad-hoc';
+      const raw = report.templateName || report.data?.meta?.templateName || 'Ad-hoc';
+      try { return String(raw).replace(/^template:\s*/i, '').trim(); } catch(_) { return raw; }
     }
     function getTemplateKey(report) {
       const name = getTemplateName(report);
@@ -84,13 +87,28 @@
         return;
       }
 
-      // Toggle cell borders
-      function toggleCellBorders() {
+      // Toggle cell borders (syncs both global and in-view checkboxes)
+      function toggleCellBorders(source) {
         try {
-          const cb = document.getElementById('cellBordersToggle');
+          const cbGlobal = document.getElementById('cellBordersToggleGlobal');
+          const cbView = document.getElementById('cellBordersToggleView');
+          // Determine intended state based on source trigger or saved state
+          let on;
+          if (source === 'global' && cbGlobal) on = !!cbGlobal.checked;
+          else if (source === 'view' && cbView) on = !!cbView.checked;
+          else {
+            const saved = localStorage.getItem('sharedBordersOn');
+            on = saved === 'true';
+          }
+          // Sync both checkboxes
+          if (cbGlobal) cbGlobal.checked = on;
+          if (cbView) cbView.checked = on;
+          // Apply to table
           const table = document.getElementById('sharedReportTable');
-          const on = cb && cb.checked;
-          if (table) { if (on) table.classList.add('borders-on'); else table.classList.remove('borders-on'); }
+          if (table) {
+            if (on) table.classList.add('borders-on');
+            else table.classList.remove('borders-on');
+          }
           localStorage.setItem('sharedBordersOn', on ? 'true' : 'false');
         } catch (_) {}
       }
@@ -150,11 +168,19 @@
         // Build rows: group header row + items
         const fragment = document.createDocumentFragment();
         for (const [key, group] of groups.entries()) {
+          const stored = localStorage.getItem(`grpCollapsed:${key}`);
+          const collapsed = (stored === null) ? true : (stored === 'true');
           const headerTr = document.createElement('tr');
-          headerTr.innerHTML = `<td colspan="4" style="background:#fafbfc;border-top:2px solid #e5e7eb;font-weight:600;color:#334155;">Template: ${group.name} <span class="muted" style="margin-left:8px;">(${group.items.length} reports)</span></td>`;
+          headerTr.className = 'template-group-header';
+          headerTr.innerHTML = `<td colspan="4" style="background:#fafbfc;border-top:2px solid #e5e7eb;font-weight:600;color:#334155;cursor:pointer;">
+              <span class="group-toggle" data-key="${key}" style="display:inline-block;width:16px;margin-right:6px;">${collapsed ? '▶' : '▼'}</span>
+              ${group.name} <span class="muted" style="margin-left:8px;">(${group.items.length} reports)</span>
+            </td>`;
           fragment.appendChild(headerTr);
           for (const r of group.items) {
             const tr = document.createElement('tr');
+            tr.setAttribute('data-group', key);
+            if (collapsed) tr.style.display = 'none';
             const created = new Date(r.createdAt).toLocaleString();
             const templateBadge = `<span class="pill" style="margin-left:6px;">${getTemplateName(r)}</span>`;
             tr.innerHTML = `
@@ -174,6 +200,21 @@
         // Attach view handlers
         Array.from(tableBody.querySelectorAll('button.btn[data-id]')).forEach(btn => {
           btn.addEventListener('click', () => openReport(btn.dataset.id));
+        });
+        // Attach group toggle handlers
+        Array.from(tableBody.querySelectorAll('tr.template-group-header')).forEach(tr => {
+          tr.addEventListener('click', () => {
+            const icon = tr.querySelector('.group-toggle');
+            if (!icon) return;
+            const key = icon.getAttribute('data-key');
+            const currentlyCollapsed = localStorage.getItem(`grpCollapsed:${key}`) === 'true';
+            const next = !currentlyCollapsed;
+            localStorage.setItem(`grpCollapsed:${key}`, next ? 'true' : 'false');
+            icon.textContent = next ? '▶' : '▼';
+            tableBody.querySelectorAll(`tr[data-group="${key}"]`).forEach(row => {
+              row.style.display = next ? 'none' : '';
+            });
+          });
         });
       }
 
@@ -207,8 +248,8 @@
                   <label for="departmentStickyToggle" style="font-size:14px;color:#555;">Fix Department Column</label>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
-                  <input type="checkbox" id="cellBordersToggle" onchange="toggleCellBorders()" style="width:16px;height:16px;">
-                  <label for="cellBordersToggle" style="font-size:14px;color:#555;">Show cell borders</label>
+                  <input type="checkbox" id="cellBordersToggleView" onchange="toggleCellBorders('view')" style="width:16px;height:16px;">
+                  <label for="cellBordersToggleView" style="font-size:14px;color:#555;">Show cell borders</label>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;border:1px solid #d0d7de;border-radius:8px;padding:6px 10px;">
                   <button onclick="adjustZoom(-10)" style="border:none;background:#fff;color:#555;font-weight:700;padding:4px 8px;border-radius:6px;">-</button>
@@ -221,11 +262,13 @@
             <div id="reportDataContainer" class="custom-scrollbar-thick"></div>
           </div>`;
         reportView.innerHTML = html;
-        // Restore border toggle state
+        // Restore border toggle state (sync both checkboxes)
         try {
-          const cb = document.getElementById('cellBordersToggle');
+          const cb = document.getElementById('cellBordersToggleView');
           const saved = localStorage.getItem('sharedBordersOn') === 'true';
           if (cb) cb.checked = saved;
+          const cbGlobal = document.getElementById('cellBordersToggleGlobal');
+          if (cbGlobal) cbGlobal.checked = saved;
         } catch (_) {}
         displayReportData(report);
         reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -263,7 +306,7 @@
           employment: '#f3e8ff', 
           careers: '#fef3c7', 
           activities: '#fed7aa', 
-          'employer-activity': '#bfdbfe', 
+          'employer-activity': '#fee2e2', 
           'enrichment-activity': '#e0f7fa', 
           assessments: '#bbf7d0', 
           targets: '#fce7f3', 
@@ -271,8 +314,10 @@
           default: '#f3f4f6' 
         };
         let type = 'default';
-        // Check for specific activity suffixes first, but differentiate placements from activities
-        if (headerLower.includes('(employer activity)')) {
+        // Check for explicit engagement/activity tags first
+        if (headerLower.includes('(employer engagement)')) {
+          type = 'employment';
+        } else if (headerLower.includes('(employer activity)')) {
           if (headerLower.includes('placement') || headerLower.includes('hours scheduled') || headerLower.includes('student confirmed') || headerLower.includes('employer confirmed')) {
             type = 'placements';
           } else {
@@ -298,6 +343,7 @@
           'bg-blue-200': '#bfdbfe',
           'bg-purple-100': '#f3e8ff',
           'bg-yellow-100': '#fef3c7',
+          'bg-red-100': '#fee2e2',
           'bg-green-100': '#dcfce7',
           'bg-green-200': '#bbf7d0',
           'bg-orange-100': '#fed7aa',
@@ -335,7 +381,13 @@
           const savedHex = metaHex[base];
           let inlineStyle = '';
           let className = '';
-          if (savedHex && typeof savedHex === 'string') {
+          const baseLower = String(base || '').toLowerCase();
+          // Hard rule: Employer Engagement headers always use 'employment' color to avoid mixed shades in older reports
+          if (baseLower.includes('(employer engagement)')) {
+            const section = getColumnSection(base);
+            inlineStyle = section.inlineColor || '';
+            className = '';
+          } else if (savedHex && typeof savedHex === 'string') {
             inlineStyle = `background-color: ${savedHex}; border-color: ${savedHex};`;
           } else if (savedClass) {
             inlineStyle = inlineFromClass(savedClass);
@@ -348,13 +400,59 @@
           return `<th class="${className}" style="padding:10px;text-align:left;border-bottom:1px solid #eef2f7;${inlineStyle}${sticky}">${h}</th>`;
         }).join('');
 
+        // Helper: normalized header key (strip +/- and [Label], keep (Employer Engagement) etc)
+        const cmpKey = h => String(h || '')
+          .replace(/\s*\+\/-?$/, '')
+          .replace(/\s*\[.*?\]\s*$/, '')
+          .trim()
+          .toLowerCase();
+        const prev = window.previousReportData;
+        const prevHeaders = prev && (prev.headers || prev.data?.headers) ? (prev.headers || prev.data.headers) : [];
+        const prevHeaderIndexMap = Array.isArray(prevHeaders) ? prevHeaders.reduce((acc, h, i) => { acc[cmpKey(h)] = i; return acc; }, {}) : {};
+
         // Totals and previous totals (for +/- in totals row)
         const totals = {};
         const prevTotals = {};
-        headers.forEach((header, colIndex) => { const isDept = colIndex === 0 || isDepartmentHeader(header); if (isDept) { totals[colIndex] = ''; prevTotals[colIndex] = ''; return; } let total = 0; let count = 0; let has = false; rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } }); if (has) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; } else { totals[colIndex] = total; } } else { totals[colIndex] = ''; } const prev = window.previousReportData; if (prev && Array.isArray(prev.rows)) { let pTotal = 0; let pCount = 0; let pHas = false; prev.rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } }); if (pHas) { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { prevTotals[colIndex] = pCount > 0 ? (pTotal / pCount) : 0; } else { prevTotals[colIndex] = pTotal; } } else { prevTotals[colIndex] = 0; } } else { prevTotals[colIndex] = 0; } });
+        headers.forEach((header, colIndex) => {
+          const isDept = colIndex === 0 || isDepartmentHeader(header);
+          if (isDept) { totals[colIndex] = ''; prevTotals[colIndex] = ''; return; }
+          // Current totals
+          let total = 0; let count = 0; let has = false;
+          rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } });
+          if (has) {
+            if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; }
+            else { totals[colIndex] = total; }
+          } else { totals[colIndex] = ''; }
 
-        const bodyRows = rows.map((row, rowIdx) => { let cells = []; headers.forEach((header, originalColIdx) => { const cell = row[originalColIdx]; let displayValue = cell; let percentageBar=''; let align='left'; if (header && (String(header).toLowerCase().includes('percent') || String(header).includes('%'))) { if (typeof cell === 'number' || !isNaN(parseFloat(cell))) { let percentage = parseFloat(cell) <= 1 ? parseFloat(cell) * 100 : parseFloat(cell); displayValue = percentage.toFixed(1) + '%'; align='right'; const width = Math.min(percentage, 100); let barColor = '#22c55e'; if (percentage < 40) barColor = '#ef4444'; else if (percentage >= 40 && percentage <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } } else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) { displayValue = parseFloat(cell).toLocaleString(); align='right'; } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : ''; cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:${align};${sticky}\"><div>${displayValue ?? ''}</div>${percentageBar}</td>`);
-          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;">0</span>'; if (!isDepartmentHeader(header) && prev && prev.rows) { const previousRow = prev.rows.find(r => r[0] === row[0]); if (previousRow && previousRow[originalColIdx] !== undefined) { const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[originalColIdx]) || 0; const change = currentValue - previousValue; if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${changeText}</span>`; } } } if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); } }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
+          // Previous totals matched by header name
+          const prevIdx = prevHeaderIndexMap[cmpKey(header)];
+          if (prev && Array.isArray(prev.rows) && prevIdx !== undefined) {
+            let pTotal = 0; let pCount = 0; let pHas = false;
+            prev.rows.forEach(row => { const v = row[prevIdx]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } });
+            if (pHas) {
+              if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { prevTotals[colIndex] = pCount > 0 ? (pTotal / pCount) : 0; }
+              else { prevTotals[colIndex] = pTotal; }
+            } else { prevTotals[colIndex] = 0; }
+          } else { prevTotals[colIndex] = 0; }
+        });
+
+        const bodyRows = rows.map((row, rowIdx) => { let cells = []; headers.forEach((header, originalColIdx) => { const cell = row[originalColIdx]; let displayValue = cell; let percentageBar=''; let align='left'; const isDeptCol = originalColIdx === 0 || isDepartmentHeader(header); if (header && (String(header).toLowerCase().includes('percent') || String(header).includes('%'))) { if (typeof cell === 'number' || (!isNaN(parseFloat(cell)))) { let percentage = parseFloat(cell) <= 1 ? parseFloat(cell) * 100 : parseFloat(cell); displayValue = percentage.toFixed(1) + '%'; align='right'; const width = Math.min(percentage, 100); let barColor = '#22c55e'; if (percentage < 40) barColor = '#ef4444'; else if (percentage >= 40 && percentage <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } } else {
+          // Only format numbers if the cell is strictly numeric AND not the Department column
+          const isNumericOnly = (typeof cell === 'number') || (typeof cell === 'string' && /^-?\s*\d+(?:\.\d+)?\s*$/.test(cell));
+          if (!isDeptCol && isNumericOnly) { displayValue = parseFloat(cell).toLocaleString(); align='right'; }
+        }
+        const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#fff; min-width:260px;' : ''; cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:${align};${sticky}\"><div>${displayValue ?? ''}</div>${percentageBar}</td>`);
+          const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;">0</span>';
+          if (!isDepartmentHeader(header) && prev && prev.rows) {
+            const previousRow = prev.rows.find(r => r[0] === row[0]);
+            const prevIdx = prevHeaderIndexMap[cmpKey(header)];
+            if (previousRow && prevIdx !== undefined && previousRow[prevIdx] !== undefined) {
+              const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[prevIdx]) || 0; const change = currentValue - previousValue;
+              if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${changeText}</span>`; }
+            }
+          }
+          if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); }
+        }); const bg = rowIdx % 2 === 0 ? '#ffffff' : '#f9fafb'; return `<tr style=\"background:${bg}\">${cells.join('')}</tr>`; }).join('');
 
         // Totals row with +/- values
         let totalsRowCells = [];
@@ -379,9 +477,12 @@
         container.innerHTML = tableHTML;
         // Apply saved borders state
         try {
-          const cb = document.getElementById('cellBordersToggle');
+          const on = localStorage.getItem('sharedBordersOn') === 'true';
+          const cbGlobal = document.getElementById('cellBordersToggleGlobal');
+          const cbView = document.getElementById('cellBordersToggleView');
+          if (cbGlobal) cbGlobal.checked = on;
+          if (cbView) cbView.checked = on;
           const table = document.getElementById('sharedReportTable');
-          const on = (cb && cb.checked) || localStorage.getItem('sharedBordersOn') === 'true';
           if (table) { if (on) table.classList.add('borders-on'); else table.classList.remove('borders-on'); }
         } catch (_) {}
 
@@ -519,6 +620,13 @@
         statusEl.innerHTML = '<div class="error">Failed to load reports. The link may be invalid or expired.</div>';
       }
 
+      // Initialize global border toggle from saved state
+      try {
+        const saved = localStorage.getItem('sharedBordersOn') === 'true';
+        const cbGlobal = document.getElementById('cellBordersToggleGlobal');
+        if (cbGlobal) cbGlobal.checked = saved;
+      } catch(_) {}
+
       // Keep the shared list fresh: refresh on focus/visibility and every 60s
       window.addEventListener('focus', () => { loadReports().catch(() => {}); });
       document.addEventListener('visibilitychange', () => {
@@ -543,8 +651,8 @@
     <div class="controls">
       <input id="filter" type="search" placeholder="Filter reports by name or summary" />
       <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
-        <input type="checkbox" id="cellBordersToggle" onchange="toggleCellBorders()" style="width:16px;height:16px;">
-        <label for="cellBordersToggle" style="font-size:14px;color:#555;">Show cell borders</label>
+        <input type="checkbox" id="cellBordersToggleGlobal" onchange="toggleCellBorders('global')" style="width:16px;height:16px;">
+        <label for="cellBordersToggleGlobal" style="font-size:14px;color:#555;">Show cell borders</label>
       </div>
     </div>
 
