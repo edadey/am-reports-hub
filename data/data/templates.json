@@ -607,7 +607,7 @@
   },
   {
     "id": "1757061337594",
-    "name": "Premade test",
+    "name": "Premade test 1",
     "description": "Template created from uploaded files: Template test.xlsx",
     "headers": [
       "Department"
@@ -617,19 +617,12 @@
         "Department"
       ]
     ],
-    "createdBy": "demo",
+    "columnCount": 1,
+    "rowCount": 1,
     "createdAt": "2025-09-05T08:35:37.594Z",
-    "updatedAt": "2025-09-05T08:35:37.594Z",
-    "status": "active",
-    "type": "uploaded",
-    "fileInfo": [
-      {
-        "originalName": "Template test.xlsx",
-        "filename": "2025-09-05T08-35-37-560Z-Template test.xlsx",
-        "contentType": "default"
-      }
-    ],
-    "headerFileMap": {}
+    "updatedAt": "2025-09-19T15:16:28.511Z",
+    "validationChecksum": "updated-checksum",
+    "validationTime": "2025-09-19T15:16:28.511Z"
   },
   {
     "id": "1757061516723",

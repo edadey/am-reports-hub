@@ -4459,6 +4459,8 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
     // Preserve the original template ID and creation date
     const originalTemplate = templates[templateIndex];
     const updatedTemplate = {
+      // Spread original template to preserve any extra metadata (e.g., headerFileMap, fileInfo, type, createdBy)
+      ...originalTemplate,
       id: originalTemplate.id, // Keep original ID
       name: name.trim(),
       description: description || '',
@@ -4466,6 +4468,9 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
       tableData: tableData,
       columnCount: columnCount || headers.length,
       rowCount: rowCount || tableData.length,
+      // If client provided updated metadata for file mapping/colouring, accept it; otherwise keep previous
+      headerFileMap: (req.body && typeof req.body.headerFileMap === 'object') ? req.body.headerFileMap : originalTemplate.headerFileMap,
+      fileInfo: (req.body && Array.isArray(req.body.fileInfo)) ? req.body.fileInfo : originalTemplate.fileInfo,
       createdAt: originalTemplate.createdAt, // Keep original creation date
       updatedAt: new Date().toISOString(), // Add/update modification date
       validationChecksum: 'updated-checksum',

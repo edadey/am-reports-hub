@@ -52,6 +52,7 @@
     const qs = new URLSearchParams(location.search);
     const collegeId = qs.get('collegeId');
     const reportId = qs.get('reportId');
+    const templateId = qs.get('templateId');
     const statusEl = document.getElementById('status');
     const modal = document.getElementById('selectCollegeModal');
     const collegePicker = document.getElementById('collegePicker');
@@ -329,7 +330,40 @@
         }
       }
 
-      // 2) Fallback: load from localStorage (Generate Report flow)
+      // 2) If templateId provided, fetch template and load
+      if (templateId) {
+        try {
+          setStatus('Loading template...');
+          const res = await fetch('/api/templates', { credentials: 'include' });
+          const json = await res.json();
+          const list = Array.isArray(json) ? json : (Array.isArray(json.templates) ? json.templates : []);
+          const tpl = list.find(t => String(t.id) === String(templateId));
+          if (!tpl) throw new Error('Template not found');
+          const headers = Array.isArray(tpl.headers) ? tpl.headers : [];
+          const rows = Array.isArray(tpl.tableData) ? tpl.tableData : [];
+          const workbookData = createUniverWorkbook(headers, rows);
+          univer.createUnit(UniverInstanceType.UNIVER_SHEET, workbookData);
+          univerAPI = window.FUniver.newAPI(univer);
+          // Save template context
+          window.__currentTemplate = {
+            id: tpl.id,
+            name: tpl.name,
+            description: tpl.description || '',
+            isTemplate: true,
+            createdAt: tpl.createdAt,
+            updatedAt: tpl.updatedAt
+          };
+          // Apply formatting after load
+          setTimeout(() => { applyDataBarsToUniver(headers, rows); }, 500);
+          setStatus('Loaded');
+          return;
+        } catch (e) {
+          console.error('Template load by ID failed:', e);
+          // continue to localStorage fallback
+        }
+      }
+
+      // 3) Fallback: load from localStorage (Generate Report flow)
       const cached = localStorage.getItem('excelEditorData');
       if (cached) {
         try {
@@ -368,9 +402,8 @@
       };
       
       // Initialize empty Univer instance
-      const { Univer, UniverInstanceType } = window.UniverCore;
-      
       if (!univer) {
+        const { Univer, UniverInstanceType } = window.UniverCore;
         univer = new Univer({
           theme: window.UniverDesign.defaultTheme,
           locale: 'en_US',

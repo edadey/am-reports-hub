@@ -2409,11 +2409,109 @@
           </p>
           <div class="mt-3 space-x-2">
             <button onclick="useTemplateById('${template.id}')" class="text-blue-600 hover:text-blue-800 text-sm">Use</button>
+            <button onclick="editTemplate('${template.id}')" class="text-gray-700 hover:text-gray-900 text-sm">Edit</button>
             <button onclick="deleteTemplate('${template.id}')" class="text-red-600 hover:text-red-800 text-sm">Delete</button>
           </div>
         </div>
       `;
       }).join('');
+    }
+
+    // Open a template in the spreadsheet editor for structural edits
+    function openTemplateInEditor(templateId) {
+      try {
+        const tpl = (templates || []).find(t => String(t.id) === String(templateId));
+        if (!tpl) { showStatus('Template not found', 'error'); return; }
+        if (Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
+          try {
+            localStorage.setItem('excelEditorData', JSON.stringify({ 
+              headers: tpl.headers, 
+              rows: tpl.tableData,
+              templateId: tpl.id,
+              templateName: tpl.name,
+              templateDescription: tpl.description,
+              isTemplate: true
+            }));
+          } catch(_) {}
+        }
+        const editorUrl = new URL('report-editor-xs.html', window.location.origin);
+        editorUrl.searchParams.set('t', String(Date.now()));
+        editorUrl.searchParams.set('templateId', String(templateId));
+        window.open(editorUrl.toString(), '_blank');
+      } catch (e) {
+        console.error('openTemplateInEditor error:', e);
+        showStatus('Failed to open editor: ' + (e?.message || e), 'error');
+      }
+    }
+
+    // Modal to rename template and/or open it in the editor
+    function editTemplate(templateId) {
+      const tpl = (templates || []).find(t => String(t.id) === String(templateId));
+      if (!tpl) { showStatus('Template not found', 'error'); return; }
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      overlay.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" id="editTplModal">
+          <h3 class="text-lg font-semibold mb-4">Edit Template</h3>
+          <form id="editTemplateForm" class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Template name</label>
+              <input id="editTemplateName" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="${(tpl.name || '').replace(/"/g, '&quot;')}">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+              <input id="editTemplateDescription" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="${(tpl.description || '').replace(/"/g, '&quot;')}">
+            </div>
+            <div class="flex flex-wrap justify-end gap-2 pt-2">
+              <button id="editTplOpenEditor" type="button" class="px-4 py-2 rounded bg-gray-100 text-gray-800 hover:bg-gray-200">Open in Editor</button>
+              <button id="editTplCancel" type="button" class="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</button>
+              <button id="editTplSave" type="submit" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
+            </div>
+          </form>
+        </div>`;
+      const cleanup = () => { try { document.body.removeChild(overlay); } catch(_) {} };
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+      document.body.appendChild(overlay);
+      const contentEl = overlay.querySelector('#editTplModal');
+      if (contentEl) contentEl.addEventListener('click', (e) => e.stopPropagation());
+      const form = overlay.querySelector('#editTemplateForm');
+      const nameInput = overlay.querySelector('#editTemplateName');
+      const descInput = overlay.querySelector('#editTemplateDescription');
+      const cancelBtn = overlay.querySelector('#editTplCancel');
+      const openBtn = overlay.querySelector('#editTplOpenEditor');
+      if (cancelBtn) cancelBtn.addEventListener('click', cleanup);
+      if (openBtn) openBtn.addEventListener('click', () => { cleanup(); openTemplateInEditor(templateId); });
+      if (nameInput) nameInput.focus();
+      if (form) {
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const newName = (nameInput?.value || '').trim();
+          const newDesc = (descInput?.value || '').trim();
+          if (!newName) { showStatus('Please enter a template name', 'error'); return; }
+          try {
+            const headers = Array.isArray(tpl.headers) ? tpl.headers : [];
+            const rows = Array.isArray(tpl.tableData) ? tpl.tableData : [];
+            const payload = {
+              name: newName,
+              description: newDesc,
+              headers,
+              tableData: rows,
+              columnCount: headers.length,
+              rowCount: rows.length,
+              headerFileMap: tpl.headerFileMap || {},
+              fileInfo: Array.isArray(tpl.fileInfo) ? tpl.fileInfo : []
+            };
+            const res = await axios.put(`/api/templates/${tpl.id}`, payload, { withCredentials: true });
+            if (!res.data || !res.data.success) throw new Error(res.data?.error || 'Update failed');
+            showStatus('Template updated', 'success');
+            await loadTemplates();
+            cleanup();
+          } catch (e) {
+            console.error('Edit template save error:', e);
+            showStatus('Failed to update template: ' + (e?.message || e), 'error');
+          }
+        });
+      }
     }
 
     // Function to determine column section and color using file-based grouping

@@ -231,7 +231,11 @@
             <button id="applyTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors font-medium w-full md:w-auto">Apply</button>
           </div>
         </div>
-        
+        <!-- Template management actions -->
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button id="renameTemplateBtn" type="button" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors font-medium">Rename Template</button>
+          <button id="updateTemplateBtn" type="button" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors font-medium">Update Template From Table</button>
+        </div>
         <!-- Template File Type Selection (shown when using templates) -->
         <div id="templateFileTypeSelection" class="mt-4 hidden">
           <h4 class="text-sm font-medium text-gray-700 mb-3">Select file types for template preview:</h4>
@@ -286,14 +290,23 @@
                 <input type="checkbox" id="toggleCellBorders" class="mr-2">
                 Show cell borders
               </label>
+              <label class="inline-flex items-center text-sm text-gray-700" style="display:none;">
+                <input type="checkbox" id="toggleStickyHeader" class="mr-2">
+                Fix header row
+              </label>
             </div>
           </div>
+        </div>
+        
+        <!-- Top horizontal scrollbar synced with the table below -->
+        <div id="tableTopScroll" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" style="height:16px; border-top:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb;">
+          <div id="tableTopScrollInner" style="height:1px;"></div>
         </div>
         
         <div id="tableScrollContainer" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick">
           <!-- File legend (maps header accent colours to filenames) -->
           <div id="fileLegend" class="px-3 sm:px-6 py-2 text-xs text-gray-600 flex flex-wrap gap-2"></div>
-          <table id="dataTable" class="min-w-full divide-y divide-gray-200">
+          <table id="dataTable" class="min-w-full divide-y divide-gray-200" style="border-collapse:separate;border-spacing:0;">
             <thead id="tableHeader">
               <!-- Headers will be populated here -->
             </thead>
@@ -604,7 +617,82 @@
           });
         }
       } catch (e) { console.warn('Border toggle init failed:', e?.message || e); }
+      
+      // Initialize sticky header toggle (default OFF to preserve header colours)
+      try {
+        const stickyToggle = document.getElementById('toggleStickyHeader');
+        if (stickyToggle) {
+          stickyToggle.checked = false;
+          applyStickyHeader(false);
+          stickyToggle.addEventListener('change', () => {
+            const on = !!stickyToggle.checked;
+            applyStickyHeader(on);
+          });
+          // Do not persist this setting to avoid unexpected overrides of colours
+        }
+      } catch (e) { console.warn('Sticky header toggle init failed:', e?.message || e); }
+      
+      // Initialize top/bottom scroll sync once DOM is ready
+      try { setupScrollSync(); } catch (e) { console.warn('Scroll sync setup failed:', e?.message || e); }
     });
+
+    // Helper: robust department header detection
+    function isDepartmentHeader(h) {
+      try { return String(h || '').trim().toLowerCase().startsWith('department'); } catch (_) { return false; }
+    }
+
+    // Enable/disable sticky headers on the data table by setting inline styles on th
+    function applyStickyHeader(on) {
+      try {
+        const ths = document.querySelectorAll('#dataTable thead th');
+        ths.forEach(th => {
+          if (on) {
+            th.style.setProperty('position', 'sticky', 'important');
+            th.style.setProperty('top', '0', 'important');
+            th.style.setProperty('z-index', '20', 'important');
+            // Do NOT set background here; preserve header section colours
+          } else {
+            th.style.removeProperty('position');
+            th.style.removeProperty('top');
+            th.style.removeProperty('z-index');
+            // Do NOT remove background; preserve inline/background-color from header renderer
+          }
+        });
+      } catch (_) {}
+    }
+
+    // Top/bottom horizontal scroll synchronization for the data table
+    let __scrollSyncInitialized = false;
+    function setupScrollSync() {
+      const top = document.getElementById('tableTopScroll');
+      const bottom = document.getElementById('tableScrollContainer');
+      const inner = document.getElementById('tableTopScrollInner');
+      const table = document.getElementById('dataTable');
+      if (!top || !bottom || !inner || !table) return;
+      const update = () => {
+        try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch (_) {}
+      };
+      update();
+      let syncing = false;
+      if (!__scrollSyncInitialized) {
+        top.addEventListener('scroll', () => { if (syncing) return; syncing = true; bottom.scrollLeft = top.scrollLeft; syncing = false; });
+        bottom.addEventListener('scroll', () => { if (syncing) return; syncing = true; top.scrollLeft = bottom.scrollLeft; syncing = false; });
+        window.addEventListener('resize', update);
+        __scrollSyncInitialized = true;
+      }
+      // In case dimensions change after paint
+      setTimeout(update, 0);
+    }
+    function updateScrollSync() {
+      try {
+        const inner = document.getElementById('tableTopScrollInner');
+        const bottom = document.getElementById('tableScrollContainer');
+        const table = document.getElementById('dataTable');
+        if (inner && bottom && table) {
+          inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px';
+        }
+      } catch (_) {}
+    }
 
     // Authentication check
     async function checkAuthStatus() {
@@ -982,6 +1070,15 @@
         applyTemplateBtn.addEventListener('click', async function() {
           await applySelectedTemplate();
         });
+      }
+      // Template management button wiring
+      const renameTemplateBtn = document.getElementById('renameTemplateBtn');
+      if (renameTemplateBtn) {
+        renameTemplateBtn.addEventListener('click', showRenameTemplateModal);
+      }
+      const updateTemplateBtn = document.getElementById('updateTemplateBtn');
+      if (updateTemplateBtn) {
+        updateTemplateBtn.addEventListener('click', updateSelectedTemplateFromTable);
       }
 
       // Ensure the edit toolbar is bound after DOM is ready
@@ -2703,14 +2800,14 @@
           const sectionInfo = getColumnSection(originalHeader);
           const originalIdx = tableHeaders.indexOf(originalHeader);
           
-          // File-based accent
+          // File-based accent (disabled for previous style) — keep variables for potential future use
           const fileIdx = getHeaderFileIndex(originalHeader);
           const accent = getFileAccentColor(fileIdx);
-          const accentStyle = accent ? ` border-left: 4px solid ${accent} !important; box-shadow: inset 0 4px 0 ${accent};` : '';
-          const dot = accent ? `<span style="display:inline-block;width:8px;height:8px;background:${accent};border-radius:2px;margin-right:6px;vertical-align:middle;"></span>` : '';
+          const accentStyle = '';
+          const dot = '';
           
-          // Prefer custom accent as the header background if available
-          const inline = accent ? `background-color: ${accent} !important; border-color: ${accent} !important;` : sectionInfo.inlineColor;
+          // Use light section background; file accent is shown via left border and dot only (previous style)
+          const inline = sectionInfo.inlineColor;
           
           console.log(`Rendering header "${h}" (original: "${originalHeader}") with class: "${sectionInfo.color}", inline: "${inline}", fileIdx: ${fileIdx}, accent: ${accent}`);
           
@@ -2795,15 +2892,18 @@
               displayText = baseDisp;
             }
           }
-          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${inline} !important;${accentStyle}; cursor:pointer;">${checkbox}${dot}${displayText}</th>`;
+          const styleAttr = `${inline}${accentStyle ? ' ' + accentStyle : ''} cursor:pointer;`;
+          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${styleAttr}">${checkbox}${dot}${displayText}</th>`;
         }
       }).join('');
       
-      const selectHeaderCell = editMode ? `<th class="px-2 py-3 text-left text-xs font-medium text-gray-700">Sel</th>` : '';
+      const allRowsSelected = editMode ? (selectedRows.size === tableData.length && tableData.length > 0) : false;
+      const selectHeaderCell = editMode ? `<th class="px-2 py-3 text-left text-xs font-medium text-gray-700"><input type="checkbox" id="selectAllRows" class="mr-2" ${allRowsSelected ? 'checked' : ''}> Sel</th>` : '';
       headerHTML += `<tr>${selectHeaderCell}${headerCells}</tr>`;
       // Final safety: strip any trailing [Label] right before closing th, in case any slipped through
       try { headerHTML = headerHTML.replace(/\s*\[[^\]]+\](?=\s*<\/th>)/gi, ''); } catch(_) {}
       header.innerHTML = headerHTML;
+      // No sticky header re-application to preserve original header colouring
       
       // Render body with proper column alignment
       body.innerHTML = tableData.map((row, rowIdx) => {
@@ -2817,9 +2917,13 @@
           const cell = row[originalColIdx];
           let displayValue = cell;
           let percentageBar = '';
-          
+
+          // Ensure Department column is always treated as plain text
+          if (isDepartmentHeader(header)) {
+            displayValue = String(cell ?? '');
+          }
           // In strict template mode, do not add visual decorations/formatting
-          if (!window.strictTemplateMode && header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+          else if (!window.strictTemplateMode && header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
             if (typeof cell === 'number' || !isNaN(parseFloat(cell))) {
               // Check if the value is already a percentage (0-100) or needs conversion (0-1)
               let percentage;
@@ -2861,7 +2965,7 @@
             }
           }
           // Format numbers (but never for the Department column)
-          else if (!window.strictTemplateMode && header !== 'Department' && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
+          else if (!window.strictTemplateMode && !isDepartmentHeader(header) && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
             displayValue = parseFloat(cell).toLocaleString();
           }
           
@@ -2879,7 +2983,7 @@
           
           // Add change indicator cell if this column should have one
           // Only add for percentage columns and numeric metric columns
-          if (!window.strictTemplateMode && header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || 
+          if (!window.strictTemplateMode && !isDepartmentHeader(header) && (header.toLowerCase().includes('percent') || header.includes('%') || 
               header.toLowerCase().includes('total') || header.toLowerCase().includes('students') || 
               header.toLowerCase().includes('hours') || header.toLowerCase().includes('score') || 
               header.toLowerCase().includes('activities'))) {
@@ -2941,6 +3045,9 @@
         });
       });
       
+      // Update top/bottom scroll width after render
+      try { updateScrollSync(); } catch(_) {}
+
       // Column/row quick select by click (kept)
       header.querySelectorAll('th[data-original-idx]').forEach(th => {
         th.addEventListener('click', () => {
@@ -2964,6 +3071,19 @@
 
       // Checkbox selection wiring
       if (editMode) {
+        // Select All rows toggle
+        const selectAll = document.getElementById('selectAllRows');
+        if (selectAll) {
+          selectAll.addEventListener('click', (e) => { e.stopPropagation(); });
+          selectAll.addEventListener('change', (e) => {
+            selectedRows.clear();
+            if (e.target.checked) {
+              for (let i = 0; i < tableData.length; i++) selectedRows.add(i);
+            }
+            renderTable();
+          });
+        }
+
         header.querySelectorAll('input.col-select').forEach(inp => {
           inp.addEventListener('click', (e) => { e.stopPropagation(); });
           inp.addEventListener('change', (e) => {
@@ -3358,6 +3478,127 @@
     function getTemplateMode() {
       const templateMode = document.getElementById('templateMode');
       return templateMode ? templateMode.value : 'flexible';
+    }
+
+    // Modal form for renaming the selected template
+    async function showRenameTemplateModal() {
+      const selectedTemplate = getSelectedTemplate();
+      if (!selectedTemplate) {
+        showStatus('Please select a template to rename', 'error');
+        return;
+      }
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      overlay.innerHTML = `
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" id="renameTplModal">
+          <h3 class="text-lg font-semibold mb-4">Rename Template</h3>
+          <form id="renameTemplateForm" class="space-y-3">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Template name</label>
+              <input id="renameTemplateName" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="${(selectedTemplate.name || '').replace(/"/g, '&quot;')}">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Description (optional)</label>
+              <input id="renameTemplateDescription" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="${(selectedTemplate.description || '').replace(/"/g, '&quot;')}">
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+              <button id="renameTplCancel" type="button" class="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</button>
+              <button id="renameTplSubmit" type="submit" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
+            </div>
+          </form>
+        </div>`;
+      const cleanup = () => { try { document.body.removeChild(overlay); } catch(_) {} };
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanup(); });
+      document.body.appendChild(overlay);
+      const contentEl = overlay.querySelector('#renameTplModal');
+      if (contentEl) contentEl.addEventListener('click', (e) => e.stopPropagation());
+      const form = overlay.querySelector('#renameTemplateForm');
+      const nameInput = overlay.querySelector('#renameTemplateName');
+      const descInput = overlay.querySelector('#renameTemplateDescription');
+      const cancelBtn = overlay.querySelector('#renameTplCancel');
+      if (cancelBtn) cancelBtn.addEventListener('click', cleanup);
+      if (nameInput) nameInput.focus();
+      if (form) {
+        form.addEventListener('submit', async (ev) => {
+          ev.preventDefault();
+          const newName = (nameInput?.value || '').trim();
+          const newDesc = (descInput?.value || '').trim();
+          if (!newName) { showStatus('Please enter a template name', 'error'); return; }
+          try {
+            const headers = Array.isArray(selectedTemplate.headers) ? selectedTemplate.headers : [];
+            const rows = Array.isArray(selectedTemplate.tableData) ? selectedTemplate.tableData : [];
+            const payload = {
+              name: newName,
+              description: newDesc,
+              headers,
+              tableData: rows,
+              columnCount: headers.length,
+              rowCount: rows.length,
+              headerFileMap: selectedTemplate.headerFileMap || {},
+              fileInfo: Array.isArray(selectedTemplate.fileInfo) ? selectedTemplate.fileInfo : []
+            };
+            showStatus('Renaming template...', 'info');
+            const res = await axios.put(`/api/templates/${selectedTemplate.id}`, payload, { withCredentials: true });
+            if (!res.data || !res.data.success) throw new Error(res.data?.error || 'Rename failed');
+            showStatus('Template renamed successfully', 'success');
+            await loadTemplates();
+            try { const sel = document.getElementById('templateSelect'); if (sel) sel.value = String(selectedTemplate.id); } catch(_) {}
+            cleanup();
+          } catch (e) {
+            console.error('Rename template error:', e);
+            showStatus('Failed to rename template: ' + (e?.message || e), 'error');
+          }
+        });
+      }
+    }
+
+    // Update selected template structure from current table (headers + rows)
+    async function updateSelectedTemplateFromTable() {
+      try {
+        const selectedTemplate = getSelectedTemplate();
+        if (!selectedTemplate) {
+          showStatus('Please select a template to update', 'error');
+          return;
+        }
+        if (!Array.isArray(tableHeaders) || !Array.isArray(tableData) || tableHeaders.length === 0) {
+          showStatus('No current table available. Upload/process data first.', 'error');
+          return;
+        }
+        const confirmed = window.confirm('Update the selected template to match the current table (headers and rows)?');
+        if (!confirmed) return;
+
+        // Use display headers without trailing [FileLabel]
+        const displayHeaders = (tableHeaders || []).map(h => stripFileLabel(h));
+
+        const payload = {
+          name: selectedTemplate.name,
+          description: selectedTemplate.description || '',
+          headers: displayHeaders,
+          tableData: tableData,
+          columnCount: displayHeaders.length,
+          rowCount: tableData.length,
+          // Carry over any header/file mapping metadata used for colouring
+          headerFileMap: (typeof window.headerFileMap === 'object' && window.headerFileMap) ? window.headerFileMap : (selectedTemplate.headerFileMap || {}),
+          fileInfo: Array.isArray(window.fileInfo) ? window.fileInfo : (Array.isArray(selectedTemplate.fileInfo) ? selectedTemplate.fileInfo : [])
+        };
+
+        const id = selectedTemplate.id;
+        showStatus('Updating template...', 'info');
+        const res = await axios.put(`/api/templates/${id}`, payload, { withCredentials: true });
+        if (res.data && res.data.success) {
+          showStatus('Template updated successfully', 'success');
+          await loadTemplates();
+          try {
+            const templateSelect = document.getElementById('templateSelect');
+            if (templateSelect) templateSelect.value = String(id);
+          } catch(_) {}
+        } else {
+          throw new Error(res.data?.error || 'Update failed');
+        }
+      } catch (e) {
+        console.error('Update template error:', e);
+        showStatus('Failed to update template: ' + (e?.message || e), 'error');
+      }
     }
 
     async function showSaveTemplateModal() {

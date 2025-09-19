@@ -87,6 +87,75 @@
         return;
       }
 
+      // Toggle header sticky position
+      function toggleHeaderSticky() {
+        const toggle = document.getElementById('headerStickyToggle');
+        const isSticky = toggle && toggle.checked;
+        try { localStorage.setItem('sharedHeaderStickyOn', isSticky ? 'true' : 'false'); } catch(_) {}
+        const headers = document.querySelectorAll('#sharedReportTable thead th');
+        headers.forEach(th => {
+          if (isSticky) {
+            th.style.setProperty('position', 'sticky', 'important');
+            th.style.setProperty('top', '0', 'important');
+            th.style.setProperty('z-index', '4', 'important');
+            th.style.setProperty('background', '#fff', 'important');
+          } else {
+            th.style.removeProperty('position');
+            th.style.removeProperty('top');
+            th.style.removeProperty('z-index');
+            th.style.removeProperty('background');
+          }
+        });
+      }
+
+      // Apply initial header sticky after render
+      function applyInitialHeaderSticky() {
+        const toggle = document.getElementById('headerStickyToggle');
+        const isSticky = toggle && toggle.checked;
+        if (!isSticky) return;
+        const headers = document.querySelectorAll('#sharedReportTable thead th');
+        headers.forEach(th => {
+          th.style.setProperty('position', 'sticky', 'important');
+          th.style.setProperty('top', '0', 'important');
+          th.style.setProperty('z-index', '4', 'important');
+          th.style.setProperty('background', '#fff', 'important');
+        });
+      }
+
+      // Scroll sync for shared view
+      let __sharedScrollSyncSetup = false;
+      function setupScrollSyncShared() {
+        const top = document.getElementById('sharedTopScroll');
+        const bottom = document.getElementById('reportScroll');
+        const inner = document.getElementById('sharedTopScrollInner');
+        const table = document.getElementById('sharedReportTable');
+        if (!top || !bottom || !inner || !table) return;
+        const update = () => {
+          try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch(_) {}
+        };
+        update();
+        let syncing = false;
+        if (!__sharedScrollSyncSetup) {
+          top.addEventListener('scroll', () => {
+            if (syncing) return; syncing = true; bottom.scrollLeft = top.scrollLeft; syncing = false;
+          });
+          bottom.addEventListener('scroll', () => {
+            if (syncing) return; syncing = true; top.scrollLeft = bottom.scrollLeft; syncing = false;
+          });
+          window.addEventListener('resize', update);
+          __sharedScrollSyncSetup = true;
+        }
+        setTimeout(update, 0);
+      }
+      function updateScrollSyncShared() {
+        try {
+          const inner = document.getElementById('sharedTopScrollInner');
+          const bottom = document.getElementById('reportScroll');
+          const table = document.getElementById('sharedReportTable');
+          if (inner && bottom && table) inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px';
+        } catch(_) {}
+      }
+
       // Toggle cell borders (syncs both global and in-view checkboxes)
       function toggleCellBorders(source) {
         try {
@@ -248,6 +317,10 @@
                   <label for="departmentStickyToggle" style="font-size:14px;color:#555;">Fix Department Column</label>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
+                  <input type="checkbox" id="headerStickyToggle" onchange="toggleHeaderSticky()" style="width:16px;height:16px;">
+                  <label for="headerStickyToggle" style="font-size:14px;color:#555;">Fix header row</label>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
                   <input type="checkbox" id="cellBordersToggleView" onchange="toggleCellBorders('view')" style="width:16px;height:16px;">
                   <label for="cellBordersToggleView" style="font-size:14px;color:#555;">Show cell borders</label>
                 </div>
@@ -269,6 +342,12 @@
           if (cb) cb.checked = saved;
           const cbGlobal = document.getElementById('cellBordersToggleGlobal');
           if (cbGlobal) cbGlobal.checked = saved;
+        } catch (_) {}
+        // Restore sticky header state
+        try {
+          const hs = document.getElementById('headerStickyToggle');
+          const savedHS = localStorage.getItem('sharedHeaderStickyOn') === 'true';
+          if (hs) hs.checked = savedHS;
         } catch (_) {}
         displayReportData(report);
         reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -473,7 +552,14 @@
             totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:center;font-weight:600;color:#2563eb;\">${totalsChange}</td>`);
           } });
 
-        const tableHTML = `<div id=\"reportScroll\" class=\"custom-scrollbar-thick\" style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\"><table id=\"sharedReportTable\" style=\"width:100%;border-collapse:separate;border-spacing:0;\"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody></table></div>`;
+        const tableHTML = `
+          <div id=\"sharedTopScroll\" class=\"custom-scrollbar-thick\" style=\"overflow-x:auto;height:16px;\"><div id=\"sharedTopScrollInner\" style=\"height:1px;\"></div></div>
+          <div id=\"reportScroll\" class=\"custom-scrollbar-thick\" style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\">
+            <table id=\"sharedReportTable\" style=\"width:100%;border-collapse:separate;border-spacing:0;\">
+              <thead><tr>${headerCells}</tr></thead>
+              <tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody>
+            </table>
+          </div>`;
         container.innerHTML = tableHTML;
         // Apply saved borders state
         try {
@@ -486,8 +572,13 @@
           if (table) { if (on) table.classList.add('borders-on'); else table.classList.remove('borders-on'); }
         } catch (_) {}
 
-        // Apply initial sticky styling to department column
-        setTimeout(() => applyInitialDepartmentSticky(), 100);
+        // Setup scroll sync and apply initial sticky styling
+        try { setupScrollSyncShared(); } catch (_) {}
+        setTimeout(() => {
+          try { applyInitialDepartmentSticky(); } catch(_) {}
+          try { applyInitialHeaderSticky(); } catch(_) {}
+          try { updateScrollSyncShared(); } catch(_) {}
+        }, 100);
       }
 
       // Zoom controls (match dashboard behaviour)
@@ -601,6 +692,10 @@
 
       // Expose toggle functions globally for inline handlers
       window.toggleDepartmentSticky = toggleDepartmentSticky;
+      window.toggleHeaderSticky = toggleHeaderSticky;
+      window.applyInitialHeaderSticky = applyInitialHeaderSticky;
+      window.setupScrollSyncShared = setupScrollSyncShared;
+      window.updateScrollSyncShared = updateScrollSyncShared;
       window.toggleCellBorders = toggleCellBorders;
       window.applyInitialDepartmentSticky = applyInitialDepartmentSticky;
 

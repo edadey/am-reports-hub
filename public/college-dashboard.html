@@ -3429,6 +3429,10 @@
                   <label for="departmentStickyToggle" class="text-sm text-gray-600">Fix Department Column</label>
                 </div>
                 <div class="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-2">
+                  <input type="checkbox" id="headerStickyToggleCollege" onchange="toggleHeaderStickyCollege()" class="h-4 w-4">
+                  <label for="headerStickyToggleCollege" class="text-sm text-gray-600">Fix header row</label>
+                </div>
+                <div class="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-2">
                   <input type="checkbox" id="toggleCellBordersCollege" class="h-4 w-4">
                   <label for="toggleCellBordersCollege" class="text-sm text-gray-600">Show cell borders</label>
                 </div>
@@ -3931,9 +3935,15 @@
           let displayValue = cell;
           let percentageBar = '';
           let cellAlignment = 'text-left'; // Default alignment
-          
+          const isDeptCol = (originalColIdx === 0) || (String(header || '').trim().toLowerCase().startsWith('department'));
+
+          if (isDeptCol) {
+            // Always treat Department column as plain text (avoid numeric coercion like "12d/Td1" -> 12)
+            displayValue = String(cell ?? '');
+            cellAlignment = 'text-left';
+          }
           // Format percentages and add percentage bars
-          if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+          else if (header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
             if (typeof cell === 'number' || !isNaN(parseFloat(cell))) {
               // Check if the value is already a percentage (0-100) or needs conversion (0-1)
               let percentage;
@@ -3967,7 +3977,7 @@
               `;
             }
           }
-          // Format numbers and right-align them
+          // Format numbers and right-align them (but never for Department column)
           else if (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== '')) {
             displayValue = parseFloat(cell).toLocaleString();
             cellAlignment = 'text-right'; // Right align numbers
@@ -3985,7 +3995,7 @@
           `);
           
           // Add change indicator cell if this column should have one
-          if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+          if (!String(header || '').trim().toLowerCase().startsWith('department') && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
             let changeIndicator = '';
             
             // Calculate change from previous report
@@ -4089,10 +4099,11 @@
       const totalsRow = `<tr class="bg-gray-50 border-t-2 border-gray-300">${totalsRowCells.join('')}</tr>`;
 
       const tableHTML = `
-        <div class="overflow-x-auto custom-scrollbar custom-scrollbar-thick border border-gray-200 rounded-lg">
+        <div id="collegeTopScroll" class="custom-scrollbar-thick" style="overflow-x:auto;height:16px;"><div id="collegeTopScrollInner" style="height:1px;"></div></div>
+        <div id="collegeReportScroll" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick border border-gray-200 rounded-lg">
           <table id="collegeReportTable" class="min-w-full divide-y divide-gray-200" style="border-collapse:separate;border-spacing:0;">
             <thead>
-              <tr style="position: sticky; top: 0; z-index: 4; background:#fff;">${headerCells}</tr>
+              <tr>${headerCells}</tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               ${bodyRows}
@@ -4118,6 +4129,21 @@
           });
         }
       } catch (_) {}
+      
+      // Apply header sticky from saved state and wire toggle
+      try {
+        const hs = document.getElementById('headerStickyToggleCollege');
+        const savedHS = localStorage.getItem('collegeHeaderStickyOn') === 'true';
+        if (hs) hs.checked = savedHS;
+        applyHeaderStickyCollege(savedHS);
+        if (hs) hs.addEventListener('change', () => {
+          const on = !!hs.checked; localStorage.setItem('collegeHeaderStickyOn', on ? 'true' : 'false'); applyHeaderStickyCollege(on);
+        });
+      } catch(_) {}
+
+      // Setup scroll sync for top/bottom scrollbars
+      try { setupScrollSyncCollege(); } catch(_) {}
+
       
       // Apply initial sticky styling to department column
       setTimeout(() => applyInitialDepartmentSticky(), 100);
