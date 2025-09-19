@@ -1,0 +1,35 @@
+[
+  {
+    "id": "1754391848877",
+    "name": "Test Report",
+    "data": {
+      "headers": [
+        "Department",
+        "Students",
+        "Placements"
+      ],
+      "rows": [
+        [
+          "IT",
+          50,
+          45
+        ],
+        [
+          "Business",
+          30,
+          25
+        ],
+        [
+          "Engineering",
+          40,
+          35
+        ]
+      ]
+    },
+    "createdAt": "2025-08-05T11:04:08.877Z",
+    "summary": "Test report for functionality testing",
+    "createdBy": "system",
+    "validationChecksum": "temp-checksum",
+    "validationTime": "2025-08-05T11:04:08.877Z"
+  }
+]

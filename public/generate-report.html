@@ -2804,8 +2804,8 @@
               `;
             }
           }
-          // Format numbers
-          else if (!window.strictTemplateMode && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
+          // Format numbers (but never for the Department column)
+          else if (!window.strictTemplateMode && header !== 'Department' && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
             displayValue = parseFloat(cell).toLocaleString();
           }
           
@@ -4660,41 +4660,19 @@
       
       // Build normalised header assignments:
       // - Keys must be the raw headers as they appear in the sheet (no [Label], no (Type) suffix)
-      // - Also propagate per-file dropdown selections to all original headers of that file
+      // - Do NOT propagate per-file dropdown selections to all headers.
+      //   Per-file types will still be sent separately via fileTypes and respected by the backend.
       try {
         const normalised = {};
         const baseOf = (h) => String(h || '')
           .replace(/\s*\[[^\]]+\]\s*$/, '')
           .replace(/\s*\([^)]*\)\s*$/, '')
           .trim();
-        // 1) Normalise any manual per-header assignments the user made by clicking header cards
+        // 1) Normalise any manual per-header assignments the user explicitly made by clicking header cards
         Object.keys(headerAssignments || {}).forEach(k => {
           const base = baseOf(k);
           if (base) normalised[base] = headerAssignments[k];
         });
-        // 2) Overlay per-file selections for all file headers so assignment applies broadly
-        if (extractedData && extractedData.headerFileMap && window.__fileLevelSelections) {
-          // If originalHeaders are present, prefer them; otherwise derive from headerFileMap keys
-          const byFile = {};
-          Object.keys(extractedData.headerFileMap).forEach(k => {
-            const fi = extractedData.headerFileMap[k];
-            if (fi === undefined || fi === null) return;
-            if (!byFile[fi]) byFile[fi] = new Set();
-            byFile[fi].add(baseOf(k));
-          });
-          Object.keys(window.__fileLevelSelections).forEach(fiKey => {
-            const fi = parseInt(fiKey, 10);
-            if (Number.isNaN(fi)) return;
-            const sel = window.__fileLevelSelections[fiKey];
-            const t = sel && sel.type ? String(sel.type).toLowerCase() : '';
-            if (!t) return;
-            const headersForFile = byFile[fi] || new Set();
-            headersForFile.forEach(hBase => {
-              if (!hBase || /^\d+$/.test(hBase) || hBase.toLowerCase() === 'department') return;
-              normalised[hBase] = t; // For employer/enrichment this drives activities routing
-            });
-          });
-        }
         console.log('Normalised header assignments to send:', normalised);
         formData.append('headerAssignments', JSON.stringify(normalised));
       } catch (e) {
