@@ -359,6 +359,14 @@
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
       background: #a8a8a8;
     }
+    /* Thicker horizontal scrollbar for report preview */
+    .custom-scrollbar-thick::-webkit-scrollbar:horizontal { height: 14px; }
+    .custom-scrollbar-thick::-webkit-scrollbar-thumb { border-radius: 7px; }
+
+    /* Toggleable borders on report tables */
+    .borders-on { border-collapse: collapse; border: 1px solid #e5e7eb; }
+    .borders-on th, .borders-on td { border: 1px solid #e5e7eb !important; }
+    .borders-on thead th { border: 1px solid #e5e7eb !important; }
     
     /* Touch-friendly buttons */
     .touch-button {
@@ -3420,6 +3428,10 @@
                   <input type="checkbox" id="departmentStickyToggle" checked onchange="toggleDepartmentSticky()" class="h-4 w-4">
                   <label for="departmentStickyToggle" class="text-sm text-gray-600">Fix Department Column</label>
                 </div>
+                <div class="flex items-center gap-2 border border-gray-300 rounded-md px-3 py-2">
+                  <input type="checkbox" id="toggleCellBordersCollege" class="h-4 w-4">
+                  <label for="toggleCellBordersCollege" class="text-sm text-gray-600">Show cell borders</label>
+                </div>
                 <div class="flex items-center gap-1 border border-gray-300 rounded-md px-3 py-2">
                   <button onclick="adjustZoom(-10)" class="text-gray-600 hover:text-gray-800 px-2 py-1 text-sm font-bold">-</button>
                   <span id="zoomLevel" class="text-sm text-gray-600 min-w-12 text-center">100%</span>
@@ -3434,7 +3446,7 @@
                 </button>
               </div>
             </div>
-            <div id="reportDataContainer" class="overflow-x-auto">
+            <div id="reportDataContainer" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick">
               <div class="text-center py-8">
                 <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                 <p class="mt-2 text-gray-600">Loading report data...</p>
@@ -4077,8 +4089,8 @@
       const totalsRow = `<tr class="bg-gray-50 border-t-2 border-gray-300">${totalsRowCells.join('')}</tr>`;
 
       const tableHTML = `
-        <div class="overflow-x-auto border border-gray-200 rounded-lg">
-          <table class="min-w-full divide-y divide-gray-200" style="border-collapse:separate;border-spacing:0;">
+        <div class="overflow-x-auto custom-scrollbar custom-scrollbar-thick border border-gray-200 rounded-lg">
+          <table id="collegeReportTable" class="min-w-full divide-y divide-gray-200" style="border-collapse:separate;border-spacing:0;">
             <thead>
               <tr style="position: sticky; top: 0; z-index: 4; background:#fff;">${headerCells}</tr>
             </thead>
@@ -4091,6 +4103,21 @@
       `;
 
       container.innerHTML = tableHTML;
+      
+      // Apply saved borders state and bind toggle
+      try {
+        const cb = document.getElementById('toggleCellBordersCollege');
+        const tbl = document.getElementById('collegeReportTable');
+        const saved = localStorage.getItem('collegeBordersOn') === 'true';
+        if (cb) cb.checked = saved;
+        if (tbl) { if (saved) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on'); }
+        if (cb && tbl) {
+          cb.addEventListener('change', () => {
+            if (cb.checked) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on');
+            localStorage.setItem('collegeBordersOn', cb.checked ? 'true' : 'false');
+          });
+        }
+      } catch (_) {}
       
       // Apply initial sticky styling to department column
       setTimeout(() => applyInitialDepartmentSticky(), 100);

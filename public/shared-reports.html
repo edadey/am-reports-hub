@@ -13,6 +13,13 @@
     .meta { color:#555; font-size: 14px; }
     /* banner removed per requirement */
     .controls { display:flex; gap:8px; margin: 12px 0; }
+    /* Toggleable borders */
+    .borders-on { border-collapse: collapse; border: 1px solid #e5e7eb; }
+    .borders-on th, .borders-on td { border: 1px solid #e5e7eb !important; }
+    .borders-on thead th { border: 1px solid #e5e7eb !important; }
+    /* Thicker horizontal scrollbar for report preview */
+    .custom-scrollbar-thick::-webkit-scrollbar:horizontal { height: 14px; }
+    .custom-scrollbar-thick::-webkit-scrollbar-thumb { border-radius: 7px; }
     .controls input, .controls select { padding: 8px 10px; border:1px solid #d0d7de; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eef2f7; font-size: 14px; }
@@ -75,6 +82,17 @@
       if (!token || !collegeId) {
         statusEl.innerHTML = '<div class="error">Missing token or collegeId.</div>';
         return;
+      }
+
+      // Toggle cell borders
+      function toggleCellBorders() {
+        try {
+          const cb = document.getElementById('cellBordersToggle');
+          const table = document.getElementById('sharedReportTable');
+          const on = cb && cb.checked;
+          if (table) { if (on) table.classList.add('borders-on'); else table.classList.remove('borders-on'); }
+          localStorage.setItem('sharedBordersOn', on ? 'true' : 'false');
+        } catch (_) {}
       }
 
       try {
@@ -188,6 +206,10 @@
                   <input type="checkbox" id="departmentStickyToggle" checked onchange="toggleDepartmentSticky()" style="width:16px;height:16px;">
                   <label for="departmentStickyToggle" style="font-size:14px;color:#555;">Fix Department Column</label>
                 </div>
+                <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
+                  <input type="checkbox" id="cellBordersToggle" onchange="toggleCellBorders()" style="width:16px;height:16px;">
+                  <label for="cellBordersToggle" style="font-size:14px;color:#555;">Show cell borders</label>
+                </div>
                 <div style="display:flex;align-items:center;gap:6px;border:1px solid #d0d7de;border-radius:8px;padding:6px 10px;">
                   <button onclick="adjustZoom(-10)" style="border:none;background:#fff;color:#555;font-weight:700;padding:4px 8px;border-radius:6px;">-</button>
                   <span id="zoomLevel" style="font-size:13px;color:#555;min-width:42px;text-align:center;">100%</span>
@@ -196,9 +218,15 @@
                 </div>
               </div>
             </div>
-            <div id="reportDataContainer"></div>
+            <div id="reportDataContainer" class="custom-scrollbar-thick"></div>
           </div>`;
         reportView.innerHTML = html;
+        // Restore border toggle state
+        try {
+          const cb = document.getElementById('cellBordersToggle');
+          const saved = localStorage.getItem('sharedBordersOn') === 'true';
+          if (cb) cb.checked = saved;
+        } catch (_) {}
         displayReportData(report);
         reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -337,8 +365,8 @@
               const currNum = parseFloat(totalValue); const prevNum = parseFloat(prevVal);
               if (!isNaN(currNum) && !isNaN(prevNum)) {
                 const diff = currNum - prevNum; const text = (diff > 0 ? '+' : '') + diff.toFixed(1);
-                const bg = diff > 0 ? '#dcfce7' : (diff < 0 ? '#fee2e2' : '#e5e7eb');
-                const fg = diff > 0 ? '#16a34a' : (diff < 0 ? '#dc2626' : '#475569');
+                const bg = diff > 0 ? '#dcfce7' : '#fee2e2';
+                const fg = diff > 0 ? '#16a34a' : '#dc2626';
                 totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${diff === 0 ? '0' : text}</span>`;
               }
             } else {
@@ -347,8 +375,15 @@
             totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:center;font-weight:600;color:#2563eb;\">${totalsChange}</td>`);
           } });
 
-        const tableHTML = `<div style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\"><table style=\"width:100%;border-collapse:separate;border-spacing:0;\"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody></table></div>`;
+        const tableHTML = `<div id=\"reportScroll\" class=\"custom-scrollbar-thick\" style=\"overflow:auto;border:1px solid #e5e7eb;border-radius:10px;\"><table id=\"sharedReportTable\" style=\"width:100%;border-collapse:separate;border-spacing:0;\"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}<tr>${totalsRowCells.join('')}</tr></tbody></table></div>`;
         container.innerHTML = tableHTML;
+        // Apply saved borders state
+        try {
+          const cb = document.getElementById('cellBordersToggle');
+          const table = document.getElementById('sharedReportTable');
+          const on = (cb && cb.checked) || localStorage.getItem('sharedBordersOn') === 'true';
+          if (table) { if (on) table.classList.add('borders-on'); else table.classList.remove('borders-on'); }
+        } catch (_) {}
 
         // Apply initial sticky styling to department column
         setTimeout(() => applyInitialDepartmentSticky(), 100);
@@ -465,6 +500,7 @@
 
       // Expose toggle functions globally for inline handlers
       window.toggleDepartmentSticky = toggleDepartmentSticky;
+      window.toggleCellBorders = toggleCellBorders;
       window.applyInitialDepartmentSticky = applyInitialDepartmentSticky;
 
       filterInput.addEventListener('input', () => {
@@ -506,6 +542,10 @@
 
     <div class="controls">
       <input id="filter" type="search" placeholder="Filter reports by name or summary" />
+      <div style="display:flex;align-items:center;gap:8px;border:1px solid #d0d7de;border-radius:8px;padding:8px 12px;">
+        <input type="checkbox" id="cellBordersToggle" onchange="toggleCellBorders()" style="width:16px;height:16px;">
+        <label for="cellBordersToggle" style="font-size:14px;color:#555;">Show cell borders</label>
+      </div>
     </div>
 
     <table>

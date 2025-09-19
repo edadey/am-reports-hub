@@ -8,6 +8,19 @@
   <title>Navigate Reports Hub</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+  <style>
+    /* Thicker horizontal scrollbar for report preview */
+    .custom-scrollbar-thick::-webkit-scrollbar:horizontal { height: 14px; }
+    .custom-scrollbar-thick::-webkit-scrollbar-thumb { border-radius: 7px; }
+    /* Firefox */
+    #reportsTableWrap { scrollbar-width: auto; scrollbar-color: #c1c1c1 #f1f1f1; }
+
+    /* Toggleable table cell borders for report preview */
+    .borders-on { border-collapse: collapse; border: 1px solid #e5e7eb; }
+    .borders-on th,
+    .borders-on td { border: 1px solid #e5e7eb !important; }
+    .borders-on thead th { border: 1px solid #e5e7eb !important; }
+  </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="max-w-7xl mx-auto py-8 px-4">
@@ -466,17 +479,21 @@
             </div>
           </div>
           
-          <!-- Preview zoom controls -->
+          <!-- Preview controls -->
           <div class="flex items-center justify-between mb-2">
             <div class="text-xs text-gray-500">Preview zoom</div>
             <div class="flex items-center gap-2">
               <button type="button" onclick="zoomOutReports()" class="px-2 py-1 bg-gray-200 rounded">-</button>
               <button type="button" onclick="resetReportsZoom()" class="px-2 py-1 bg-gray-200 rounded">Reset</button>
               <button type="button" onclick="zoomInReports()" class="px-2 py-1 bg-gray-200 rounded">+</button>
+              <label class="ml-4 inline-flex items-center text-sm text-gray-700">
+                <input type="checkbox" id="toggleCellBordersReports" class="mr-2">
+                Show cell borders
+              </label>
             </div>
           </div>
-          <div class="overflow-x-auto" id="reportsTableWrap" style="transform-origin: top left;">
-            <table class="min-w-full divide-y divide-gray-200">
+          <div class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" id="reportsTableWrap" style="transform-origin: top left;">
+            <table id="reportsTable" class="min-w-full divide-y divide-gray-200">
               <thead id="tableHeader" class="bg-gray-50">
                 <!-- Headers will be populated here -->
               </thead>
@@ -509,6 +526,22 @@
     </div>
 
     <!-- Templates Tab -->
+    <script>
+      (function initReportsBordersToggle(){
+        try {
+          const cb = document.getElementById('toggleCellBordersReports');
+          const tbl = document.getElementById('reportsTable');
+          if (!cb || !tbl) return;
+          const saved = localStorage.getItem('reportsTableBordersOn') === 'true';
+          cb.checked = saved;
+          if (saved) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on');
+          cb.addEventListener('change', () => {
+            if (cb.checked) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on');
+            localStorage.setItem('reportsTableBordersOn', cb.checked ? 'true' : 'false');
+          });
+        } catch (_) {}
+      })();
+    </script>
     <div id="templates" class="tab-content hidden">
       <div class="bg-white rounded-lg shadow p-6">
         <div class="mb-6">
