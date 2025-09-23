@@ -2112,31 +2112,26 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     );
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
     
-    // Load previous report data for change indicators - use same logic as frontend
+    // Load previous report data for change indicators - SCOPE BY TEMPLATE
+    // Only compare against a previous report created with the SAME template to avoid mismatches
     let previousData = null;
     try {
-      // Get all reports for this college (same as frontend)
-      const reports = await getCollegeReports(parseInt(collegeId));
-      if (reports && reports.length > 0) {
-        // Sort reports by date (newest first) - same as frontend
-        const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
-        // Find the current report index
-        const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
-        
-        // Get the previous report (next in the array since it's sorted newest first)
-        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
-          const previousReport = sortedReports[currentReportIndex + 1];
-          previousData = previousReport.data;
-          console.log('Excel: Loaded previous report for comparison:', previousReport.name, previousReport.createdAt);
+      const templateKey = report.templateKey || report.data?.meta?.templateKey || null;
+      if (templateKey) {
+        const prevEntry = await getPreviousReportData(parseInt(collegeId), String(templateKey));
+        // prevEntry may be { data, timestamp } or raw data
+        previousData = prevEntry && prevEntry.data ? prevEntry.data : prevEntry;
+        if (previousData) {
+          console.log('Excel: Loaded template-scoped previous report for comparison');
         } else {
-          console.log('Excel: No previous report found for comparison');
+          console.log('Excel: No template-scoped previous report found');
         }
+      } else {
+        console.log('Excel: No templateKey on report; skipping comparison');
       }
     } catch (error) {
-      console.error('Excel: Error loading previous report data:', error);
-      // Fallback to the old method
-      previousData = await getPreviousReportData(parseInt(collegeId));
+      console.error('Excel: Error loading previous report data (template-scoped):', error);
+      previousData = null;
     }
     
     // Create Excel workbook
@@ -2176,16 +2171,19 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     // Function to determine column section and color
     function getColumnSection(header, headerFileMap = null) {
       // Define colors that exactly match frontend Tailwind classes (Excel hex format)
+      // Keep this mapping aligned with SECTION_COLORS_EXCEL in public/generate-report.html
       const SECTION_COLORS_EXCEL = {
-        'placements': 'FFDBEAFE',      // bg-blue-100 - Light blue
-        'assessments': 'FFBBF7D0',      // bg-green-200 - Light green
-        'careers': 'FFFEF3C7',          // bg-yellow-100 - Light yellow
-        'activities': 'FFFEF3C7',       // bg-yellow-100 - Light yellow
-        'enrichment': 'FFBFDBFE',       // bg-blue-200 - Blue-200
-        'employment': 'FFF3E8FF',       // bg-purple-100 - Light purple
-        'targets': 'FFFCE7F3',          // bg-pink-100 - Light pink
-        'login': 'FFE0E7FF',            // bg-indigo-100 - Light indigo
-        'default': 'FFF3F4F6'           // bg-gray-100 - Light gray
+        'placements': 'FFDBEAFE',          // bg-blue-100 - Light blue
+        'assessments': 'FFCCFBF1',         // bg-teal-100 - Light teal
+        'careers': 'FFFED7AA',             // bg-orange-100 - Light orange
+        'activities': 'FFFEF3C7',          // bg-yellow-100 - Light yellow
+        'enrichment': 'FFDCFCE7',          // bg-green-100 - Light green
+        'employment': 'FFF3E8FF',          // bg-purple-100 - Light purple
+        'employer-activity': 'FFFEE2E2',   // bg-red-100 - Light red
+        'enrichment-activity': 'FFE0F7FA', // bg-cyan-100 - Light cyan
+        'targets': 'FFFCE7F3',             // bg-pink-100 - Light pink
+        'login': 'FFE0E7FF',               // bg-indigo-100 - Light indigo
+        'default': 'FFF3F4F6'              // bg-gray-100 - Light gray
       };
       
       // Function to determine section type from header - matches frontend logic exactly
@@ -2305,6 +2303,45 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       console.log('No headerFileMap found, using content-based coloring for Excel export');
     }
     
+    // Prepare previous-report lookup maps for accurate +/- calculation by Department and header name
+    const prevHeaders = previousData && Array.isArray(previousData.headers) ? previousData.headers : null;
+    const prevRows = previousData && Array.isArray(previousData.rows) ? previousData.rows : null;
+    const prevHeaderIndex = new Map();
+    if (prevHeaders) prevHeaders.forEach((h, i) => prevHeaderIndex.set(String(h || ''), i));
+    const prevDeptRowMap = new Map();
+    if (prevRows) prevRows.forEach(r => {
+      const key = (r && r.length ? String(r[0] || '') : '').trim().toLowerCase();
+      if (key) prevDeptRowMap.set(key, r);
+    });
+
+    // Helpers for numeric detection and parsing
+    const isPercentageHeader = (h) => {
+      const s = String(h || '').toLowerCase();
+      return s.includes('percent') || s.includes('%');
+    };
+    const parseNumberLike = (val) => {
+      if (val === undefined || val === null || val === '') return null;
+      if (typeof val === 'number') return isFinite(val) ? val : null;
+      const str = String(val).trim();
+      if (!str) return null;
+      if (str.endsWith('%')) {
+        const p = parseFloat(str);
+        return isNaN(p) ? null : p / 100;
+      }
+      const n = parseFloat(str);
+      return isNaN(n) ? null : n;
+    };
+    const isNumericColumn = (colIndex) => {
+      if (isPercentageHeader(headers[colIndex])) return true;
+      // Check first 25 rows (or all if fewer) for numeric values
+      const limit = Math.min(rows.length, 25);
+      for (let i = 0; i < limit; i++) {
+        const v = parseNumberLike(rows[i]?.[colIndex]);
+        if (typeof v === 'number') return true;
+      }
+      return false;
+    };
+
     // Build complete header structure with change columns positioned correctly
     let completeHeaders = [];
     let changeColumnMap = new Map(); // Maps original column index to change column index
@@ -2312,8 +2349,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     headers.forEach((header, colIndex) => {
       completeHeaders.push(header);
       
-      // Add change indicator column if this is a numeric column (not Department)
-      if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+      // Add change indicator column only for numeric/percentage columns (not Department)
+      if (header !== 'Department' && isNumericColumn(colIndex)) {
         const changeHeader = `${header} +/-`;
         completeHeaders.push(changeHeader);
         changeColumnMap.set(colIndex, completeHeaders.length - 1);
@@ -2502,69 +2539,48 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         // Add change indicator if this column has a change column
         if (changeColumnMap.has(originalColIndex)) {
           const changeCell = dataRow.getCell(colIndex + 1);
-          const changeValue = calculateChange(value, previousData, rowIndex, originalColIndex);
           
-          // Debug: Log change calculation
-          console.log(`🔄 Change calculation for row ${rowIndex}, col ${originalColIndex}: current=${value}, previous=${previousData?.rows?.[rowIndex]?.[originalColIndex]}, change=${changeValue}`);
+          // Compute change by matching Department and header name in previous data
+          let changeValue = null;
+          const deptKey = String(row[0] || '').trim().toLowerCase();
+          const prevRow = deptKey ? prevDeptRowMap.get(deptKey) : null;
+          const prevColIdx = prevHeaderIndex.has(header) ? prevHeaderIndex.get(header) : null;
+          const currentNum = isPercentageHeader(header) ? parseNumberLike(value) : parseNumberLike(value);
+          const prevNum = (prevRow != null && prevColIdx != null) ? (isPercentageHeader(header) ? parseNumberLike(prevRow[prevColIdx]) : parseNumberLike(prevRow[prevColIdx])) : null;
+          
+          if (currentNum != null && prevNum != null) {
+            changeValue = currentNum - prevNum;
+          } else if (!previousData) {
+            // Match dashboard behavior when there's no previous report for this template
+            changeValue = 0;
+          }
           
           if (changeValue !== null) {
             changeCell.value = changeValue;
             
             // Enhanced color coding to match frontend badge styling
             if (changeValue > 0) {
-              changeCell.font = { 
-                color: { argb: 'FF2E7D32' }, // Green text
-                bold: true,
-                size: 10
-              };
-              changeCell.fill = { 
-                type: 'pattern', 
-                pattern: 'solid', 
-                fgColor: { argb: 'FFE8F5E8' } // Light green background
-              };
+              changeCell.font = { color: { argb: 'FF2E7D32' }, bold: true, size: 10 };
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E8' } };
             } else if (changeValue < 0) {
-              changeCell.font = { 
-                color: { argb: 'FFC62828' }, // Red text
-                bold: true,
-                size: 10
-              };
-              changeCell.fill = { 
-                type: 'pattern', 
-                pattern: 'solid', 
-                fgColor: { argb: 'FFFFEBEE' } // Light red background
-              };
+              changeCell.font = { color: { argb: 'FFC62828' }, bold: true, size: 10 };
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } };
             } else {
-              changeCell.font = { 
-                color: { argb: 'FFE65100' }, // Orange text
-                bold: true,
-                size: 10
-              };
-              changeCell.fill = { 
-                type: 'pattern', 
-                pattern: 'solid', 
-                fgColor: { argb: 'FFFFF3E0' } // Light orange background
-              };
+              changeCell.font = { color: { argb: 'FFE65100' }, bold: true, size: 10 };
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
             }
             
             // Format as percentage for percentage columns
-            if (header.toLowerCase().includes('percent') || header.includes('%')) {
+            if (isPercentageHeader(header)) {
               changeCell.numFmt = '+0.00%;-0.00%;0.00%';
             } else {
               changeCell.numFmt = '+0.00;-0.00;0.00';
             }
           } else {
-            // Set empty string for null values to ensure proper formatting
+            // Set empty string when we cannot determine change
             changeCell.value = '';
-            changeCell.font = { 
-              color: { argb: 'FF666666' }, // Gray text
-              bold: true,
-              size: 10
-            };
-            changeCell.fill = { 
-              type: 'pattern', 
-              pattern: 'solid', 
-              fgColor: { argb: 'FFF5F5F5' } // Light gray background
-            };
+            changeCell.font = { color: { argb: 'FF666666' }, bold: true, size: 10 };
+            changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
           }
           
           // Note: Change cells maintain their color coding (green/red/orange) 

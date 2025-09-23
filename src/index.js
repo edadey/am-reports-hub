@@ -558,11 +558,33 @@ function calculateChanges(currentData, previousReportPath) {
   return {};
 }
 
-async function getPreviousReportData(collegeId) {
+async function getPreviousReportData(collegeId, templateKey) {
   try {
-    const previousReportsPath = 'data/previous-reports.json';
-    const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
-    return previousReports[collegeId] || null;
+    // Try root-level cache first (newer)
+    let entry = null;
+    try {
+      const map = await fs.readJson('previous-reports.json').catch(() => ({}));
+      entry = map && map[collegeId] ? map[collegeId] : null;
+    } catch (_) {}
+
+    // Fallback to legacy data path
+    if (!entry) {
+      try {
+        const legacy = await fs.readJson('data/previous-reports.json').catch(() => ({}));
+        entry = legacy && legacy[collegeId] ? legacy[collegeId] : null;
+      } catch (_) {}
+    }
+
+    if (!entry) return null;
+
+    // If entry is keyed by template, honor templateKey
+    if (typeof entry === 'object' && !Array.isArray(entry)) {
+      if (templateKey && entry[templateKey]) return entry[templateKey];
+      const anyKey = Object.keys(entry)[0];
+      return anyKey ? entry[anyKey] : null;
+    }
+    // Very old format already a data blob
+    return entry;
   } catch (error) {
     console.error('Error reading previous report data:', error);
     return null;
@@ -768,8 +790,9 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
       return res.status(404).json({ error: 'Report not found' });
     }
 
-    // Load previous report data for change indicators
-    const previousData = await getPreviousReportData(parseInt(collegeId));
+    // Load previous report data scoped to the same template (if available)
+    const templateKey = report.templateKey || report.data?.meta?.templateKey || null;
+    const previousData = await getPreviousReportData(parseInt(collegeId), templateKey);
     
     // Create Excel workbook
     const workbook = new ExcelJS.Workbook();
@@ -805,34 +828,41 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
     currentRow++;
     dataStartRow = currentRow;
     
-    // Function to determine column section and color
+    // Function to determine column section and color (aligned with dashboard/app.js)
     function getColumnSection(header) {
-      const headerLower = header.toLowerCase();
-      
-      if (headerLower.includes('placement') || headerLower.includes('placements')) {
-        return { section: 'Placements', color: 'FFE3F2FD' }; // Very light blue
-      } else if (headerLower.includes('(employer engagement)') || headerLower.includes('employer engagement') || (headerLower.includes('employer') && (headerLower.includes('activities') || headerLower.includes('activity')))) {
-        // Employer engagement activities get a slightly different green
-        return { section: 'Employer Engagement Activities', color: 'FFDCEDC8' }; // Light green (bg-green-100 equivalent)
-      } else if (headerLower.includes('(enrichment)') || (headerLower.includes('activity') && headerLower.includes('enrichment'))) {
-        // Enrichment activities get a different shade of green
-        return { section: 'Enrichment Activities', color: 'FFECFDF5' }; // Very light emerald (bg-emerald-50 equivalent)
-      } else if (headerLower.includes('activity') || headerLower.includes('activities') || header.includes('%') || headerLower.includes('students with activities')) {
-        // Other activity-related columns get the default green
-        return { section: 'Activities', color: 'FFF1F8E9' }; // Very light green
-      } else if (headerLower.includes('career') || headerLower.includes('careers')) {
-        return { section: 'Careers', color: 'FFFFF3E0' }; // Very light orange
-      } else if (headerLower.includes('assessment') || headerLower.includes('assessments')) {
-        return { section: 'Assessments', color: 'FFFFEBEE' }; // Very light red
-      } else if (headerLower.includes('hour') || headerLower.includes('scheduled') || headerLower.includes('confirmed')) {
-        return { section: 'Hours', color: 'FFF3E5F5' }; // Very light purple
-      } else if (headerLower.includes('student') && !headerLower.includes('placement') && !headerLower.includes('activity') && !headerLower.includes('assessment')) {
-        return { section: 'Students', color: 'FFE0F2F1' }; // Very light teal
-      } else if (headerLower === 'department') {
-        return { section: 'Department', color: 'FFF3E5D5' }; // Very light brown
-      } else {
-        return { section: 'Other', color: 'FFE8EAF6' }; // Very light indigo
-      }
+      const headerLower = String(header || '').toLowerCase();
+      const COLORS = {
+        placements: 'FFDBEAFE',
+        assessments: 'FFCCFBF1',
+        careers: 'FFFED7AA',
+        activities: 'FFFEF3C7',
+        enrichment: 'FFDCFCE7',
+        employment: 'FFF3E8FF',
+        'employer-activity': 'FFFEE2E2',
+        'enrichment-activity': 'FFE0F7FA',
+        targets: 'FFFCE7F3',
+        login: 'FFE0E7FF',
+        default: 'FFF3F4F6'
+      };
+      const pick = (section) => ({ section, color: COLORS[section] || COLORS.default });
+      if (headerLower === 'department') return { section: 'Department', color: 'FFFEF3C7' };
+      if (headerLower.includes('(employer activity)')) return pick('employer-activity');
+      if (headerLower.includes('(enrichment activity)')) return pick('enrichment-activity');
+      if (headerLower.includes('(enrichment)')) return pick('enrichment');
+      if (headerLower.includes('(employer)') || headerLower.includes('(employment)')) return pick('employment');
+      if (headerLower.includes('(placements)')) return pick('placements');
+      if (headerLower.includes('(careers)')) return pick('careers');
+      if (headerLower.includes('(assessments)')) return pick('assessments');
+      if (headerLower.includes('(targets)')) return pick('targets');
+      if (headerLower.includes('(login)')) return pick('login');
+      if (headerLower.includes('placement') || headerLower.includes('placed') || headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) return pick('placements');
+      if (headerLower.includes('enrichment')) return pick('enrichment');
+      if (headerLower.includes('employer') && (headerLower.includes('engagement') || headerLower.includes('activity'))) return pick('employment');
+      if (headerLower.includes('career') || headerLower.includes('job profile') || headerLower.includes('quiz')) return pick('careers');
+      if (headerLower.includes('assessment') || headerLower.includes('average score') || headerLower.includes('students without')) return pick('assessments');
+      if (headerLower.includes('activity') || (headerLower.includes('hours') && !headerLower.includes('scheduled'))) return pick('activities');
+      if (headerLower.includes('login') || headerLower.includes('access')) return pick('login');
+      return pick('default');
     }
     
           // Add headers with section-based formatting
@@ -859,15 +889,46 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
     
 
     
+    // Prepare previous lookup maps: header index and Department row map
+    const prevHeaders = previousData && Array.isArray(previousData.headers) ? previousData.headers : null;
+    const prevRows = previousData && Array.isArray(previousData.rows) ? previousData.rows : null;
+    const prevHeaderIndex = new Map();
+    if (prevHeaders) prevHeaders.forEach((h, i) => prevHeaderIndex.set(String(h || ''), i));
+    const prevDeptRowMap = new Map();
+    if (prevRows) prevRows.forEach(r => {
+      const key = (r && r.length ? String(r[0] || '') : '').trim().toLowerCase();
+      if (key) prevDeptRowMap.set(key, r);
+    });
+
+    // Helpers for +/- logic
+    const isPercentageHeader = (h) => {
+      const s = String(h || '').toLowerCase();
+      return s.includes('percent') || s.includes('%');
+    };
+    const parseNumberLike = (val) => {
+      if (val === undefined || val === null || val === '') return null;
+      if (typeof val === 'number') return isFinite(val) ? val : null;
+      const str = String(val).trim();
+      if (!str) return null;
+      if (str.endsWith('%')) { const p = parseFloat(str); return isNaN(p) ? null : p / 100; }
+      const n = parseFloat(str); return isNaN(n) ? null : n;
+    };
+    const isNumericColumn = (colIndex) => {
+      if (isPercentageHeader(headers[colIndex])) return true;
+      const limit = Math.min(rows.length, 25);
+      for (let i = 0; i < limit; i++) {
+        const v = parseNumberLike(rows[i]?.[colIndex]);
+        if (typeof v === 'number') return true;
+      }
+      return false;
+    };
+
     // Build complete header structure with change columns positioned correctly
     let completeHeaders = [];
     let changeColumnMap = new Map(); // Maps original column index to change column index
-    
     headers.forEach((header, colIndex) => {
       completeHeaders.push(header);
-      
-      // Add change indicator column if this is a numeric column (not Department)
-      if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+      if (header !== 'Department' && isNumericColumn(colIndex)) {
         const changeHeader = `${header} +/-`;
         completeHeaders.push(changeHeader);
         changeColumnMap.set(colIndex, completeHeaders.length - 1);
@@ -935,41 +996,37 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
         colIndex++;
         
         // Add change indicator cell if this column should have one
-        if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
+        if (changeColumnMap.has(originalColIndex)) {
           const changeCell = excelRow.getCell(colIndex + 1);
-          
-          // Calculate change from previous report if available
-          if (previousData && previousData.rows) {
-            const previousRow = previousData.rows.find(r => r[0] === row[0]);
-            if (previousRow && previousRow[originalColIndex] !== undefined) {
-              const currentValue = parseFloat(cell) || 0;
-              const previousValue = parseFloat(previousRow[originalColIndex]) || 0;
-              const change = currentValue - previousValue;
-              
-              changeCell.value = change;
-              changeCell.numFmt = '+0.0;-0.0;0.0';
-              
-              // Color code changes
-              if (change > 0) {
-                changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF90EE90' } };
-                changeCell.font = { color: { argb: 'FF006400' } };
-              } else if (change < 0) {
-                changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFB6C1' } };
-                changeCell.font = { color: { argb: 'FF8B0000' } };
-              } else {
-                changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE4B5' } };
-                changeCell.font = { color: { argb: 'FFFF8C00' } };
-              }
+          const deptKey = String(row[0] || '').trim().toLowerCase();
+          const prevRow = deptKey ? prevDeptRowMap.get(deptKey) : null;
+          const prevColIdx = prevHeaderIndex.has(header) ? prevHeaderIndex.get(header) : null;
+          const currentNum = parseNumberLike(cell);
+          const prevNum = (prevRow != null && prevColIdx != null) ? parseNumberLike(prevRow[prevColIdx]) : null;
+          let change = null;
+          if (currentNum != null && prevNum != null) change = currentNum - prevNum;
+          else if (!previousData) change = 0; // match dashboard when no previous for this template
+
+          if (change !== null) {
+            changeCell.value = change;
+            if (isPercentageHeader(header)) changeCell.numFmt = '+0.00%;-0.00%;0.00%';
+            else changeCell.numFmt = '+0.00;-0.00;0.00';
+            if (change > 0) {
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E8' } };
+              changeCell.font = { color: { argb: 'FF2E7D32' } };
+            } else if (change < 0) {
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } };
+              changeCell.font = { color: { argb: 'FFC62828' } };
             } else {
-              changeCell.value = 'N/A';
-              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
+              changeCell.font = { color: { argb: 'FFE65100' } };
             }
           } else {
-            // No previous data available
-            changeCell.value = 'N/A';
-            changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F0F0' } };
+            changeCell.value = '';
+            changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+            changeCell.font = { color: { argb: 'FF666666' } };
           }
-          
+
           colIndex++;
         }
       });
