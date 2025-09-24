@@ -4181,6 +4181,43 @@
       });
     }
 
+    // Top/bottom horizontal scroll synchronization for the report table (view report page)
+    let __collegeScrollSyncInitialized = false;
+    function setupScrollSyncCollege() {
+      try {
+        const top = document.getElementById('collegeTopScroll');
+        const bottom = document.getElementById('collegeReportScroll');
+        const inner = document.getElementById('collegeTopScrollInner');
+        const table = document.getElementById('collegeReportTable');
+        if (!top || !bottom || !inner || !table) return;
+
+        const update = () => {
+          try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch (_) {}
+        };
+        update();
+
+        let syncing = false;
+        if (!__collegeScrollSyncInitialized) {
+          top.addEventListener('scroll', () => { if (syncing) return; syncing = true; bottom.scrollLeft = top.scrollLeft; syncing = false; });
+          bottom.addEventListener('scroll', () => { if (syncing) return; syncing = true; top.scrollLeft = bottom.scrollLeft; syncing = false; });
+          window.addEventListener('resize', update);
+          __collegeScrollSyncInitialized = true;
+        }
+        // In case dimensions change after paint
+        setTimeout(update, 0);
+      } catch (_) {}
+    }
+    function updateScrollSyncCollege() {
+      try {
+        const inner = document.getElementById('collegeTopScrollInner');
+        const bottom = document.getElementById('collegeReportScroll');
+        const table = document.getElementById('collegeReportTable');
+        if (inner && bottom && table) {
+          inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px';
+        }
+      } catch (_) {}
+    }
+
     // Close report display
     function closeReportDisplay() {
       const reportSection = document.getElementById('reportDisplaySection');

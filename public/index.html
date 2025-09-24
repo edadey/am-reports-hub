@@ -492,6 +492,10 @@
               </label>
             </div>
           </div>
+          <!-- Top horizontal scrollbar synced with the table below -->
+          <div id="reportsTopScroll" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" style="height:16px;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">
+            <div id="reportsTopScrollInner" style="height:1px;"></div>
+          </div>
           <div class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" id="reportsTableWrap" style="transform-origin: top left;">
             <table id="reportsTable" class="min-w-full divide-y divide-gray-200">
               <thead id="tableHeader" class="bg-gray-50">
@@ -2712,6 +2716,54 @@
 
     // Simple table zoom controls for reports preview
     if (typeof window.reportsZoom === 'undefined') window.reportsZoom = 1;
+
+    // Top/bottom horizontal scroll synchronization for reports preview table
+    let __reportsScrollSyncInitialized = false;
+    function setupReportsScrollSync() {
+      try {
+        const top = document.getElementById('reportsTopScroll');
+        const bottom = document.getElementById('reportsTableWrap');
+        const inner = document.getElementById('reportsTopScrollInner');
+        const table = document.getElementById('reportsTable');
+        if (!top || !bottom || !inner || !table) return;
+
+        const update = () => {
+          try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch (_) {}
+        };
+        update();
+
+        let syncing = false;
+        if (!__reportsScrollSyncInitialized) {
+          top.addEventListener('scroll', () => {
+            if (syncing) return;
+            syncing = true;
+            bottom.scrollLeft = top.scrollLeft;
+            syncing = false;
+          });
+          bottom.addEventListener('scroll', () => {
+            if (syncing) return;
+            syncing = true;
+            top.scrollLeft = bottom.scrollLeft;
+            syncing = false;
+          });
+          window.addEventListener('resize', update);
+          __reportsScrollSyncInitialized = true;
+        }
+
+        setTimeout(update, 0);
+      } catch (_) {}
+    }
+    function updateReportsScrollSync() {
+      try {
+        const inner = document.getElementById('reportsTopScrollInner');
+        const bottom = document.getElementById('reportsTableWrap');
+        const table = document.getElementById('reportsTable');
+        if (inner && bottom && table) {
+          inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px';
+        }
+      } catch (_) {}
+    }
+
     function applyReportsZoom() {
       const wrap = document.getElementById('reportsTableWrap');
       const z = Math.max(0.6, Math.min(2, window.reportsZoom));
@@ -2720,6 +2772,7 @@
         // Expand width to keep horizontal scroll sensible when zoomed in
         wrap.style.width = z > 1 ? `${(100 / z).toFixed(2)}%` : '100%';
       }
+      updateReportsScrollSync();
     }
     function zoomInReports() { window.reportsZoom = (window.reportsZoom || 1) + 0.1; applyReportsZoom(); }
     function zoomOutReports() { window.reportsZoom = (window.reportsZoom || 1) - 0.1; applyReportsZoom(); }
