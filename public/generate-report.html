@@ -38,13 +38,11 @@
       .mobile-card { margin-bottom: 1rem; }
       .mobile-button-group { display: flex; flex-direction: column; gap: 0.5rem; }
       .mobile-button-group button { width: 100%; }
-      .mobile-modal { padding: 1rem; margin: 1rem; max-height: 90vh; overflow-y: auto; }
       .mobile-form-grid { grid-template-columns: 1fr; }
       .mobile-actions { flex-direction: column; gap: 0.5rem; }
       .mobile-table-actions { display: flex; flex-direction: column; gap: 0.25rem; }
       .mobile-table-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
     }
-    
     
     /* Custom scrollbar */
     .custom-scrollbar::-webkit-scrollbar {
@@ -572,7 +570,60 @@
         if (closeBtn) closeBtn.addEventListener('click', cleanup);
         if (dlBtn) dlBtn.addEventListener('click', async () => {
           try {
-            const payload = { headers, rows, name, meta };
+            // Build export headers + rows including +/- columns using previousReportData when available
+            function shouldHaveChangeColumn(h) {
+              const hl = String(h || '').toLowerCase();
+              return (
+                hl !== 'department' && (
+                  hl.includes('percent') || hl.includes('%') ||
+                  hl.includes('total') || hl.includes('students') ||
+                  hl.includes('hours') || hl.includes('score') ||
+                  hl.includes('activities')
+                )
+              );
+            }
+            function parseNum(v) {
+              if (v == null || v === '') return 0;
+              if (typeof v === 'number') return v;
+              const s = String(v).trim();
+              if (s.endsWith('%')) {
+                const p = parseFloat(s.replace('%',''));
+                return isNaN(p) ? 0 : p; // keep as 0-100 for difference display
+              }
+              const n = parseFloat(s.replace(/,/g,''));
+              return isNaN(n) ? 0 : n;
+            }
+            const expHeaders = [];
+            const changeIdxMap = new Map();
+            (headers || []).forEach((h) => {
+              expHeaders.push(h);
+              if (shouldHaveChangeColumn(h)) {
+                changeIdxMap.set(h, expHeaders.length); // index where +/- will be inserted
+                expHeaders.push(`${h} +/-`);
+              }
+            });
+            const prev = (window.previousReportData && Array.isArray(window.previousReportData.rows)) ? window.previousReportData : null;
+            const prevMap = new Map();
+            if (prev && Array.isArray(prev.rows)) {
+              prev.rows.forEach(r => { if (Array.isArray(r) && r.length) prevMap.set(r[0], r); });
+            }
+            const expRows = (rows || []).map(r => {
+              const out = [];
+              const dept = Array.isArray(r) ? r[0] : null;
+              const prevRow = dept != null ? prevMap.get(dept) : null;
+              (headers || []).forEach((h, i) => {
+                const val = r[i];
+                out.push(val);
+                if (changeIdxMap.has(h)) {
+                  let prevVal = prevRow && prevRow.length > i ? prevRow[i] : 0;
+                  const diff = parseNum(val) - parseNum(prevVal);
+                  const shown = (typeof diff === 'number' && !isNaN(diff)) ? (diff > 0 ? `+${diff.toFixed(1)}` : diff.toFixed(1)) : '0';
+                  out.push(shown);
+                }
+              });
+              return out;
+            });
+            const payload = { headers: expHeaders, rows: expRows, name, meta };
             const res = await axios.post('/api/export-excel', payload, { responseType: 'blob' });
             const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = window.URL.createObjectURL(blob);
@@ -3174,25 +3225,8 @@
         return `<tr>${completeRowCells.join('')}</tr>`;
       }).join('');
       
-      // Add event listeners to editable cells
-      document.querySelectorAll('.editable-cell').forEach(cell => {
-        cell.addEventListener('focus', () => {
-          const row = parseInt(cell.dataset.row);
-          const col = parseInt(cell.dataset.col);
-          tableData[row][col] = cell.textContent;
-        });
-        cell.addEventListener('blur', (e) => {
-          const row = parseInt(e.target.dataset.row);
-          const col = parseInt(e.target.dataset.col);
-          tableData[row][col] = e.target.textContent;
-        });
-        cell.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            e.target.blur();
-          }
-        });
-      });
+      // Per-cell listeners disabled: we use delegated listeners in setupCellEditing() for performance
+      // (Leaving this block intentionally inactive to avoid thousands of listeners on every render)
       
       // Update top/bottom scroll width after render
       try { updateScrollSync(); } catch(_) {}
@@ -3206,14 +3240,14 @@
           if (!isNaN(oidx)) {
             if (selectedColumns.has(oidx)) selectedColumns.delete(oidx); else selectedColumns.add(oidx);
           }
-          renderTable();
+          scheduleRender();
         });
       });
       body.querySelectorAll('td[data-row-idx]').forEach(td => {
         td.addEventListener('click', () => {
           if (!editMode) return;
           lastSelectedRowIndex = parseInt(td.dataset.rowIdx);
-          renderTable();
+          scheduleRender();
         });
       });
 
@@ -3228,7 +3262,7 @@
             if (e.target.checked) {
               for (let i = 0; i < tableData.length; i++) selectedRows.add(i);
             }
-            renderTable();
+            scheduleRender();
           });
         }
 
@@ -3238,7 +3272,7 @@
             const idx = parseInt(e.target.dataset.colidx);
             if (isNaN(idx)) return;
             if (e.target.checked) selectedColumns.add(idx); else selectedColumns.delete(idx);
-            renderTable();
+            scheduleRender();
           });
         });
         body.querySelectorAll('input.row-select').forEach(inp => {
@@ -3246,7 +3280,7 @@
           inp.addEventListener('change', (e) => {
             const idx = parseInt(e.target.dataset.row);
             if (e.target.checked) selectedRows.add(idx); else selectedRows.delete(idx);
-            renderTable();
+            scheduleRender();
           });
         });
         // Drag & drop columns (use original index mapping)
