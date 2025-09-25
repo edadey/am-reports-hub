@@ -2616,13 +2616,35 @@
       // 4) Keyword fallback
       function getKeywordType() {
         // IMPORTANT: Check for placements BEFORE employer engagement to differentiate them
-        if (headerWithoutChange.includes('placement') || headerWithoutChange.includes('student confirmed') || headerWithoutChange.includes('employer confirmed')) return 'placements';
-        if (headerWithoutChange.includes('enrichment') || headerWithoutChange.includes('enrich')) return 'enrichment';
-        if ((headerWithoutChange.includes('employer') && (headerWithoutChange.includes('engagement') || headerWithoutChange.includes('activity') || headerWithoutChange.includes('activities'))) || headerWithoutChange.includes('(employer)')) return 'employment';
-        if (headerWithoutChange.includes('career') || headerWithoutChange.includes('job profile') || headerWithoutChange.includes('quiz') || headerWithoutChange.includes('mapped')) return 'careers';
-        if (headerWithoutChange.includes('assessment') || headerWithoutChange.includes('score') || headerWithoutChange.includes('average score')) return 'assessments';
-        if (headerWithoutChange.includes('target')) return 'targets';
-        if (headerWithoutChange.includes('login') || headerWithoutChange.includes('access')) return 'login';
+        const hl = headerWithoutChange;
+        // Placements: broaden to cover common column names used in reports
+        if (
+          hl.includes('placement') ||
+          hl.includes('total placements') ||
+          hl.includes('students with placements') ||
+          hl.includes('% with placements') ||
+          hl.includes('student confirmed') ||
+          hl.includes('employer confirmed') ||
+          hl.includes('hours scheduled') ||
+          hl.includes('scheduled to date')
+        ) return 'placements';
+
+        // Activities (explicit)
+        if (hl.includes('enrichment') || hl.includes('enrich')) return 'enrichment';
+        if ((hl.includes('employer') && (hl.includes('engagement') || hl.includes('activity') || hl.includes('activities'))) || hl.includes('(employer)')) return 'employment';
+
+        // Careers
+        if (hl.includes('career') || hl.includes('job profile') || hl.includes('quiz') || hl.includes('mapped')) return 'careers';
+
+        // Assessments
+        if (hl.includes('assessment') || hl.includes('score') || hl.includes('average score')) return 'assessments';
+
+        // Targets
+        if (hl.includes('target')) return 'targets';
+
+        // Login/Access
+        if (hl.includes('login') || hl.includes('access')) return 'login';
+
         return 'default';
       }
 
@@ -2890,10 +2912,10 @@
           
           console.log(`Rendering header "${h}" (original: "${originalHeader}") -> type: ${sectionInfo.contentType}, enforcedType: ${enforcedType || 'none'}, class: "${colorClass}", inline: "${inline}", fileIdx: ${fileIdx}`);
           
-          const isSelected = editMode && (selectedColumns.has(colIdx) || lastSelectedColIndex === colIdx);
+          const isSelected = editMode && (selectedColumns.has(originalIdx) || lastSelectedColIndex === originalIdx);
           const selectedClass = (isSelected ? ' ring-2 ring-blue-400 bg-yellow-100' : '');
           const checkbox = editMode && !isChangeColumn
-            ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colidx="${colIdx}" ${selectedColumns.has(colIdx) ? 'checked' : ''}>`
+            ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colidx="${originalIdx}" ${selectedColumns.has(originalIdx) ? 'checked' : ''}>`
             : '';
           const draggable = editMode && !isChangeColumn ? 'draggable="true"' : '';
           // Build display text: keep header key intact, but ensure activity columns show the section name
@@ -4007,31 +4029,57 @@
     
     // Delete column functionality
     function deleteColumn() {
-      if (tableHeaders.length <= 1) {
-        showStatus('Cannot delete the last column', 'error');
-        return;
+      try {
+        if (!Array.isArray(tableHeaders) || tableHeaders.length === 0) {
+          showStatus('No columns to delete', 'error');
+          return;
+        }
+        // Prefer deleting currently selected column(s) when in Edit mode
+        let colsToDelete = [];
+        if (editMode) {
+          if (selectedColumns && selectedColumns.size > 0) {
+            colsToDelete = Array.from(selectedColumns).map(v => typeof v === 'number' ? v : tableHeaders.indexOf(v));
+          }
+          if (typeof lastSelectedColIndex === 'number' && !isNaN(lastSelectedColIndex)) {
+            colsToDelete.push(lastSelectedColIndex);
+          }
+          colsToDelete = Array.from(new Set(colsToDelete)).filter(i => i >= 0 && i < tableHeaders.length);
+        }
+
+        // Fallback to manual prompt if nothing is selected
+        if (colsToDelete.length === 0) {
+          const columnIndex = prompt('Enter column index to delete (0-' + (tableHeaders.length - 1) + '):');
+          if (columnIndex === null) return;
+          const idx = parseInt(columnIndex);
+          if (isNaN(idx) || idx < 0 || idx >= tableHeaders.length) {
+            showStatus('Invalid column index', 'error');
+            return;
+          }
+          colsToDelete = [idx];
+        }
+
+        // Prevent deleting all columns
+        if (colsToDelete.length >= tableHeaders.length) {
+          showStatus('Cannot delete all columns', 'error');
+          return;
+        }
+
+        // Delete in descending order to keep indices stable
+        colsToDelete.sort((a, b) => b - a).forEach(idx => {
+          tableHeaders.splice(idx, 1);
+          tableData.forEach(r => r.splice(idx, 1));
+        });
+
+        // Reset selection
+        selectedColumns = new Set();
+        lastSelectedColIndex = null;
+
+        renderTable();
+        showStatus(`Deleted ${colsToDelete.length} column(s)`, 'success');
+      } catch (e) {
+        console.warn('deleteColumn failed:', e?.message || e);
+        showStatus('Delete column failed: ' + (e?.message || e), 'error');
       }
-      
-      const columnIndex = prompt('Enter column index to delete (0-' + (tableHeaders.length - 1) + '):');
-      if (columnIndex === null) return;
-      
-      const index = parseInt(columnIndex);
-      if (isNaN(index) || index < 0 || index >= tableHeaders.length) {
-        showStatus('Invalid column index', 'error');
-        return;
-      }
-      
-      // Remove from headers
-      tableHeaders.splice(index, 1);
-      
-      // Remove from all rows
-      tableData.forEach(row => {
-        row.splice(index, 1);
-      });
-      
-      // Re-render table
-      renderTable();
-      showStatus('Column deleted successfully', 'success');
     }
     
     // Add row functionality
@@ -4163,7 +4211,7 @@
         let colIdxs = [];
         if (selectedColumns && selectedColumns.size > 0) {
           colIdxs = Array.from(selectedColumns)
-            .map(k => tableHeaders.indexOf(k))
+            .map(k => (typeof k === 'number' ? k : tableHeaders.indexOf(k)))
             .filter(i => i >= 0);
         }
         if (typeof lastSelectedColIndex === 'number' && !isNaN(lastSelectedColIndex)) {
