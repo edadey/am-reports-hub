@@ -38,11 +38,25 @@ class DataImporter {
         // Limit label length to keep headers readable
         if (label.length > 24) label = label.substring(0, 24).trim();
 
+        const CONTENT_TYPE_COLORS = {
+          'placements': '#dbeafe',
+          'employment': '#f3e8ff',
+          'employer': '#f3e8ff',
+          'enrichment': '#ccfbf1',
+          'careers': '#fef3c7',
+          'assessments': '#bbf7d0',
+          'targets': '#fce7f3',
+          'login': '#e0e7ff',
+          'activities': '#f3f4f6',
+          'default': '#f3f4f6'
+        };
+        const inferredColor = CONTENT_TYPE_COLORS[contentType] || CONTENT_TYPE_COLORS.default;
+
         processedData.fileInfo[fileIndex] = {
           originalName: file.originalName,
           filename: file.filename,
           contentType: contentType,
-          customColor: file.userSelectedColor || '#dbeafe',
+          customColor: file.userSelectedColor || inferredColor,
           label
         };
         
@@ -88,9 +102,20 @@ class DataImporter {
             
             // Add only content type specific variations for this file
             if (contentType === 'employer' || contentType === 'employment') {
-              validVariations.push(`${header} (employer engagement)`, `${header} (employer activity)`, `${header} (employment)`);
+              validVariations.push(
+                `${header} (employer engagement)`,
+                `${header} (Employer Engagement)`,
+                `${header} (employer activity)`,
+                `${header} (Employer Activity)`,
+                `${header} (employment)`
+              );
             } else if (contentType === 'enrichment') {
-              validVariations.push(`${header} (enrichment)`);
+              validVariations.push(
+                `${header} (enrichment)`,
+                `${header} (Enrichment)`,
+                `${header} (enrichment activity)`,
+                `${header} (Enrichment Activity)`
+              );
             } else if (contentType === 'placements') {
               validVariations.push(`${header} (placements)`);
             } else if (contentType === 'assessments') {
@@ -133,11 +158,15 @@ class DataImporter {
             if (contentType === 'employment' || contentType === 'employer') {
               processedData.headerFileMap[`${h} (employer)`] = fileIndex;
               processedData.headerFileMap[`${h} (employer engagement)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Employer Engagement)`] = fileIndex;
               processedData.headerFileMap[`${h} (employer activity)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Employer Activity)`] = fileIndex;
             }
             if (contentType === 'enrichment') {
               processedData.headerFileMap[`${h} (enrichment)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Enrichment)`] = fileIndex;
               processedData.headerFileMap[`${h} (enrichment activity)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Enrichment Activity)`] = fileIndex;
             }
           });
         }
@@ -907,7 +936,9 @@ class DataImporter {
             target.headerFileMap[activityMetric] = fileIndex;               // Most specific (with label)
             target.headerFileMap[metric] = fileIndex;                       // Base header
             target.headerFileMap[`${metric} (enrichment)`] = fileIndex;     // Typed variant used internally
+            target.headerFileMap[`${metric} (Enrichment)`] = fileIndex;     // Capitalised variant used in tables
             target.headerFileMap[`${metric} (enrichment activity)`] = fileIndex; // Alternative UI variant
+            target.headerFileMap[`${metric} (Enrichment Activity)`] = fileIndex; // Capitalised alternative
           } catch (_) {}
         } else if (isGenericActivity) {
           // For generic activities (no specific type detected), add as regular metrics with Activity label

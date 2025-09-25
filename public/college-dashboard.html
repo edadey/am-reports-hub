@@ -4182,7 +4182,7 @@
     }
 
     // Top/bottom horizontal scroll synchronization for the report table (view report page)
-    let __collegeScrollSyncInitialized = false;
+    let __collegeScrollSyncState = null;
     function setupScrollSyncCollege() {
       try {
         const top = document.getElementById('collegeTopScroll');
@@ -4191,18 +4191,46 @@
         const table = document.getElementById('collegeReportTable');
         if (!top || !bottom || !inner || !table) return;
 
+        if (__collegeScrollSyncState) {
+          const { topEl, bottomEl, onTopScroll, onBottomScroll, onResize } = __collegeScrollSyncState;
+          if (topEl && onTopScroll) topEl.removeEventListener('scroll', onTopScroll);
+          if (bottomEl && onBottomScroll) bottomEl.removeEventListener('scroll', onBottomScroll);
+          if (onResize) window.removeEventListener('resize', onResize);
+          __collegeScrollSyncState = null;
+        }
+
         const update = () => {
           try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch (_) {}
         };
-        update();
 
         let syncing = false;
-        if (!__collegeScrollSyncInitialized) {
-          top.addEventListener('scroll', () => { if (syncing) return; syncing = true; bottom.scrollLeft = top.scrollLeft; syncing = false; });
-          bottom.addEventListener('scroll', () => { if (syncing) return; syncing = true; top.scrollLeft = bottom.scrollLeft; syncing = false; });
-          window.addEventListener('resize', update);
-          __collegeScrollSyncInitialized = true;
-        }
+        const onTopScroll = () => {
+          if (syncing) return;
+          syncing = true;
+          bottom.scrollLeft = top.scrollLeft;
+          syncing = false;
+        };
+        const onBottomScroll = () => {
+          if (syncing) return;
+          syncing = true;
+          top.scrollLeft = bottom.scrollLeft;
+          syncing = false;
+        };
+        const onResize = () => update();
+
+        top.addEventListener('scroll', onTopScroll);
+        bottom.addEventListener('scroll', onBottomScroll);
+        window.addEventListener('resize', onResize);
+
+        __collegeScrollSyncState = {
+          topEl: top,
+          bottomEl: bottom,
+          onTopScroll,
+          onBottomScroll,
+          onResize
+        };
+
+        update();
         // In case dimensions change after paint
         setTimeout(update, 0);
       } catch (_) {}

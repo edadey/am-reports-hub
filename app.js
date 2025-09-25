@@ -2174,10 +2174,10 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       // Keep this mapping aligned with SECTION_COLORS_EXCEL in public/generate-report.html
       const SECTION_COLORS_EXCEL = {
         'placements': 'FFDBEAFE',          // bg-blue-100 - Light blue
-        'assessments': 'FFCCFBF1',         // bg-teal-100 - Light teal
+        'assessments': 'FFBBF7D0',         // bg-green-200 - Light green
         'careers': 'FFFED7AA',             // bg-orange-100 - Light orange
         'activities': 'FFFEF3C7',          // bg-yellow-100 - Light yellow
-        'enrichment': 'FFDCFCE7',          // bg-green-100 - Light green
+        'enrichment': 'FFCCFBF1',          // bg-teal-100 - Light teal
         'employment': 'FFF3E8FF',          // bg-purple-100 - Light purple
         'employer-activity': 'FFFEE2E2',   // bg-red-100 - Light red
         'enrichment-activity': 'FFE0F7FA', // bg-cyan-100 - Light cyan

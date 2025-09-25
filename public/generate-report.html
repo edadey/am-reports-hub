@@ -170,19 +170,19 @@
                     <span>Employer Engagement</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-green-100 rounded"></div>
+                    <div class="w-4 h-4 bg-teal-100 rounded"></div>
                     <span>Enrichment Activities</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-yellow-200 rounded"></div>
+                    <div class="w-4 h-4 bg-green-200 rounded"></div>
                     <span>Assessments</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-pink-200 rounded"></div>
+                    <div class="w-4 h-4 bg-yellow-100 rounded"></div>
                     <span>Careers</span>
                   </div>
                   <div class="flex items-center gap-2">
-                    <div class="w-4 h-4 bg-indigo-200 rounded"></div>
+                    <div class="w-4 h-4 bg-pink-100 rounded"></div>
                     <span>Targets</span>
                   </div>
                   <div class="flex items-center gap-2">
@@ -414,13 +414,13 @@
     // Define consistent colors for each section type
     const SECTION_COLORS = {
       'placements': 'bg-blue-100',      // Blue for placements
-      'assessments': 'bg-teal-100',     // Teal for assessments  
+      'assessments': 'bg-green-200',    // Green for assessments
       'careers': 'bg-orange-100',       // Orange for careers
-      'activities': 'bg-yellow-100',    // Yellow for activities (changed from orange to distinguish from careers)
-      'enrichment': 'bg-green-100',     // Green for enrichment
-      'employment': 'bg-purple-100',    // Purple for employment
-      'employer-activity': 'bg-red-100', // Red for employer activities (new)
-      'enrichment-activity': 'bg-cyan-100', // Cyan for enrichment activities (new)
+      'activities': 'bg-yellow-100',    // Yellow for activities
+      'enrichment': 'bg-teal-100',      // Teal for enrichment (canonical)
+      'employment': 'bg-purple-100',    // Purple for employer engagement/employment
+      'employer-activity': 'bg-red-100', // Red for employer activities
+      'enrichment-activity': 'bg-cyan-100', // Cyan for enrichment activities
       'targets': 'bg-pink-100',         // Pink for targets
       'login': 'bg-indigo-100',         // Indigo for login
       'default': 'bg-gray-100'          // Gray for unknown sections
@@ -439,17 +439,17 @@
 
     // Define consistent colors for Excel export
     const SECTION_COLORS_EXCEL = {
-      'placements': 'FFDBEAFE',      // Light blue (matches bg-blue-100)
-      'assessments': 'FFCCFBF1',     // Light teal (matches bg-teal-100)
-      'careers': 'FFFED7AA',         // Light orange (matches bg-orange-100)
-      'activities': 'FFFEF3C7',      // Light yellow (matches bg-yellow-100)
-      'enrichment': 'FFDCFCE7',      // Light green (matches bg-green-100)
-      'employment': 'FFF3E8FF',      // Light purple (matches bg-purple-100)
-      'employer-activity': 'FFFEE2E2', // Light red (matches bg-red-100)
-      'enrichment-activity': 'FFE0F7FA', // Light cyan (matches bg-cyan-100)
-      'targets': 'FFFCE7F3',         // Light pink (matches bg-pink-100)
-      'login': 'FFE0E7FF',           // Light indigo (matches bg-indigo-100)
-      'default': 'FFF3F4F6'          // Light gray (matches bg-gray-100)
+      'placements': 'FFDBEAFE',         // Light blue (matches bg-blue-100)
+      'assessments': 'FFBBF7D0',        // Light green (matches bg-green-200)
+      'careers': 'FFFED7AA',            // Light orange (matches bg-orange-100)
+      'activities': 'FFFEF3C7',         // Light yellow (matches bg-yellow-100)
+      'enrichment': 'FFCCFBF1',         // Light teal (matches bg-teal-100)
+      'employment': 'FFF3E8FF',         // Light purple (matches bg-purple-100)
+      'employer-activity': 'FFFEE2E2',  // Light red (matches bg-red-100)
+      'enrichment-activity': 'FFE0F7FA',// Light cyan (matches bg-cyan-100)
+      'targets': 'FFFCE7F3',            // Light pink (matches bg-pink-100)
+      'login': 'FFE0E7FF',              // Light indigo (matches bg-indigo-100)
+      'default': 'FFF3F4F6'             // Light gray (matches bg-gray-100)
     };
 
           // Function to determine section type from header
@@ -796,6 +796,7 @@
           arr.push(b);
           return arr;
         };
+
 
         // Resolve activity type hint from header or mapping
         let t = hasEmpSuffix ? 'employer' : (hasEnrSuffix ? 'enrichment' : '');
@@ -1998,8 +1999,14 @@
               Object.keys(enrichment).forEach(h => enrichmentSet.add(h));
             });
             window.activityHeaderTypeMap = {};
-            employerSet.forEach(h => { window.activityHeaderTypeMap[h] = 'employment'; });
-            enrichmentSet.forEach(h => { window.activityHeaderTypeMap[h] = 'enrichment'; });
+            employerSet.forEach(h => {
+              window.activityHeaderTypeMap[h] = 'employment';
+              window.activityHeaderTypeMap[`${h} (Employer Engagement)`] = 'employment';
+            });
+            enrichmentSet.forEach(h => {
+              window.activityHeaderTypeMap[h] = 'enrichment';
+              window.activityHeaderTypeMap[`${h} (Enrichment)`] = 'enrichment';
+            });
             console.log('Built activityHeaderTypeMap:', window.activityHeaderTypeMap);
           } catch (e) {
             console.warn('Failed to build activityHeaderTypeMap:', e?.message || e);
@@ -2537,6 +2544,47 @@
         }
       }
 
+      // Resolve any manual per-file selection (type/color) saved from the dropdowns
+      function getManualSelection() {
+        try {
+          if (!window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
+          const baseNoParen = rawHeaderStripped.replace(/\s*\(.*\)$/, '');
+          const directIdx = window.headerFileMap[rawHeader]
+            ?? window.headerFileMap[rawHeaderNoDefaultKeepLabel]
+            ?? window.headerFileMap[rawHeaderStripped]
+            ?? window.headerFileMap[headerNoEnrSuffix]
+            ?? window.headerFileMap[headerNoEmpSuffix]
+            ?? window.headerFileMap[baseNoParen];
+          let idx = directIdx;
+          if (idx === undefined || idx === null) {
+            // Fallback: try to derive by [FileLabel]
+            const m = String(rawHeader).match(/\[([^\]]+)\]\s*$/);
+            if (m && m[1] && Array.isArray(window.fileInfo)) {
+              const label = m[1].trim();
+              for (let i = 0; i < window.fileInfo.length; i++) {
+                if (window.fileInfo[i] && window.fileInfo[i].label === label) { idx = i; break; }
+              }
+            }
+          }
+          if (idx === undefined || idx === null) return null;
+          let sel = (window.__fileLevelSelections && window.__fileLevelSelections[idx]) ? window.__fileLevelSelections[idx] : null;
+          // Fallback to reading live DOM controls if Apply hasn't been pressed yet
+          if (!sel) {
+            try {
+              const typeEl = document.querySelector(`.file-assignment-type[data-file-index="${idx}"]`);
+              const colorEl = document.querySelector(`.file-assignment-color[data-file-index="${idx}"]`);
+              const typeVal = typeEl ? String(typeEl.value || '').toLowerCase() : '';
+              const colorVal = colorEl ? String(colorEl.value || '') : '';
+              if (typeVal || colorVal) sel = { type: typeVal, color: colorVal };
+            } catch(_) {}
+          }
+          if (!sel) return null;
+          const t = sel.type ? String(sel.type).toLowerCase() : '';
+          const normType = (t === 'employer') ? 'employment' : t;
+          return { type: normType || null, color: sel.color || null };
+        } catch (_) { return null; }
+      }
+
       // 2) Suffix-based explicit type
       function getSuffixType() {
         // Check for explicit suffixes first (these take precedence)
@@ -2579,15 +2627,17 @@
       }
 
       let contentType;
+      const manualSel = getManualSelection();
       if (window.useStrictTypePrecedence) {
-        contentType = getFileDerivedType() || getSuffixType() || getActivityMapType() || getKeywordType() || 'default';
+        // Prefer explicit header suffixes, then user dropdown selection, then file-derived type
+        contentType = getSuffixType() || (manualSel && manualSel.type) || getFileDerivedType() || getActivityMapType() || getKeywordType() || 'default';
       } else {
         // Legacy behaviour fallback
-        contentType = getSuffixType() || getActivityMapType() || getKeywordType() || 'default';
+        contentType = getSuffixType() || (manualSel && manualSel.type) || getActivityMapType() || getKeywordType() || 'default';
       }
 
       // Check for custom colour first
-      const customColor = getCustomColor();
+      const customColor = (manualSel && manualSel.color) || getCustomColor();
       let color, inlineColor;
       
       console.log(`=== COLOR DECISION for "${header}" ===`);
@@ -2800,6 +2850,26 @@
           const isChangeColumn = h.endsWith(' +/-');
           const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
           const sectionInfo = getColumnSection(originalHeader);
+          // Enforce activity suffix colouring as a final override to avoid any mis-inference
+          const SUFFIX_INLINE = {
+            enrichment: 'background-color: #ccfbf1 !important; border-color: #ccfbf1 !important;',
+            employment: 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;'
+          };
+          const SUFFIX_CLASS = {
+            enrichment: 'bg-teal-100',
+            employment: 'bg-purple-100'
+          };
+          let enforcedType = '';
+          try {
+            const oh = String(originalHeader || '');
+            const ohLower = oh.toLowerCase();
+            const baseDispForEnf = stripFileLabel(oh);
+            const baseLower = baseDispForEnf.toLowerCase();
+            if (/\(enrichment( activity)?\)/i.test(oh) || /\(enrichment( activity)?\)/i.test(baseDispForEnf)) enforcedType = 'enrichment';
+            else if (/\(employer (engagement|activity)\)/i.test(oh) || /\(employer (engagement|activity)\)/i.test(baseDispForEnf)) enforcedType = 'employment';
+            else if (ohLower.includes('(enrichment)') || baseLower.includes('(enrichment)')) enforcedType = 'enrichment';
+            else if (ohLower.includes('(employer engagement)') || ohLower.includes('(employer activity)') || baseLower.includes('(employer engagement)') || baseLower.includes('(employer activity)')) enforcedType = 'employment';
+          } catch(_) {}
           const originalIdx = tableHeaders.indexOf(originalHeader);
           
           // File-based accent (disabled for previous style) — keep variables for potential future use
@@ -2809,14 +2879,21 @@
           const dot = '';
           
           // Use light section background; file accent is shown via left border and dot only (previous style)
-          const inline = sectionInfo.inlineColor;
+          let inline = sectionInfo.inlineColor;
+          let colorClass = sectionInfo.color;
+          if (enforcedType) {
+            inline = SUFFIX_INLINE[enforcedType] || inline;
+            colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
+            // Also reflect into sectionInfo.contentType for downstream text-suffix logic
+            try { sectionInfo.contentType = enforcedType; } catch(_) {}
+          }
           
-          console.log(`Rendering header "${h}" (original: "${originalHeader}") with class: "${sectionInfo.color}", inline: "${inline}", fileIdx: ${fileIdx}, accent: ${accent}`);
+          console.log(`Rendering header "${h}" (original: "${originalHeader}") -> type: ${sectionInfo.contentType}, enforcedType: ${enforcedType || 'none'}, class: "${colorClass}", inline: "${inline}", fileIdx: ${fileIdx}`);
           
-          const isSelected = editMode && (selectedColumns.has(originalHeader) || lastSelectedColIndex === originalIdx);
+          const isSelected = editMode && (selectedColumns.has(colIdx) || lastSelectedColIndex === colIdx);
           const selectedClass = (isSelected ? ' ring-2 ring-blue-400 bg-yellow-100' : '');
           const checkbox = editMode && !isChangeColumn
-            ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colkey="${encodeURIComponent(originalHeader)}" ${selectedColumns.has(originalHeader) ? 'checked' : ''}>`
+            ? `<input type="checkbox" class="col-select mr-2 align-middle" data-colidx="${colIdx}" ${selectedColumns.has(colIdx) ? 'checked' : ''}>`
             : '';
           const draggable = editMode && !isChangeColumn ? 'draggable="true"' : '';
           // Build display text: keep header key intact, but ensure activity columns show the section name
@@ -2845,6 +2922,15 @@
                 if (foundType) t = foundType;
               } catch(_) {}
             }
+            // After resolving t, sync colour to t if it's an activity
+            try {
+              const tn = (t === 'employer') ? 'employment' : t;
+              if (tn === 'enrichment' || tn === 'employment') {
+                inline = SUFFIX_INLINE[tn] || inline;
+                colorClass = SUFFIX_CLASS[tn] || colorClass;
+                sectionInfo.contentType = tn;
+              }
+            } catch(_) {}
             if (/\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)/i.test(baseDisp)) {
               displayText = baseDisp + ' +/-';
             } else if (t === 'employment' || t === 'employer') {
@@ -2883,6 +2969,15 @@
                   if (foundType) t = foundType;
                 } catch(_) {}
               }
+              // After resolving t, sync colour to t if it's an activity
+              try {
+                const tn = (t === 'employer') ? 'employment' : t;
+                if (tn === 'enrichment' || tn === 'employment') {
+                  inline = SUFFIX_INLINE[tn] || inline;
+                  colorClass = SUFFIX_CLASS[tn] || colorClass;
+                  sectionInfo.contentType = tn;
+                }
+              } catch(_) {}
               if (t === 'employment' || t === 'employer') {
                 displayText = `${baseDisp} (Employer Engagement)`;
               } else if (t === 'enrichment') {
@@ -2895,7 +2990,7 @@
             }
           }
           const styleAttr = `${inline}${accentStyle ? ' ' + accentStyle : ''} cursor:pointer;`;
-          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${sectionInfo.color}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${styleAttr}">${checkbox}${dot}${displayText}</th>`;
+          return `<th ${draggable} class="px-6 py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider ${colorClass}${selectedClass}" data-col-idx="${colIdx}" data-original-idx="${originalIdx}" data-header-key="${encodeURIComponent(originalHeader)}" style="${styleAttr}">${checkbox}${dot}${displayText}</th>`;
         }
       }).join('');
       
@@ -3258,17 +3353,33 @@
 
     // Report generation
     async function generateReport() {
-      if (!currentCollegeId) {
-        showStatus('Please select a college first', 'error');
-        return;
-      }
+      const previewOnly = !currentCollegeId;
       if (!Array.isArray(tableHeaders) || !Array.isArray(tableData) || tableHeaders.length === 0) {
         showStatus('No data to generate report from', 'error');
         return;
       }
       
       try {
-        // Build sensible defaults
+        // If no college selected, run a preview-only flow (no API call)
+        if (previewOnly) {
+          // Build display headers without trailing [FileLabel] suffixes and compute color meta
+          const displayHeaders = (tableHeaders || []).map(h => stripFileLabel(h));
+          const headerSections = {};
+          const headerColorClasses = {};
+          const headerHexColors = {};
+          (tableHeaders || []).forEach((h, idx) => {
+            const disp = displayHeaders[idx];
+            const sec = (window.headerAssignments && window.headerAssignments[h]) || getSectionType(h);
+            const cls = SECTION_COLORS[sec] || SECTION_COLORS.default;
+            headerSections[disp] = sec;
+            headerColorClasses[disp] = cls;
+          });
+          try { localStorage.setItem('previewMeta', JSON.stringify({ headerSections, headerColorClasses, headerHexColors })); } catch(_) {}
+          showStatus('Preview ready. Select a college to generate and download the final report.', 'success');
+          return;
+        }
+
+        // Build sensible defaults for final report export
         const college = (Array.isArray(colleges) ? colleges.find(c => String(c.id) === String(currentCollegeId)) : null);
         const defaultName = `Report - ${college?.name || 'College'} - ${new Date().toLocaleDateString()}`;
         const defaultSummary = '';
@@ -4440,13 +4551,14 @@
     let headerAssignments = {}; // Store header to section assignments
     
     const sectionConfig = {
-      'placements': { color: 'bg-blue-200', name: 'Placements' },
-      'employer': { color: 'bg-green-200', name: 'Employer Engagement' },
-      'enrichment': { color: 'bg-purple-200', name: 'Enrichment Activities' },
-      'assessments': { color: 'bg-yellow-200', name: 'Assessments' },
-      'careers': { color: 'bg-pink-200', name: 'Careers' },
-      'targets': { color: 'bg-indigo-200', name: 'Targets' },
-      'default': { color: 'bg-gray-200', name: 'Other/Default' }
+      'placements': { color: 'bg-blue-100', name: 'Placements' },
+      'employer': { color: 'bg-purple-100', name: 'Employer Engagement' },
+      'enrichment': { color: 'bg-teal-100', name: 'Enrichment Activities' },
+      'assessments': { color: 'bg-green-200', name: 'Assessments' },
+      'careers': { color: 'bg-yellow-100', name: 'Careers' },
+      'targets': { color: 'bg-pink-100', name: 'Targets' },
+      'login': { color: 'bg-indigo-100', name: 'Login' },
+      'default': { color: 'bg-gray-100', name: 'Other/Default' }
     };
     
     function showHeaderAssignmentInterface(headers) {
