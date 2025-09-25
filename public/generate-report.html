@@ -2759,8 +2759,8 @@
       tableHeaders.forEach((h, colIdx) => {
         console.log(`Processing header ${colIdx}: "${h}"`);
         completeHeaders.push(h);
-        // In strict template mode, do NOT add any synthetic change columns
-        if (!window.strictTemplateMode) {
+        // Show change +/- columns by default, even in strict template mode, unless explicitly disabled
+        if (window.forceShowChangeColumns !== false) {
           if (h !== 'Department' && (h.toLowerCase().includes('percent') || h.includes('%') || 
               h.toLowerCase().includes('total') || h.toLowerCase().includes('students') || 
               h.toLowerCase().includes('hours') || h.toLowerCase().includes('score') || 
@@ -3020,7 +3020,7 @@
             displayValue = String(cell ?? '');
           }
           // In strict template mode, do not add visual decorations/formatting
-          else if (!window.strictTemplateMode && header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
+          else if (window.forceShowChangeColumns !== false && header && (header.toLowerCase().includes('percent') || header.includes('%'))) {
             if (typeof cell === 'number' || !isNaN(parseFloat(cell))) {
               // Check if the value is already a percentage (0-100) or needs conversion (0-1)
               let percentage;
@@ -3062,7 +3062,7 @@
             }
           }
           // Format numbers (but never for the Department column)
-          else if (!window.strictTemplateMode && !isDepartmentHeader(header) && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
+          else if (window.forceShowChangeColumns !== false && !isDepartmentHeader(header) && (typeof cell === 'number' || (!isNaN(parseFloat(cell)) && cell !== ''))) {
             displayValue = parseFloat(cell).toLocaleString();
           }
           
@@ -3080,7 +3080,7 @@
           
           // Add change indicator cell if this column should have one
           // Only add for percentage columns and numeric metric columns
-          if (!window.strictTemplateMode && !isDepartmentHeader(header) && (header.toLowerCase().includes('percent') || header.includes('%') || 
+          if (window.forceShowChangeColumns !== false && !isDepartmentHeader(header) && (header.toLowerCase().includes('percent') || header.includes('%') || 
               header.toLowerCase().includes('total') || header.toLowerCase().includes('students') || 
               header.toLowerCase().includes('hours') || header.toLowerCase().includes('score') || 
               header.toLowerCase().includes('activities'))) {
@@ -3151,9 +3151,8 @@
           if (!editMode) return;
           const oidx = parseInt(th.dataset.originalIdx);
           if (!isNaN(oidx)) lastSelectedColIndex = oidx;
-          const key = th.dataset.headerKey ? decodeURIComponent(th.dataset.headerKey) : '';
-          if (key) {
-            if (selectedColumns.has(key)) selectedColumns.delete(key); else selectedColumns.add(key);
+          if (!isNaN(oidx)) {
+            if (selectedColumns.has(oidx)) selectedColumns.delete(oidx); else selectedColumns.add(oidx);
           }
           renderTable();
         });
@@ -3184,9 +3183,9 @@
         header.querySelectorAll('input.col-select').forEach(inp => {
           inp.addEventListener('click', (e) => { e.stopPropagation(); });
           inp.addEventListener('change', (e) => {
-            const key = e.target.dataset.colkey ? decodeURIComponent(e.target.dataset.colkey) : '';
-            if (!key) return;
-            if (e.target.checked) selectedColumns.add(key); else selectedColumns.delete(key);
+            const idx = parseInt(e.target.dataset.colidx);
+            if (isNaN(idx)) return;
+            if (e.target.checked) selectedColumns.add(idx); else selectedColumns.delete(idx);
             renderTable();
           });
         });
