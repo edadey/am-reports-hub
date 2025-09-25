@@ -806,7 +806,7 @@
           else if (mapped === 'enrichment') t = 'enrichment';
         }
 
-        // Activity lookups
+        // Activity lookups (with graceful fallback to metrics if unresolved)
         if (t === 'employer' || t === 'enrichment') {
           const map = (t === 'employer') ? emp : enr;
           const otherMap = (t === 'employer') ? enr : emp;
@@ -833,7 +833,7 @@
           if (fuzzyPrimary !== undefined) return fuzzyPrimary;
           const fuzzyOther = fuzzyFind(otherMap);
           if (fuzzyOther !== undefined) return fuzzyOther;
-          return '';
+          // Fall through to metrics lookup below if no activity value was found
         }
 
         // Regular metrics (placements, assessments, careers, etc.)
@@ -845,6 +845,21 @@
         if (type) candidates.push(`${base2} (${type})`);
         candidates.push(base2);
         for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+        // Fuzzy metrics lookup: strip [Label] and (...) and compare case-insensitively
+        try {
+          const baseLower = base2.toLowerCase();
+          const mk = Object.keys(metrics).find(k => {
+            const stripped = String(k)
+              .replace(/\s*\[[^\]]+\]\s*$/, '')
+              .replace(/\s*\([^)]*\)\s*$/, '')
+              .trim().toLowerCase();
+            if (stripped === baseLower) return true;
+            if (stripped.endsWith('s') && stripped.slice(0, -1) === baseLower) return true;
+            if (baseLower.endsWith('s') && baseLower.slice(0, -1) === stripped) return true;
+            return false;
+          });
+          if (mk) return metrics[mk];
+        } catch(_) {}
         return '';
       } catch (e) {
         return '';
@@ -2035,7 +2050,22 @@
           console.log('Final headerFileMap:', headerFileMap);
           
           // Build table data
-          tableData = data.departments.map(dept => {
+          // Use template's saved rows (first column = Department) to control which rows appear and in what order
+          let departmentsToUse = Array.isArray(data.departments) ? [...data.departments] : [];
+          try {
+            const selTpl = getSelectedTemplate ? getSelectedTemplate() : null;
+            const tplRows = selTpl && Array.isArray(selTpl.tableData) ? selTpl.tableData : null;
+            if (tplRows && tplRows.length > 0) {
+              const desired = tplRows
+                .map(r => (Array.isArray(r) ? r[0] : null))
+                .filter(v => typeof v === 'string' && v.length > 0);
+              const available = new Set(data.departments || []);
+              // Keep only departments present in current data, preserve template order
+              departmentsToUse = desired.filter(d => available.has(d));
+            }
+          } catch (_) {}
+
+          tableData = departmentsToUse.map(dept => {
             const row = [dept];
             tableHeaders.slice(1).forEach(header => {
               row.push(resolveCellValue(header, dept, data));
