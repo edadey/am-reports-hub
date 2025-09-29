@@ -3931,6 +3931,24 @@
         }
       });
 
+      // Build previous header index map for name-aligned comparisons
+      const cmpKey = (h) => String(h || '')
+        .replace(/\s*\[[^\]]+\]\s*$/, '')
+        .replace(/\s*\+\/\-\s*$/, '')
+        .replace(/\s*\([^)]*\)\s*$/, '')
+        .trim()
+        .toLowerCase();
+      const prevHeaderIndexMap = (() => {
+        try {
+          const prev = window.previousReportData;
+          const map = {};
+          if (prev && Array.isArray(prev.headers)) {
+            prev.headers.forEach((ph, i) => { map[cmpKey(ph)] = i; });
+          }
+          return map;
+        } catch(_) { return {}; }
+      })();
+
       // Render body with proper column alignment and visual elements
       const bodyRows = rows.map((row, rowIdx) => {
         let completeRowCells = [];
@@ -4007,10 +4025,13 @@
             // Calculate change from previous report
             if (window.previousReportData) {
               const previousRow = window.previousReportData.rows ? window.previousReportData.rows.find(r => r[0] === row[0]) : null;
-              if (previousRow && previousRow[originalColIdx] !== undefined) {
+              const mappedPrevIdx = (prevHeaderIndexMap && prevHeaderIndexMap[cmpKey(header)] !== undefined)
+                ? prevHeaderIndexMap[cmpKey(header)]
+                : originalColIdx;
+              if (previousRow && previousRow[mappedPrevIdx] !== undefined) {
                 const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
                 const rawCurrent = cell;
-                const rawPrevious = previousRow[originalColIdx];
+                const rawPrevious = previousRow[mappedPrevIdx];
                 const toPercent = (v) => {
                   const s = String(v ?? '').trim();
                   if (!s) return 0;
@@ -4110,7 +4131,7 @@
         if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
           totalsRowCells.push(`
             <td class="px-2 py-4 whitespace-nowrap text-sm font-bold text-blue-600 border-r border-gray-100 text-center bg-gray-50">
-              ${window.previousReportData ? calculateTotalChange(originalColIdx, totals, window.previousReportData) : '<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>'}
+              ${window.previousReportData ? calculateTotalChange(originalColIdx, header, totals, window.previousReportData, prevHeaderIndexMap) : '<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>'}
             </td>
           `);
         }
