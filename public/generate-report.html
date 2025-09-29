@@ -450,7 +450,25 @@
       function getSectionType(header) {
         const headerLower = header.toLowerCase();
         
-        // First check for explicit engagement/activity suffixes
+        // Compute base text without [Label] and (...) to identify the core metric
+        const baseLower = String(header)
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .replace(/\s*\([^)]*\)\s*$/, '')
+          .trim()
+          .toLowerCase();
+        
+        // Placements must be detected FIRST so even headers like
+        // "Total Placements (Employer Activity)" remain placements (blue)
+        const placementExtras = new Set(['hours scheduled to date','student confirmed','employer confirmed']);
+        if (
+          baseLower.includes('placement') ||
+          placementExtras.has(baseLower) ||
+          headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')
+        ) {
+          return 'placements';
+        }
+        
+        // Then check for explicit engagement/activity suffixes
         if (headerLower.includes('(employer engagement)')) {
           return 'employment';
         }
@@ -467,13 +485,6 @@
         }
         if (headerLower.includes('(employer)')) {
           return 'employment';
-        }
-        
-        // Check for placements - broader matching to catch all placement-related headers
-        if (headerLower.includes('placement') || 
-            headerLower.includes('student confirmed') || headerLower.includes('employer confirmed') ||
-            headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) {
-          return 'placements';
         }
         
         // Check for assessments - broader matching
