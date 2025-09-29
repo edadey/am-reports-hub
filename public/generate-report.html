@@ -1561,37 +1561,11 @@
       
       return (data.departments || []).map(dept => {
         const row = [dept]; // First column is always Department
-        const metrics = (data.metrics || {})[dept] || {};
-        const emp = data.activities?.employerEngagement?.[dept] || {};
-        const enr = data.activities?.enrichment?.[dept] || {};
-        
-        // Map each template header to available data
+        // Use the same resolver as the main table rendering to ensure consistent mapping
         templateHeaders.slice(1).forEach(templateHeader => {
-          let value = '';
-          
-          // Try to find matching data in order of priority
-          if (metrics[templateHeader] !== undefined) {
-            value = metrics[templateHeader];
-          } else if (emp[templateHeader] !== undefined) {
-            value = emp[templateHeader];
-          } else if (enr[templateHeader] !== undefined) {
-            value = enr[templateHeader];
-          } else if (templateMode === 'flexible') {
-            // In flexible mode, try fuzzy matching for similar header names
-            const allData = { ...metrics, ...emp, ...enr };
-            const similarKey = Object.keys(allData).find(key => 
-              key.toLowerCase().includes(templateHeader.toLowerCase()) ||
-              templateHeader.toLowerCase().includes(key.toLowerCase())
-            );
-            if (similarKey) {
-              value = allData[similarKey];
-              console.log(`Fuzzy matched "${templateHeader}" to "${similarKey}": ${value}`);
-            }
-          }
-          
-          row.push(value);
+          const val = resolveCellValue(templateHeader, dept, data);
+          row.push(val);
         });
-        
         return row;
       });
     }
@@ -3769,8 +3743,8 @@
         const confirmed = window.confirm('Update the selected template to match the current table (headers and rows)?');
         if (!confirmed) return;
 
-        // Use display headers without trailing [FileLabel]
-        const displayHeaders = (tableHeaders || []).map(h => stripFileLabel(h));
+        // Preserve exact headers including [FileLabel] and activity suffixes to keep per-file mapping unambiguous
+        const displayHeaders = Array.isArray(tableHeaders) ? [...tableHeaders] : [];
 
         const payload = {
           name: selectedTemplate.name,
