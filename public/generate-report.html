@@ -2600,6 +2600,13 @@
             return null;
           }
           const baseNoParen = rawHeaderStripped.replace(/\s*\(.*\)$/, '');
+          // Infer desired type from header text (suffixes)
+          const typeHint = (() => {
+            const h = headerWithoutChange;
+            if (/(employer\s+(engagement|activity)|\(employer\))/i.test(h)) return 'employment';
+            if (/(enrichment(\s+activity)?|\(enrichment\))/i.test(h)) return 'enrichment';
+            return '';
+          })();
           const directIdx = window.headerFileMap[rawHeader]
             ?? window.headerFileMap[rawHeaderStripped]
             ?? window.headerFileMap[headerNoEnrSuffix]
@@ -2618,6 +2625,27 @@
                 }
               }
             }
+            // If still not found, try base-match across headerFileMap with type preference
+            if (idx === undefined || idx === null) {
+              const stripBase = s => String(s || '')
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\+\/\-\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim()
+                .toLowerCase();
+              const target = stripBase(rawHeader);
+              let candidate = undefined;
+              // Pass 1: prefer a file whose contentType matches typeHint
+              for (const [k, v] of Object.entries(window.headerFileMap)) {
+                if (stripBase(k) === target) {
+                  const fiType = (window.fileInfo[v] && window.fileInfo[v].contentType) ? String(window.fileInfo[v].contentType).toLowerCase() : '';
+                  const normFiType = (fiType === 'employer') ? 'employment' : fiType;
+                  if (typeHint && normFiType === typeHint) { candidate = v; break; }
+                  if (candidate === undefined) candidate = v; // keep first as fallback
+                }
+              }
+              if (candidate !== undefined) idx = candidate;
+            }
             if (idx === undefined || idx === null) {
               console.log(`getCustomColor: No file index found for "${rawHeader}"`);
               return null;
@@ -2625,6 +2653,14 @@
           }
           const info = window.fileInfo[idx];
           console.log(`getCustomColor: File info for index ${idx}:`, info);
+          // If the inferred type from header contradicts this file's type, do not apply its custom color
+          if (info && info.contentType && typeHint) {
+            const norm = String(info.contentType).toLowerCase() === 'employer' ? 'employment' : String(info.contentType).toLowerCase();
+            if (norm && norm !== typeHint) {
+              console.log('getCustomColor: file type mismatch with header hint; skipping custom color');
+              return null;
+            }
+          }
           const customColor = info && info.customColor ? info.customColor : null;
           console.log(`getCustomColor: Custom color for "${rawHeader}": ${customColor}`);
           return customColor;
