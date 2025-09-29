@@ -92,40 +92,7 @@
         return;
       }
 
-      // Toggle header sticky position
-      function toggleHeaderSticky() {
-        const toggle = document.getElementById('headerStickyToggle');
-        const isSticky = toggle && toggle.checked;
-        try { localStorage.setItem('sharedHeaderStickyOn', isSticky ? 'true' : 'false'); } catch(_) {}
-        const headers = document.querySelectorAll('#sharedReportTable thead th');
-        headers.forEach(th => {
-          if (isSticky) {
-            th.style.setProperty('position', 'sticky', 'important');
-            th.style.setProperty('top', '0', 'important');
-            th.style.setProperty('z-index', '4', 'important');
-            th.style.setProperty('background', '#fff', 'important');
-          } else {
-            th.style.removeProperty('position');
-            th.style.removeProperty('top');
-            th.style.removeProperty('z-index');
-            th.style.removeProperty('background');
-          }
-        });
-      }
-
-      // Apply initial header sticky after render
-      function applyInitialHeaderSticky() {
-        const toggle = document.getElementById('headerStickyToggle');
-        const isSticky = toggle && toggle.checked;
-        if (!isSticky) return;
-        const headers = document.querySelectorAll('#sharedReportTable thead th');
-        headers.forEach(th => {
-          th.style.setProperty('position', 'sticky', 'important');
-          th.style.setProperty('top', '0', 'important');
-          th.style.setProperty('z-index', '4', 'important');
-          th.style.setProperty('background', '#fff', 'important');
-        });
-      }
+      
 
       // Scroll sync for shared view
       let __sharedScrollSyncSetup = false;
@@ -345,12 +312,7 @@
           const cbGlobal = document.getElementById('cellBordersToggleGlobal');
           if (cbGlobal) cbGlobal.checked = saved;
         } catch (_) {}
-        // Restore sticky header state
-        try {
-          const hs = document.getElementById('headerStickyToggle');
-          const savedHS = localStorage.getItem('sharedHeaderStickyOn') === 'true';
-          if (hs) hs.checked = savedHS;
-        } catch (_) {}
+        
         displayReportData(report);
         reportView.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
@@ -528,8 +490,13 @@
             const previousRow = prev.rows.find(r => r[0] === row[0]);
             const prevIdx = prevHeaderIndexMap[cmpKey(header)];
             if (previousRow && prevIdx !== undefined && previousRow[prevIdx] !== undefined) {
-              const currentValue = parseFloat(cell) || 0; const previousValue = parseFloat(previousRow[prevIdx]) || 0; const change = currentValue - previousValue;
-              if (!isNaN(change)) { const changeText = (change > 0 ? '+' : '') + change.toFixed(1); const bg = change > 0 ? '#dcfce7' : '#fee2e2'; const fg = change > 0 ? '#16a34a' : '#dc2626'; changeIndicator = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${changeText}</span>`; }
+              const isPercentHeader = String(header).toLowerCase().includes('percent') || String(header).includes('%');
+              const rawCurrent = cell; const rawPrevious = previousRow[prevIdx];
+              const toPercent = (v) => { const s = String(v ?? '').trim(); if (!s) return 0; const num = parseFloat(s.replace(/%/g, '')); if (isNaN(num)) return 0; return /%\s*$/.test(s) ? num : (Math.abs(num) <= 1 ? num * 100 : num); };
+              let change, text;
+              if (isPercentHeader) { const c = toPercent(rawCurrent); const p = toPercent(rawPrevious); change = c - p; text = (change > 0 ? '+' : '') + change.toFixed(1) + '%'; }
+              else { const c = parseFloat(rawCurrent) || 0; const p = parseFloat(rawPrevious) || 0; change = c - p; text = (change > 0 ? '+' : '') + change.toFixed(1); }
+              if (!isNaN(change)) { const bg = change > 0 ? '#dcfce7' : (change < 0 ? '#fee2e2' : '#ffedd5'); const fg = change > 0 ? '#16a34a' : (change < 0 ? '#dc2626' : '#ea580c'); changeIndicator = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${text}</span>`; }
             }
           }
           if (!isDepartmentHeader(header)) { cells.push(`<td style=\"padding:10px;border-bottom:1px solid #eef2f7;text-align:center;\">${changeIndicator}</td>`); }
@@ -537,17 +504,16 @@
 
         // Totals row with +/- values
         let totalsRowCells = [];
-        headers.forEach((header, originalColIdx) => { const totalValue = totals[originalColIdx]; let displayTotal=''; let align='left'; let percentageBar=''; if (originalColIdx === 0) { displayTotal='TOTAL'; } else if (isDepartmentHeader(header)) { displayTotal=''; } else if (totalValue !== '') { if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { const pct = (parseFloat(totalValue) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue)); displayTotal = pct.toFixed(1) + '%'; align='right'; const width = Math.min(pct, 100); let barColor = '#22c55e'; if (pct < 40) barColor = '#ef4444'; else if (pct >= 40 && pct <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } else { displayTotal = Number(totalValue).toLocaleString(); align='right'; } } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#f9fafb; min-width:260px;' : ''; totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:${align};font-weight:600;color:#475569;${sticky}\">${displayTotal}${percentageBar}</td>`); if (!isDepartmentHeader(header)) {
+        headers.forEach((header, originalColIdx) => { const totalValue = totals[originalColIdx]; let displayTotal=''; let align='left'; let percentageBar=''; const isPct = String(header).toLowerCase().includes('percent') || String(header).includes('%'); if (originalColIdx === 0) { displayTotal='TOTAL'; } else if (isDepartmentHeader(header)) { displayTotal=''; } else if (totalValue !== '') { if (isPct) { const pct = (parseFloat(totalValue) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue)); displayTotal = pct.toFixed(1) + '%'; align='right'; const width = Math.min(pct, 100); let barColor = '#22c55e'; if (pct < 40) barColor = '#ef4444'; else if (pct >= 40 && pct <= 70) barColor = '#f59e0b'; percentageBar = `<div style=\"margin-top:4px;width:100%;background:#e5e7eb;border-radius:999px;height:8px;\"><div style=\"height:8px;border-radius:999px;width:${width}%;background:${barColor};\"></div></div>`; } else { displayTotal = Number(totalValue).toLocaleString(); align='right'; } } const sticky = originalColIdx === 0 ? 'position: sticky; left: 0; z-index: 2; background:#f9fafb; min-width:260px;' : ''; totalsRowCells.push(`<td style=\"padding:10px;border-top:2px solid #e5e7eb;border-bottom:1px solid #eef2f7;background:#f9fafb;text-align:${align};font-weight:600;color:#475569;${sticky}\">${displayTotal}${percentageBar}</td>`); if (!isDepartmentHeader(header)) {
             let totalsChange = '';
             const prevVal = prevTotals[originalColIdx];
             if (prevVal !== '' && totalValue !== '') {
-              const currNum = parseFloat(totalValue); const prevNum = parseFloat(prevVal);
-              if (!isNaN(currNum) && !isNaN(prevNum)) {
-                const diff = currNum - prevNum; const text = (diff > 0 ? '+' : '') + diff.toFixed(1);
-                const bg = diff > 0 ? '#dcfce7' : '#fee2e2';
-                const fg = diff > 0 ? '#16a34a' : '#dc2626';
-                totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${diff === 0 ? '0' : text}</span>`;
-              }
+              let diff, text;
+              if (isPct) { const currPct = (Math.abs(parseFloat(totalValue)) <= 1 ? parseFloat(totalValue) * 100 : parseFloat(totalValue)); const prevPct = (Math.abs(parseFloat(prevVal)) <= 1 ? parseFloat(prevVal) * 100 : parseFloat(prevVal)); diff = currPct - prevPct; text = (diff > 0 ? '+' : '') + diff.toFixed(1) + '%'; }
+              else { const currNum = parseFloat(totalValue); const prevNum = parseFloat(prevVal); diff = currNum - prevNum; text = (diff > 0 ? '+' : '') + diff.toFixed(1); }
+              const bg = diff > 0 ? '#dcfce7' : (diff < 0 ? '#fee2e2' : '#ffedd5');
+              const fg = diff > 0 ? '#16a34a' : (diff < 0 ? '#dc2626' : '#ea580c');
+              totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:${bg};color:${fg};font-size:12px;\">${diff === 0 ? '0' : text}</span>`;
             } else {
               totalsChange = `<span style=\"display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;\">0</span>`;
             }
@@ -578,7 +544,6 @@
         try { setupScrollSyncShared(); } catch (_) {}
         setTimeout(() => {
           try { applyInitialDepartmentSticky(); } catch(_) {}
-          try { applyInitialHeaderSticky(); } catch(_) {}
           try { updateScrollSyncShared(); } catch(_) {}
         }, 100);
       }
@@ -694,8 +659,6 @@
 
       // Expose toggle functions globally for inline handlers
       window.toggleDepartmentSticky = toggleDepartmentSticky;
-      window.toggleHeaderSticky = toggleHeaderSticky;
-      window.applyInitialHeaderSticky = applyInitialHeaderSticky;
       window.setupScrollSyncShared = setupScrollSyncShared;
       window.updateScrollSyncShared = updateScrollSyncShared;
       window.toggleCellBorders = toggleCellBorders;
