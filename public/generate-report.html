@@ -2977,10 +2977,24 @@
             const ohLower = oh.toLowerCase();
             const baseDispForEnf = stripFileLabel(oh);
             const baseLower = baseDispForEnf.toLowerCase();
+            // Detect placements bases first and lock colouring to placements
+            const isPlacementBase = (
+              baseLower.includes('placement') ||
+              baseLower.includes('total placements') ||
+              baseLower.includes('students with placements') ||
+              baseLower.includes('% with placements') ||
+              baseLower.includes('hours scheduled to date') ||
+              baseLower.includes('hours scheduled') ||
+              baseLower.includes('scheduled to date') ||
+              baseLower.includes('student confirmed') ||
+              baseLower.includes('employer confirmed')
+            );
             if (/\(enrichment( activity)?\)/i.test(oh) || /\(enrichment( activity)?\)/i.test(baseDispForEnf)) enforcedType = 'enrichment';
             else if (/\(employer (engagement|activity)\)/i.test(oh) || /\(employer (engagement|activity)\)/i.test(baseDispForEnf)) enforcedType = 'employment';
             else if (ohLower.includes('(enrichment)') || baseLower.includes('(enrichment)')) enforcedType = 'enrichment';
             else if (ohLower.includes('(employer engagement)') || ohLower.includes('(employer activity)') || baseLower.includes('(employer engagement)') || baseLower.includes('(employer activity)')) enforcedType = 'employment';
+            // If this is a placements header, override any enforcedType to placements
+            if (isPlacementBase) enforcedType = 'placements';
           } catch(_) {}
           const originalIdx = tableHeaders.indexOf(originalHeader);
           
@@ -2994,10 +3008,17 @@
           let inline = sectionInfo.inlineColor;
           let colorClass = sectionInfo.color;
           if (enforcedType) {
-            inline = SUFFIX_INLINE[enforcedType] || inline;
-            colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
-            // Also reflect into sectionInfo.contentType for downstream text-suffix logic
-            try { sectionInfo.contentType = enforcedType; } catch(_) {}
+            if (enforcedType === 'placements') {
+              // Lock to placements (blue) and ignore activity suffixes
+              inline = getSectionInlineColor('placements');
+              colorClass = SECTION_COLORS['placements'] || colorClass;
+              try { sectionInfo.contentType = 'placements'; } catch(_) {}
+            } else {
+              inline = SUFFIX_INLINE[enforcedType] || inline;
+              colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
+              // Also reflect into sectionInfo.contentType for downstream text-suffix logic
+              try { sectionInfo.contentType = enforcedType; } catch(_) {}
+            }
           }
           
           console.log(`Rendering header "${h}" (original: "${originalHeader}") -> type: ${sectionInfo.contentType}, enforcedType: ${enforcedType || 'none'}, class: "${colorClass}", inline: "${inline}", fileIdx: ${fileIdx}`);
