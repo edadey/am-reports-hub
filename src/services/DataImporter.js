@@ -566,14 +566,32 @@ class DataImporter {
       return null;
     }
 
-    // Try to parse as number
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
+    // If already a number, return as-is
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    // Normalize string
+    const s = String(value).trim();
+    if (!s) return null;
+
+    // Handle percentage strings like "10.2%" or " 4% "
+    const percentMatch = s.match(/^\s*(-?\d+(?:[\.,]\d+)?)\s*%\s*$/);
+    if (percentMatch) {
+      // Replace comma decimal separators if present and parse
+      const num = parseFloat(percentMatch[1].replace(/,/g, ''));
+      return isNaN(num) ? null : num; // Keep as 0-100; UI handles 0-1 and 0-100
+    }
+
+    // Remove thousands separators before parsing (e.g., "1,500" -> 1500)
+    const normalized = s.replace(/,/g, '');
+    const numValue = Number(normalized);
+    if (!Number.isNaN(numValue)) {
       return numValue;
     }
 
     // Return as string if not a number
-    return value.toString();
+    return s;
   }
 
   async processFilesWithManualAssignment(files, headerAssignments) {

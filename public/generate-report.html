@@ -847,6 +847,7 @@
 
         // Resolve activity type hint from header or mapping
         let t = hasEmpSuffix ? 'employer' : (hasEnrSuffix ? 'enrichment' : '');
+        const hasExplicitSuffix = hasEmpSuffix || hasEnrSuffix;
         if (!t) {
           const mapped = getContentTypeForHeader(header);
           if (mapped === 'employment' || mapped === 'employer') t = 'employer';
@@ -859,8 +860,11 @@
           const otherMap = (t === 'employer') ? enr : emp;
           const primary = variantsFor(base, label, t === 'employer');
           for (const k of primary) { if (map[k] !== undefined) return map[k]; }
-          // Cross-activity fallback if type inference was off
-          for (const k of primary) { if (otherMap[k] !== undefined) return otherMap[k]; }
+          // Cross-activity fallback only when there is NO explicit suffix on the header
+          // This avoids mixing Employer Engagement and Enrichment values across columns
+          if (!hasExplicitSuffix) {
+            for (const k of primary) { if (otherMap[k] !== undefined) return otherMap[k]; }
+          }
           // Fuzzy: strip [label] and any (...) from keys
           const baseLower = base.toLowerCase();
           const fuzzyFind = obj => {
@@ -878,8 +882,10 @@
           };
           const fuzzyPrimary = fuzzyFind(map);
           if (fuzzyPrimary !== undefined) return fuzzyPrimary;
-          const fuzzyOther = fuzzyFind(otherMap);
-          if (fuzzyOther !== undefined) return fuzzyOther;
+          if (!hasExplicitSuffix) {
+            const fuzzyOther = fuzzyFind(otherMap);
+            if (fuzzyOther !== undefined) return fuzzyOther;
+          }
           // Fall through to metrics lookup below if no activity value was found
         }
 
