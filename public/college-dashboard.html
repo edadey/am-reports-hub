@@ -3734,8 +3734,8 @@
       return { section: contentType, color: color, inlineColor: inlineColor };
     }
 
-    // Calculate total change for a specific column
-    function calculateTotalChange(colIndex, currentTotals, previousData) {
+    // Calculate total change for a specific column using header-name mapping
+    function calculateTotalChange(colIndex, header, currentTotals, previousData, prevHeaderIndexMap) {
       if (!previousData || !previousData.rows) {
         return `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
       }
@@ -3744,9 +3744,7 @@
       let previousTotal = 0;
       let hasValidPreviousData = false;
       
-      // Get the header to determine if it's a percentage column
-      const headers = previousData.headers;
-      const header = headers ? headers[colIndex] : '';
+      // Determine percentage column based on current header
       const isPercentageColumn = header && (header.toLowerCase().includes('percent') || header.includes('%'));
       
       if (isPercentageColumn) {
@@ -3754,9 +3752,12 @@
         let total = 0;
         let validRowCount = 0;
         
+        // Use mapped previous column index when available
+        const cmpKey = (h) => String(h || '').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\+\/\-\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+        const prevIdx = (prevHeaderIndexMap && typeof prevHeaderIndexMap === 'object') ? prevHeaderIndexMap[cmpKey(header)] : colIndex;
         previousData.rows.forEach(row => {
-          if (row[colIndex] !== '' && row[colIndex] !== null && !isNaN(parseFloat(row[colIndex]))) {
-            total += parseFloat(row[colIndex]);
+          if (row[prevIdx] !== '' && row[prevIdx] !== null && !isNaN(parseFloat(row[prevIdx]))) {
+            total += parseFloat(row[prevIdx]);
             validRowCount++;
             hasValidPreviousData = true;
           }
@@ -3767,9 +3768,11 @@
         }
       } else {
         // For numeric columns, calculate sum (same as current totals logic)
+        const cmpKey2 = (h) => String(h || '').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\+\/\-\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+        const prevIdx2 = (prevHeaderIndexMap && typeof prevHeaderIndexMap === 'object') ? prevHeaderIndexMap[cmpKey2(header)] : colIndex;
         previousData.rows.forEach(row => {
-          if (row[colIndex] !== '' && row[colIndex] !== null && !isNaN(parseFloat(row[colIndex]))) {
-            previousTotal += parseFloat(row[colIndex]);
+          if (row[prevIdx2] !== '' && row[prevIdx2] !== null && !isNaN(parseFloat(row[prevIdx2]))) {
+            previousTotal += parseFloat(row[prevIdx2]);
             hasValidPreviousData = true;
           }
         });
@@ -3787,10 +3790,16 @@
       // Determine if this totals column is percent
       const isPercentTotals = (header && (header.toLowerCase().includes('percent') || header.includes('%')));
       // Calculate the change in the overall totals
-      let change = currentTotal - previousTotal;
+      let change;
+      if (isPercentTotals) {
+        // Scale 0-1 ratios to 0-100 for percentage point difference
+        const scale = (v) => (Math.abs(parseFloat(v)) <= 1 ? parseFloat(v) * 100 : parseFloat(v));
+        change = scale(currentTotal) - scale(previousTotal);
+      } else {
+        change = currentTotal - previousTotal;
+      }
       let changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
       if (isPercentTotals) {
-        // Treat values as percentage points if totals are percent-like (0-1 or 0-100 handled upstream)
         changeText = change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
       }
       const changeColor = change > 0 ? 'text-green-600' : (change < 0 ? 'text-red-600' : 'text-orange-600');
