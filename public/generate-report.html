@@ -3008,14 +3008,20 @@
           let inline = sectionInfo.inlineColor;
           let colorClass = sectionInfo.color;
           if (enforcedType) {
+            const isCustom = (sectionInfo && sectionInfo.color === 'custom');
             if (enforcedType === 'placements') {
-              // Lock to placements (blue) and ignore activity suffixes
-              inline = getSectionInlineColor('placements');
-              colorClass = SECTION_COLORS['placements'] || colorClass;
+              // Align type to placements but preserve any custom color chosen by the user
+              if (!isCustom) {
+                inline = getSectionInlineColor('placements');
+                colorClass = SECTION_COLORS['placements'] || colorClass;
+              }
               try { sectionInfo.contentType = 'placements'; } catch(_) {}
             } else {
-              inline = SUFFIX_INLINE[enforcedType] || inline;
-              colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
+              // For enrichment/employment, preserve custom colours
+              if (!isCustom) {
+                inline = SUFFIX_INLINE[enforcedType] || inline;
+                colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
+              }
               // Also reflect into sectionInfo.contentType for downstream text-suffix logic
               try { sectionInfo.contentType = enforcedType; } catch(_) {}
             }
@@ -3223,18 +3229,34 @@
             if (previousReportData) {
               const previousRow = previousReportData.rows ? previousReportData.rows.find(r => r[0] === row[0]) : null;
               if (previousRow && previousRow[originalColIdx] !== undefined) {
-                const currentValue = parseFloat(cell) || 0;
-                const previousValue = parseFloat(previousRow[originalColIdx]) || 0;
-                const change = currentValue - previousValue;
-                
-                if (change !== 0) {
-                  const changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
-                  const changeColor = change > 0 ? 'text-green-600' : 'text-red-600';
-                  const changeBg = change > 0 ? 'bg-green-100' : 'bg-red-100';
-                  changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium ${changeBg} ${changeColor}">${changeText}</span>`;
+                const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
+                const rawCurrent = cell;
+                const rawPrevious = previousRow[originalColIdx];
+                const toPercent = (v) => {
+                  const s = String(v ?? '').trim();
+                  if (!s) return 0;
+                  const num = parseFloat(s.replace(/%/g, ''));
+                  if (isNaN(num)) return 0;
+                  // If original string had % or looks like 0-100, keep as-is; if <=1, treat as ratio -> percent
+                  if (/%\s*$/.test(s)) return num;
+                  return Math.abs(num) <= 1 ? num * 100 : num;
+                };
+                let change;
+                let changeText;
+                if (isPercentHeader) {
+                  const currentPct = toPercent(rawCurrent);
+                  const previousPct = toPercent(rawPrevious);
+                  change = currentPct - previousPct; // percentage points
+                  changeText = (change > 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`);
                 } else {
-                  changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
+                  const currentValue = parseFloat(rawCurrent) || 0;
+                  const previousValue = parseFloat(rawPrevious) || 0;
+                  change = currentValue - previousValue;
+                  changeText = change > 0 ? `+${change.toFixed(1)}` : change.toFixed(1);
                 }
+                const changeColor = change > 0 ? 'text-green-600' : (change < 0 ? 'text-red-600' : 'text-orange-600');
+                const changeBg = change > 0 ? 'bg-green-100' : (change < 0 ? 'bg-red-100' : 'bg-orange-100');
+                changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium ${changeBg} ${changeColor}">${changeText}</span>`;
               } else {
                 // No previous same-template data found, treat as baseline (0)
                 changeIndicator = `<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>`;
