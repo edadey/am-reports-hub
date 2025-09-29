@@ -858,12 +858,18 @@
           'students with activities', // covers "% Students with Activities" after % removal
           'total activity hours'
         ]);
+        // Placements-related bases that don't contain the word "placements" but belong to placements
+        const placementExtraBases = new Set([
+          'hours scheduled to date',
+          'student confirmed',
+          'employer confirmed'
+        ]);
         const normBase = (s => s.toLowerCase().replace(/%/g, '').replace(/\s+/g, ' ').trim())(
           String(header)
             .replace(/\s*\[[^\]]+\]\s*$/, '')
             .replace(/\s*\((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity|[^)]*)\)\s*$/i, '')
         );
-        const isPlacementBase = /\bplacement(s)?\b/i.test(normBase);
+        const isPlacementBase = /\bplacement(s)?\b/i.test(normBase) || placementExtraBases.has(normBase);
         if (isPlacementBase) {
           // Placements are regular metrics sourced from placements files, not activities
           t = '';
@@ -902,8 +908,12 @@
         }
 
         // Regular metrics (placements, assessments, careers, etc.)
-        const type = getContentTypeForHeader(header);
+        let type = getContentTypeForHeader(header);
         const base2 = String(header).replace(/ \([^)]*\)$/, '').trim();
+        // If this looks like a placements metric, force placements type regardless of headerFileMap
+        const placementBasesSet = new Set(['hours scheduled to date','student confirmed','employer confirmed']);
+        const isPlacementMetric = /\bplacement(s)?\b/i.test(base2) || placementBasesSet.has(base2.toLowerCase());
+        if (isPlacementMetric) type = 'placements';
         const candidates = [];
         if (type && label) candidates.push(`${base2} (${type}) [${label}]`);
         if (label) candidates.push(`${base2} [${label}]`);
