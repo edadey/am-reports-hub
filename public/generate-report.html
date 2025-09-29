@@ -821,8 +821,12 @@
         const emp = data.activities?.employerEngagement?.[dept] || {};
         const enr = data.activities?.enrichment?.[dept] || {};
 
-        const hasEmpSuffix = /\(Employer Engagement\)|\(Employer Activity\)/i.test(header);
-        const hasEnrSuffix = /\(Enrichment\)|\(Enrichment Activity\)/i.test(header);
+        // Activity tag detection: Employer Engagement/Activity => employer; Enrichment Activity => enrichment.
+        // Also treat plain (Enrichment) as activity ONLY for known activity metric bases.
+        const hasEmpEngagementTag = /\(Employer Engagement\)/i.test(header);
+        const hasEmpActivityTag = /\(Employer Activity\)/i.test(header);
+        const hasEnrichmentTag = /\(Enrichment\)/i.test(header);
+        const hasEnrichmentActivityTag = /\(Enrichment Activity\)/i.test(header);
         const label = getFileLabelForHeader(header);
 
         let base = String(header)
@@ -846,25 +850,28 @@
 
 
         // Resolve activity type hint from header or mapping
-        let t = hasEmpSuffix ? 'employer' : (hasEnrSuffix ? 'enrichment' : '');
-        const hasExplicitSuffix = hasEmpSuffix || hasEnrSuffix;
-        if (!t) {
-          const mapped = getContentTypeForHeader(header);
-          if (mapped === 'employment' || mapped === 'employer') t = 'employer';
-          else if (mapped === 'enrichment') t = 'enrichment';
-        }
+        // Base text (without labels/suffixes)
+        let t = '';
+        const activityBases = new Set([
+          'students with activities',
+          'total activities',
+          'students with activities', // covers "% Students with Activities" after % removal
+          'total activity hours'
+        ]);
+        const normBase = (s => s.toLowerCase().replace(/%/g, '').replace(/\s+/g, ' ').trim())(
+          String(header)
+            .replace(/\s*\[[^\]]+\]\s*$/, '')
+            .replace(/\s*\((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity|[^)]*)\)\s*$/i, '')
+        );
+        if (hasEmpEngagementTag || hasEmpActivityTag) t = 'employer';
+        else if (hasEnrichmentActivityTag || (hasEnrichmentTag && activityBases.has(normBase))) t = 'enrichment';
+        const hasExplicitSuffix = hasEmpEngagementTag || hasEmpActivityTag || hasEnrichmentActivityTag;
 
-        // Activity lookups (with graceful fallback to metrics if unresolved)
+        // Activity lookups (no cross-activity fallback)
         if (t === 'employer' || t === 'enrichment') {
           const map = (t === 'employer') ? emp : enr;
-          const otherMap = (t === 'employer') ? enr : emp;
           const primary = variantsFor(base, label, t === 'employer');
           for (const k of primary) { if (map[k] !== undefined) return map[k]; }
-          // Cross-activity fallback only when there is NO explicit suffix on the header
-          // This avoids mixing Employer Engagement and Enrichment values across columns
-          if (!hasExplicitSuffix) {
-            for (const k of primary) { if (otherMap[k] !== undefined) return otherMap[k]; }
-          }
           // Fuzzy: strip [label] and any (...) from keys
           const baseLower = base.toLowerCase();
           const fuzzyFind = obj => {
@@ -882,11 +889,9 @@
           };
           const fuzzyPrimary = fuzzyFind(map);
           if (fuzzyPrimary !== undefined) return fuzzyPrimary;
-          if (!hasExplicitSuffix) {
-            const fuzzyOther = fuzzyFind(otherMap);
-            if (fuzzyOther !== undefined) return fuzzyOther;
-          }
-          // Fall through to metrics lookup below if no activity value was found
+          // IMPORTANT: If an activity type was determined, do NOT fall back to the other activity or regular metrics.
+          // This prevents template-applied columns from picking up values from the wrong source.
+          return '';
         }
 
         // Regular metrics (placements, assessments, careers, etc.)
