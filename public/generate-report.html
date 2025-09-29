@@ -863,8 +863,15 @@
             .replace(/\s*\[[^\]]+\]\s*$/, '')
             .replace(/\s*\((Employer Engagement|Employer Activity|Enrichment|Enrichment Activity|[^)]*)\)\s*$/i, '')
         );
-        if (hasEmpEngagementTag || hasEmpActivityTag) t = 'employer';
-        else if (hasEnrichmentActivityTag || (hasEnrichmentTag && activityBases.has(normBase))) t = 'enrichment';
+        const isPlacementBase = /\bplacement(s)?\b/i.test(normBase);
+        if (isPlacementBase) {
+          // Placements are regular metrics sourced from placements files, not activities
+          t = '';
+        } else if (hasEmpEngagementTag || hasEmpActivityTag) {
+          t = 'employer';
+        } else if (hasEnrichmentActivityTag || (hasEnrichmentTag && activityBases.has(normBase))) {
+          t = 'enrichment';
+        }
         const hasExplicitSuffix = hasEmpEngagementTag || hasEmpActivityTag || hasEnrichmentActivityTag;
 
         // Activity lookups (no cross-activity fallback)
