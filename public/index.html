@@ -1089,7 +1089,10 @@
         
         // Check for URL parameters to pre-select college and tab FIRST
         const urlParams = new URLSearchParams(window.location.search);
-        const collegeId = urlParams.get('college');
+        const collegeId = urlParams.get('college') || urlParams.get('collegeId');
+        // Update mode params (replace existing report after generation)
+        window.__updateTargetCollegeId = urlParams.get('updateTargetCollegeId') || null;
+        window.__updateTargetReportId = urlParams.get('updateTargetReportId') || null;
         const tabParam = urlParams.get('tab');
         
         // Pre-select college if specified in URL
@@ -3548,6 +3551,26 @@
         
         if (saveResponse.data.success) {
           showStatus(`Report "${reportName}" saved to college dashboard successfully`, 'success');
+
+          // If in update mode, replace target report contents with this new one and optionally delete the new one
+          const targetCollegeId = window.__updateTargetCollegeId;
+          const targetReportId = window.__updateTargetReportId;
+          const newReportId = saveResponse.data && saveResponse.data.report ? saveResponse.data.report.id : null;
+          if (targetCollegeId && targetReportId && newReportId) {
+            try {
+              showStatus('Updating target report with newly generated content...', 'info');
+              await axios.post(`/api/colleges/${encodeURIComponent(targetCollegeId)}/reports/${encodeURIComponent(targetReportId)}/replace-from`, {
+                sourceReportId: newReportId,
+                deleteSource: true,
+                preserveName: true,
+                preserveSummary: true
+              });
+              showStatus('Report updated in place (timestamp preserved).', 'success');
+            } catch (e) {
+              console.error('Replace-from failed:', e);
+              showStatus('Report was generated, but updating the target failed. You can try again from the dashboard.', 'error');
+            }
+          }
           
           // Immediately update in-memory college to reflect new lastReportDate
           try {

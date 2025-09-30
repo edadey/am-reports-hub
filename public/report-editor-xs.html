@@ -30,6 +30,7 @@
     <button id="btnRecalc" class="btn secondary">Recalculate totals</button>
     <button id="btnRevert" class="btn secondary">Back to Reports</button>
     <button id="btnDownload" class="btn secondary">Download Excel</button>
+    <button id="btnBaseline" class="btn secondary">Use as Baseline</button>
     <span id="status" class="status"></span>
   </div>
   <div id="sheet"></div>
@@ -56,6 +57,8 @@
     const statusEl = document.getElementById('status');
     const modal = document.getElementById('selectCollegeModal');
     const collegePicker = document.getElementById('collegePicker');
+    // Store current report meta for PUT updates
+    window.__currentReportMeta = null;
 
     function setStatus(msg, type = 'info') {
       statusEl.textContent = msg;
@@ -311,6 +314,14 @@
           const json = await res.json();
           if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
           const { headers = [], rows = [] } = json.report.data;
+          // Capture report meta for later save
+          window.__currentReportMeta = {
+            name: json.report.name,
+            summary: json.report.summary,
+            templateKey: json.report.templateKey || json.report.data?.meta?.templateKey || null,
+            templateName: json.report.templateName || json.report.data?.meta?.templateName || null,
+            createdAt: json.report.createdAt
+          };
           const workbookData = createUniverWorkbook(headers, rows);
           
           univer.createUnit(UniverInstanceType.UNIVER_SHEET, workbookData);
@@ -442,14 +453,34 @@
           }
           targetCollegeId = chosen;
         }
-        const payload = { reportData: { headers, rows }, reportName: 'Edited Report', summary: 'Edited in Excel editor (x-sheet)' };
-        const res = await fetch(`/api/colleges/${targetCollegeId}/reports`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(payload)
-        });
-        const json = await res.json();
+        // If editing an existing report (has IDs), update in place via PUT and preserve createdAt
+        let res, json;
+        if (targetCollegeId && reportId) {
+          const meta = window.__currentReportMeta || {};
+          const payload = {
+            reportData: { headers, rows, meta: { templateKey: meta.templateKey || null, templateName: meta.templateName || null } },
+            reportName: meta.name || 'Edited Report',
+            summary: meta.summary || 'Edited inline',
+            templateKey: meta.templateKey || undefined,
+            templateName: meta.templateName || undefined
+          };
+          res = await fetch(`/api/colleges/${targetCollegeId}/reports/${reportId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          json = await res.json();
+        } else {
+          const payload = { reportData: { headers, rows }, reportName: 'Edited Report', summary: 'Edited in Excel editor (x-sheet)' };
+          res = await fetch(`/api/colleges/${targetCollegeId}/reports`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+          json = await res.json();
+        }
         if (!json.success) throw new Error(json.error || 'Save failed');
         await fetch(`/api/reports/${targetCollegeId}/recalculate`, { method: 'POST', credentials: 'include' });
         setStatus('Saved and recalculated', 'success');
@@ -515,6 +546,22 @@
       }
     });
     document.getElementById('btnRevert').addEventListener('click', revertToClassic);
+    // Use as Baseline (mark this report's data as previous for its template)
+    document.getElementById('btnBaseline').addEventListener('click', async () => {
+      try {
+        if (!collegeId || !reportId) { setStatus('Open a saved report to mark baseline', 'error'); return; }
+        setStatus('Marking as baseline...');
+        const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}/use-as-previous`, {
+          method: 'POST', credentials: 'include'
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || 'Failed');
+        setStatus('Marked as baseline for future +/-', 'success');
+      } catch (e) {
+        console.error(e);
+        setStatus(`Baseline failed: ${e.message}`, 'error');
+      }
+    });
 
     // Inject Save as Template button
     (function addSaveTemplateBtn(){

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Report Viewer</title>
+  <style>
+    body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; color:#111827; }
+    .topbar { display:flex; align-items:center; gap:8px; padding:12px; border-bottom:1px solid #e5e7eb; }
+    .topbar .title { font-weight:600; color:#111827; margin-right:auto; }
+    .btn { padding:8px 12px; border-radius:6px; font-size:14px; cursor:pointer; border:1px solid #d1d5db; background:#fff; }
+    .btn.primary { background:#2563eb; color:#fff; border-color:#2563eb; }
+    .btn:disabled { opacity:.6; cursor:not-allowed; }
+    .status { margin-left:12px; color:#6b7280; font-size:13px; }
+    .container { padding:16px; }
+    table { border-collapse:separate; border-spacing:0; width:100%; }
+    th, td { border:1px solid #e5e7eb; padding:8px; font-size:13px; }
+    th { position:sticky; top:0; background:#f9fafb; z-index:2; }
+    .header { font-weight:600; text-align:center; }
+    .chip { display:inline-block; padding:2px 6px; border-radius:10px; font-size:11px; font-weight:600; }
+    .chip.green { background:#dcfce7; color:#166534; }
+    .chip.red { background:#fee2e2; color:#991b1b; }
+    .chip.orange { background:#ffedd5; color:#9a3412; }
+    .percent-bar { height:8px; background:#e5e7eb; border-radius:4px; overflow:hidden; }
+    .percent-bar > .fill { height:100%; background:#3b82f6; }
+    .totals { background:#f8fafc; font-weight:600; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">Report Viewer</div>
+    <button id="btnDownload" class="btn">Download Excel</button>
+    <button id="btnBaseline" class="btn">Use as Baseline</button>
+    <button id="btnBack" class="btn">Back</button>
+    <span id="status" class="status"></span>
+  </div>
+  <div class="container">
+    <div id="content">Loading...</div>
+  </div>
+
+<script>
+  const qs = new URLSearchParams(location.search);
+  const collegeId = qs.get('collegeId');
+  const reportId = qs.get('reportId');
+  const statusEl = document.getElementById('status');
+  const contentEl = document.getElementById('content');
+
+  function setStatus(msg, type='info'){
+    statusEl.textContent = msg;
+    statusEl.style.color = type==='error' ? '#b91c1c' : (type==='success' ? '#065f46' : '#6b7280');
+  }
+
+  function sectionColor(header) {
+    const h = String(header||'').toLowerCase();
+    if (h.includes('(enrichment)') || h.includes('enrichment')) return { bg:'#dbeafe', fg:'#1e3a8a' };
+    if (h.includes('(employer)') || (h.includes('employer') && h.includes('activit'))) return { bg:'#f3e8ff', fg:'#6b21a8' };
+    if (h.includes('(placements)') || h.includes('placement') || h.includes('placed')) return { bg:'#dbeafe', fg:'#1e40af' };
+    if (h.includes('(careers)') || h.includes('career') || h.includes('quiz')) return { bg:'#fef3c7', fg:'#92400e' };
+    if (h.includes('(assessments)') || h.includes('assessment')) return { bg:'#bbf7d0', fg:'#14532d' };
+    if (h.includes('(targets)') || h.includes('target')) return { bg:'#fce7f3', fg:'#be185d' };
+    if (h.includes('(login)') || h.includes('login')) return { bg:'#e0e7ff', fg:'#3730a3' };
+    return { bg:'#f3f4f6', fg:'#374151' };
+  }
+
+  function keyExact(h){ return String(h??'').trim().toLowerCase(); }
+  function keyNorm(h){ return String(h??'').replace(/\s*\+\/\-\s*$/, '').replace(/\s*\[[^\]]+\]\s*$/, '').trim().toLowerCase(); }
+  function buildPrevMaps(prevHeaders){
+    const exact={}, norm={};
+    (Array.isArray(prevHeaders)?prevHeaders:[]).forEach((ph,i)=>{ exact[keyExact(ph)]=i; const k=keyNorm(ph); if(norm[k]===undefined) norm[k]=i; });
+    return {exact,norm};
+  }
+  function getPrevIdx(header, fallback, maps){
+    const ex = maps.exact[keyExact(header)]; if (ex!==undefined) return ex;
+    const nm = maps.norm[keyNorm(header)]; if (nm!==undefined) return nm;
+    return fallback;
+  }
+  function parsePercentLike(v){
+    const s = String(v??'').trim(); if (!s) return null;
+    if (/%\s*$/.test(s)) { const num=parseFloat(s.replace(/%/g,'')); return isNaN(num)?null:num; }
+    const num = parseFloat(s); if (isNaN(num)) return null;
+    if (num>=0 && num<=1) return num*100; return num;
+  }
+  function parseNumber(v){ const n = parseFloat(String(v??'').toString().replace(/[,]/g,'')); return isNaN(n)?null:n; }
+
+  function renderTable(headers, rows, previous){
+    const prevRows = previous?.rows || previous?.data?.rows || [];
+    const prevHeaders = previous?.headers || previous?.data?.headers || [];
+    const prevMaps = buildPrevMaps(prevHeaders);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const tbody = document.createElement('tbody');
+    table.appendChild(thead); table.appendChild(tbody);
+
+    // Header row
+    const hr = document.createElement('tr');
+    headers.forEach((h,i)=>{
+      const th = document.createElement('th');
+      th.className='header';
+      const sc = sectionColor(h);
+      th.style.background = sc.bg; th.style.color=sc.fg;
+      th.textContent = h;
+      hr.appendChild(th);
+    });
+    thead.appendChild(hr);
+
+    // Body rows
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      headers.forEach((h,c)=>{
+        const td = document.createElement('td');
+        const val = row[c];
+        let html = '';
+        // Department column
+        if (c===0) {
+          html = `<strong>${val??''}</strong>`;
+        } else {
+          const isPercent = String(h).toLowerCase().includes('percent') || String(h).includes('%');
+          const disp = (val===undefined||val===null) ? '' : val;
+          // Value
+          html += `<div>${disp===undefined?'':disp}</div>`;
+          // Percent bar
+          if (isPercent) {
+            const p = parsePercentLike(val);
+            if (p!==null) html += `<div class="percent-bar"><div class="fill" style="width:${Math.max(0,Math.min(100,p))}%;"></div></div>`;
+          }
+          // Delta
+          const prevRow = Array.isArray(prevRows) ? prevRows.find(r => r[0]===row[0]) : null;
+          if (prevRow) {
+            const mapped = getPrevIdx(h, c, prevMaps);
+            const prevVal = prevRow[mapped];
+            let diff = 0, chipClass='orange', label='0';
+            if (isPercent) {
+              const cur = parsePercentLike(val); const prv = parsePercentLike(prevVal);
+              if (cur!==null && prv!==null) {
+                diff = cur - prv;
+                if (diff>0.0001) { chipClass='green'; }
+                else if (diff<-0.0001) { chipClass='red'; }
+                label = (diff>0?'+':'') + diff.toFixed(1) + '%';
+              }
+            } else {
+              const cur = parseNumber(val); const prv = parseNumber(prevVal);
+              if (cur!==null && prv!==null) {
+                diff = cur - prv;
+                if (diff>0) chipClass='green'; else if (diff<0) chipClass='red';
+                label = (diff>0?'+':'') + diff;
+              }
+            }
+            html += ` <span class="chip ${chipClass}">${label}</span>`;
+          }
+        }
+        td.innerHTML = html; tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+
+    // Totals row
+    const totals = new Array(headers.length).fill('');
+    for (let c=1; c<headers.length; c++){
+      const h = headers[c];
+      const isPercent = String(h).toLowerCase().includes('percent') || String(h).includes('%');
+      if (isPercent){
+        let sum=0, count=0; rows.forEach(r=>{ const p=parsePercentLike(r[c]); if (p!==null){ sum+=p; count++; }});
+        if (count>0) totals[c] = (sum/count).toFixed(1) + '%';
+      } else {
+        let sum=0; rows.forEach(r=>{ const n=parseNumber(r[c]); if (n!==null) sum+=n; });
+        totals[c] = sum;
+      }
+    }
+    const trTot = document.createElement('tr');
+    headers.forEach((h,c)=>{
+      const td = document.createElement('td');
+      if (c===0) { td.innerHTML = '<strong>Totals</strong>'; }
+      else {
+        const val = totals[c];
+        let html = `<strong>${val!==undefined?val:''}</strong>`;
+        // Prev totals and delta
+        const prevMaps = buildPrevMaps(prevHeaders);
+        if (previous) {
+          const prevIdx = getPrevIdx(h, c, prevMaps);
+          let prevTotal = null;
+          const isPercent = String(h).toLowerCase().includes('percent') || String(h).includes('%');
+          if (isPercent){
+            let sum=0, count=0; prevRows.forEach(r=>{ const p=parsePercentLike(r[prevIdx]); if (p!==null){ sum+=p; count++; }});
+            if (count>0) prevTotal = sum/count;
+          } else {
+            let sum=0; prevRows.forEach(r=>{ const n=parseNumber(r[prevIdx]); if (n!==null) sum+=n; });
+            prevTotal = sum;
+          }
+          if (prevTotal!==null) {
+            let diff=0, chipClass='orange', label='0';
+            if (isPercent){
+              const cur = parsePercentLike(val); if (cur!==null){ diff = cur - prevTotal; }
+              if (diff>0.0001) chipClass='green'; else if (diff<-0.0001) chipClass='red';
+              label = (diff>0?'+':'') + (diff).toFixed(1) + '%';
+            } else {
+              const cur = parseNumber(val); if (cur!==null){ diff = cur - prevTotal; }
+              if (diff>0) chipClass='green'; else if (diff<0) chipClass='red';
+              label = (diff>0?'+':'') + diff;
+            }
+            html += ` <span class="chip ${chipClass}">${label}</span>`;
+          }
+        }
+        td.innerHTML = html; td.className='totals';
+      }
+      trTot.appendChild(td);
+    });
+    tbody.appendChild(trTot);
+
+    contentEl.innerHTML = '';
+    contentEl.appendChild(table);
+  }
+
+  async function loadAndRender(){
+    try{
+      if (!collegeId || !reportId) { setStatus('Missing parameters', 'error'); contentEl.textContent='Missing collegeId/reportId'; return; }
+      setStatus('Loading report...');
+      const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}`, { credentials:'include' });
+      const json = await res.json();
+      if (!json.success || !json.report || !json.report.data) throw new Error('Report not found');
+      const report = json.report;
+      const headers = report.data.headers || []; const rows = report.data.rows || [];
+
+      // Load previous for deltas
+      const templateKey = report.templateKey || report.data?.meta?.templateKey || '';
+      let previous = null;
+      try {
+        const pr = await fetch(`/api/previous-report/${collegeId}?templateKey=${encodeURIComponent(templateKey)}`, { credentials:'include' });
+        const pj = await pr.json(); previous = pj.previousData || pj.data || null;
+      } catch(_) {}
+
+      renderTable(headers, rows, previous);
+      setStatus('Loaded');
+
+      // Enable download handler with current table
+      document.getElementById('btnDownload').onclick = async () => {
+        try{
+          setStatus('Preparing Excel...');
+          const payload = { headers, rows, name: report.name||'Report', createdAt: report.createdAt, meta: { templateKey, templateName: report.templateName||report.data?.meta?.templateName||null } };
+          const res = await fetch('/api/export-excel', { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+          if (!res.ok) throw new Error('Export failed');
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href=url; a.download=(report.name||'report')+'.xlsx'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+          setStatus('Downloaded','success');
+        }catch(e){ setStatus('Export failed: '+e.message,'error'); }
+      };
+
+      document.getElementById('btnBaseline').onclick = async () => {
+        try{
+          setStatus('Marking as baseline...');
+          const res = await fetch(`/api/colleges/${collegeId}/reports/${reportId}/use-as-previous`, { method:'POST', credentials:'include' });
+          const j = await res.json(); if (!j.success) throw new Error(j.error||'Failed');
+          setStatus('Marked as baseline','success');
+        }catch(e){ setStatus('Baseline failed: '+e.message,'error'); }
+      };
+
+      document.getElementById('btnBack').onclick = () => {
+        window.location.href = `college-dashboard.html?id=${encodeURIComponent(collegeId)}&tab=reports`;
+      };
+
+    }catch(e){
+      console.error(e); setStatus('Load failed: '+e.message,'error'); contentEl.textContent = 'Failed to load report.';
+    }
+  }
+
+  loadAndRender();
+</script>
+</body>
+</html>
