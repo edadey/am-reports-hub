@@ -6816,14 +6816,9 @@ if (require.main === module) {
     }, 5000); // Wait 5 seconds before starting services to ensure healthcheck is ready
   });
 } else {
-  // Initialize services when loaded as module
-  setTimeout(() => {
-    console.log('🔄 Starting background service initialization...');
-    initializeServices().catch(error => {
-      console.error('❌ Service initialization failed:', error);
-      console.log('⚠️ Continuing with basic functionality - some features may be limited');
-    });
-  }, 1000);
+  // Loaded as module - DO NOT initialize services here to avoid conflicts
+  console.log('📦 app.js loaded as module (no standalone server started)');
+  // Services will be initialized by the parent (server.js) if needed
 }
 
 module.exports = app; 

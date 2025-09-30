@@ -140,7 +140,7 @@ console.log('📦 Loading full AM Reports Hub application...');
 try {
   const fullApp = require('./app.js');
   app.use(fullApp);
-  console.log('✅ Full application mounted successfully');
+  console.log('✅ Full application routes mounted successfully');
 } catch (error) {
   console.error('❌ Error loading full application:', error);
   console.error('Stack trace:', error.stack);
@@ -151,6 +151,29 @@ try {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log('🏥 Healthcheck endpoint ready at /');
+  console.log('📡 API routes available at /api/*');
+  
+  // Initialize services after server is listening
+  setTimeout(async () => {
+    console.log('🔄 Starting background service initialization...');
+    try {
+      const DatabaseService = require('./src/services/DatabaseService');
+      const volumeService = require('./src/services/VolumeService');
+      const dataPreservationService = require('./src/services/DataPreservationService');
+      
+      if (process.env.DATABASE_URL) {
+        console.log('🐘 PostgreSQL detected - initializing database services...');
+        await DatabaseService.initialize();
+      } else {
+        console.log('📁 File-based storage - initializing volume service...');
+        await volumeService.initialize();
+        await dataPreservationService.initializeDataPreservation();
+      }
+      console.log('✅ Background services initialized');
+    } catch (err) {
+      console.error('⚠️ Service initialization failed (non-critical):', err.message);
+    }
+  }, 2000);
 });
 
 module.exports = app;
