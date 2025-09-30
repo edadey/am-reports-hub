@@ -7,8 +7,11 @@ const EmailService = require('./EmailService');
 const SessionService = require('./SessionService');
 class AuthService {
   constructor() {
-    this.usersFile = 'data/users.json';
-    this.sessionsFile = 'data/sessions.json';
+    // Prefer Railway persistent volume if available
+    const volumeRoot = process.env.PERSISTENT_STORAGE_PATH || process.env.RAILWAY_VOLUME_PATH || '';
+    this.baseDataDir = volumeRoot ? path.join(volumeRoot, 'data') : 'data';
+    this.usersFile = path.join(this.baseDataDir, 'users.json');
+    this.sessionsFile = path.join(this.baseDataDir, 'sessions.json');
     this.ensureDataDirectory();
     this.initializeDefaultUsers();
     this.securityService = new SecurityService();
@@ -17,7 +20,7 @@ class AuthService {
   }
 
   ensureDataDirectory() {
-    fs.ensureDirSync('data');
+    fs.ensureDirSync(this.baseDataDir);
   }
 
   async initializeDefaultUsers() {
