@@ -43,6 +43,7 @@ class DataImporter {
           'employment': '#f3e8ff',
           'employer': '#f3e8ff',
           'enrichment': '#ccfbf1',
+          'activities-combined': '#ecfccb',
           'careers': '#fef3c7',
           'assessments': '#bbf7d0',
           'targets': '#fce7f3',
@@ -433,8 +434,12 @@ class DataImporter {
     extracted.originalHeaders = [...headers]; // Store ALL headers including empty ones
     console.log(`Captured ALL original headers for ${fileName}:`, extracted.originalHeaders);
     
-    // Find key columns based on your report structure
-    const departmentColIndex = this.findColumnIndex(headers, ['Department', 'Program', 'Course', 'Category']);
+    // Find key columns based on your report structure (support common synonyms)
+    const departmentColIndex = this.findColumnIndex(headers, [
+      'Department', 'Program', 'Course', 'Category',
+      'Curriculum Area', 'Curriculum', 'Subject Area', 'Subject',
+      'Faculty', 'School', 'Team'
+    ]);
     console.log(`Department column index for ${fileName}:`, departmentColIndex);
     
     // Filter out problematic headers (numbered columns, duplicates, etc.)
@@ -495,11 +500,16 @@ class DataImporter {
     });
 
     dataRows.forEach(row => {
-      if (row && row.length > 0 && row[0]) {
-        const department = row[departmentColIndex] || 'Unknown Department';
+      if (row && row.length > 0) {
+        const departmentCell = row[departmentColIndex];
+        // Require a non-empty Department cell rather than column 0
+        if (departmentCell === undefined || departmentCell === null || String(departmentCell).toString().trim() === '') {
+          return;
+        }
+        const department = departmentCell || 'Unknown Department';
         
         // Skip rows that are just numbered indicators
-        if (department.toString().trim() === '1' || department.toString().trim() === '2') {
+        if (String(department).trim() === '1' || String(department).trim() === '2') {
           return;
         }
         
@@ -543,6 +553,7 @@ class DataImporter {
   }
 
   findColumnIndex(headers, possibleNames) {
+    // 1) Exact or startsWith matches for a curated list of possible names
     for (const name of possibleNames) {
       const index = headers.findIndex(header => {
         if (!header) return false;
@@ -557,6 +568,32 @@ class DataImporter {
         return index;
       }
     }
+    // 2) Fallback fuzzy detection using common synonyms and patterns
+    try {
+      const patterns = [
+        /^(dept|department)\b/i,
+        /\bcurriculum\s*area\b/i,
+        /\bcurriculum\b/i,
+        /\bsubject\s*area\b/i,
+        /\bsubject\b/i,
+        /\bprogram\b/i,
+        /\bcourse\b/i,
+        /\bcategory\b/i,
+        /\bfaculty\b/i,
+        /\bschool\b/i,
+        /\bteam\b/i
+      ];
+      const idx = headers.findIndex(header => {
+        if (!header) return false;
+        const s = header.toString();
+        return patterns.some(p => p.test(s));
+      });
+      if (idx !== -1) {
+        console.log(`Fuzzy-found department-like column "${headers[idx]}" at index ${idx}`);
+        return idx;
+      }
+    } catch(_) {}
+
     console.log(`No department column found, defaulting to index 0`);
     return 0; // Default to first column
   }
@@ -708,8 +745,12 @@ class DataImporter {
     // Capture all headers
     extracted.originalHeaders = [...headers];
     
-    // Find department column
-    const departmentColIndex = this.findColumnIndex(headers, ['Department', 'Program', 'Course', 'Category']);
+    // Find department column (supports synonyms like Curriculum Area)
+    const departmentColIndex = this.findColumnIndex(headers, [
+      'Department', 'Program', 'Course', 'Category',
+      'Curriculum Area', 'Curriculum', 'Subject Area', 'Subject',
+      'Faculty', 'School', 'Team'
+    ]);
     
     // Process headers with manual assignments
     const assignedHeaders = headers.filter((header, index) => {
@@ -727,8 +768,12 @@ class DataImporter {
 
     // Process data rows
     dataRows.forEach(row => {
-      if (row && row.length > 0 && row[0]) {
-        const department = row[departmentColIndex] || 'Unknown Department';
+      if (row && row.length > 0) {
+        const departmentCell = row[departmentColIndex];
+        if (departmentCell === undefined || departmentCell === null || String(departmentCell).toString().trim() === '') {
+          return;
+        }
+        const department = departmentCell || 'Unknown Department';
         
         // Skip metadata rows
         const rowText = row.join(' ').toLowerCase();
@@ -898,9 +943,10 @@ class DataImporter {
     }
 
     // Determine if this is activities data
-    const isEmployerActivity = contentType === 'employer' || contentType === 'employment' || source.activityType === 'employer';
-    const isEnrichmentActivity = contentType === 'enrichment' || source.activityType === 'enrichment' || 
-                                 (contentType === 'activities' && source.activityType === 'enrichment');
+    const isKCCombined = String(contentType || '').toLowerCase() === 'activities-combined';
+    const isEmployerActivity = !isKCCombined && (contentType === 'employer' || contentType === 'employment' || source.activityType === 'employer');
+    const isEnrichmentActivity = !isKCCombined && (contentType === 'enrichment' || source.activityType === 'enrichment' || 
+                                 (contentType === 'activities' && source.activityType === 'enrichment'));
     const isGenericActivity = (contentType === 'activities' && !source.activityType) || 
                              (contentType === 'activities' && source.activityType === null);
     
@@ -966,10 +1012,18 @@ class DataImporter {
             target.headerFileMap[`${metric} (enrichment activity)`] = fileIndex; // Alternative UI variant
             target.headerFileMap[`${metric} (Enrichment Activity)`] = fileIndex; // Capitalised alternative
           } catch (_) {}
-        } else if (isGenericActivity) {
-          // For generic activities (no specific type detected), add as regular metrics with Activity label
-          const activityMetric = `${metric} (Activity) [${fileLabel}]`;
+        } else if (isGenericActivity || isKCCombined) {
+          // For generic activities (no specific type detected), store as regular metrics using the canonical
+          // content type name 'activities' so the front-end resolver can find them by type mapping.
+          const typeLabel = isKCCombined ? 'activities-combined' : 'activities';
+          const activityMetric = `${metric} (${typeLabel}) [${fileLabel}]`;
           target.metrics[dept][activityMetric] = value;
+          // Map headerFileMap variants to aid lookups and per-file colouring
+          try {
+            target.headerFileMap[activityMetric] = fileIndex;              // typed + label
+            target.headerFileMap[metric] = fileIndex;                       // base
+            target.headerFileMap[`${metric} (${typeLabel})`] = fileIndex;   // typed (no label)
+          } catch (_) {}
           console.log(`Added generic activity metric "${activityMetric}" for department: ${dept}`);
         } else {
           // Store in regular metrics with content type

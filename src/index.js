@@ -454,14 +454,32 @@ app.post('/api/upload', upload.array('files'), async (req, res) => {
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const uploadedFiles = req.files.map(file => ({
-      filename: file.filename,
-      path: file.path,
-      originalName: file.originalname
-    }));
+    // Parse optional manual assignment payloads from FormData
+    const useManual = String(req.body.useManualAssignment || '').toLowerCase() === 'true';
+    let headerAssignments = {};
+    let fileSelections = {};
+    try {
+      if (req.body.headerAssignments) headerAssignments = JSON.parse(req.body.headerAssignments);
+    } catch (e) { console.warn('Failed to parse headerAssignments JSON:', e?.message || e); }
+    try {
+      if (req.body.fileTypes) fileSelections = JSON.parse(req.body.fileTypes);
+    } catch (e) { console.warn('Failed to parse fileTypes JSON:', e?.message || e); }
+
+    const uploadedFiles = req.files.map((file, idx) => {
+      const sel = (fileSelections && typeof fileSelections === 'object') ? fileSelections[idx] : null;
+      return {
+        filename: file.filename,
+        path: file.path,
+        originalName: file.originalname,
+        userSelectedType: sel && sel.type ? String(sel.type).toLowerCase() : undefined,
+        userSelectedColor: sel && sel.color ? sel.color : undefined
+      };
+    });
 
     // Process files using DataImporter
-    const processedData = await dataImporter.processFiles(uploadedFiles);
+    const processedData = useManual
+      ? await dataImporter.processFilesWithManualAssignment(uploadedFiles, headerAssignments)
+      : await dataImporter.processFiles(uploadedFiles);
     
     // Add debug info for the first file
     if (uploadedFiles.length > 0) {

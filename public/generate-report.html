@@ -181,7 +181,7 @@
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="w-4 h-4 bg-lime-100 rounded"></div>
-                    <span>Activities - Combined</span>
+                    <span>Activities Combined KC</span>
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="w-4 h-4 bg-pink-100 rounded"></div>
@@ -415,7 +415,7 @@
       'assessments': 'bg-green-200',    // Green for assessments
       'careers': 'bg-orange-100',       // Orange for careers
       'activities': 'bg-yellow-100',    // Yellow for activities
-      'activities-combined': 'bg-lime-100', // Lime for activities combined
+      'activities-combined': 'bg-lime-100', // Lime for Activities Combined KC
       'enrichment': 'bg-teal-100',      // Teal for enrichment (canonical)
       'employment': 'bg-purple-100',    // Purple for employer engagement/employment
       'employer-activity': 'bg-red-100', // Red for employer activities
@@ -442,7 +442,7 @@
       'assessments': 'FFBBF7D0',        // Light green (matches bg-green-200)
       'careers': 'FFFED7AA',            // Light orange (matches bg-orange-100)
       'activities': 'FFFEF3C7',         // Light yellow (matches bg-yellow-100)
-      'activities-combined': 'FFECFCCB', // Light lime (matches bg-lime-100)
+      'activities-combined': 'FFECFCCB', // Light lime (matches bg-lime-100, Activities Combined KC)
       'enrichment': 'FFCCFBF1',         // Light teal (matches bg-teal-100)
       'employment': 'FFF3E8FF',         // Light purple (matches bg-purple-100)
       'employer-activity': 'FFFEE2E2',  // Light red (matches bg-red-100)
@@ -474,6 +474,24 @@
           return 'placements';
         }
         
+        // Special: Activities Combined KC header patterns
+        // Recognise KC-specific activity summary columns and map to the combined category
+        try {
+          const hl = headerLower;
+          const isKCCombined = (
+            /^students\s+with\s+\d+\s+enrichment\s+activit/.test(hl) ||
+            hl.includes('total students with activities') ||
+            hl.includes('% students with activities') ||
+            hl.includes('percent students with activities') ||
+            hl.includes('total activities') ||
+            (hl.includes('activity hours') && !hl.includes('scheduled')) ||
+            hl.includes('students with employer engagement activities')
+          );
+          if (isKCCombined) {
+            return 'activities-combined';
+          }
+        } catch(_) {}
+        
         // Then check for explicit engagement/activity suffixes
         if (headerLower.includes('(employer engagement)')) {
           return 'employment';
@@ -483,6 +501,9 @@
         }
         if (headerLower.includes('(enrichment activity)')) {
           return 'enrichment-activity';
+        }
+        if (headerLower.includes('(activities-combined)') || headerLower.includes('(activities combined kc)')) {
+          return 'activities-combined';
         }
         
         // Then check for content type suffixes from backend processing
@@ -834,12 +855,37 @@
     // Unified cell value resolver for all sections (placements, assessments, careers, enrichment, employer engagement)
     function resolveCellValue(header, dept, data) {
       try {
-        const metrics = (data.metrics || {})[dept] || {};
-        const emp = data.activities?.employerEngagement?.[dept] || {};
-        const enr = data.activities?.enrichment?.[dept] || {};
+        let metrics = (data.metrics || {})[dept] || {};
+        let emp = data.activities?.employerEngagement?.[dept] || {};
+        let enr = data.activities?.enrichment?.[dept] || {};
+
+        // Fuzzy department match: align rows like "D-BEAUTY" with source keys like "D Beauty" or "Beauty"
+        try {
+          const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+          if ((!metrics || Object.keys(metrics).length === 0) && Array.isArray(data.departments)) {
+            const want = norm(dept);
+            const found = (data.departments || []).find(d => norm(d) === want);
+            if (found && found !== dept) {
+              metrics = (data.metrics || {})[found] || metrics;
+              emp = data.activities?.employerEngagement?.[found] || emp;
+              enr = data.activities?.enrichment?.[found] || enr;
+            } else if (!found) {
+              // Secondary: partial containment if exact normalized match not found
+              const found2 = (data.departments || []).find(d => {
+                const nd = norm(d);
+                return nd && (nd.includes(want) || want.includes(nd));
+              });
+              if (found2 && found2 !== dept) {
+                metrics = (data.metrics || {})[found2] || metrics;
+                emp = data.activities?.employerEngagement?.[found2] || emp;
+                enr = data.activities?.enrichment?.[found2] || enr;
+              }
+            }
+          }
+        } catch (_) {}
 
         // Activity tag detection: Employer Engagement/Activity => employer; Enrichment Activity => enrichment.
-        // Also treat plain (Enrichment) as activity ONLY for known activity metric bases.
+        // Also treat enrichment/employer engagement words without suffix when header text clearly denotes activities.
         const hasEmpEngagementTag = /\(Employer Engagement\)/i.test(header);
         const hasEmpActivityTag = /\(Employer Activity\)/i.test(header);
         const hasEnrichmentTag = /\(Enrichment\)/i.test(header);
@@ -896,9 +942,15 @@
         } else if (hasEnrichmentActivityTag || (hasEnrichmentTag && activityBases.has(normBase))) {
           t = 'enrichment';
         }
+        // New: infer from plain text when suffixes are absent
+        if (!t) {
+          const norm = normBase;
+          if (/\benrichment\b/.test(norm) && /\bactivit/i.test(norm)) t = 'enrichment';
+          else if (/\bemployer\s+engagement\b/.test(norm) && /\bactivit/i.test(norm)) t = 'employer';
+        }
         const hasExplicitSuffix = hasEmpEngagementTag || hasEmpActivityTag || hasEnrichmentActivityTag;
 
-        // Activity lookups (no cross-activity fallback)
+        // Activity lookups with graceful fallback to regular metrics when values are stored as metrics (e.g., activities-combined files)
         if (t === 'employer' || t === 'enrichment') {
           const map = (t === 'employer') ? emp : enr;
           const primary = variantsFor(base, label, t === 'employer');
@@ -924,8 +976,32 @@
           };
           const fuzzyPrimary = fuzzyFind(map);
           if (fuzzyPrimary !== undefined) return fuzzyPrimary;
-          // IMPORTANT: If an activity type was determined, do NOT fall back to the other activity or regular metrics.
-          // This prevents template-applied columns from picking up values from the wrong source.
+
+          // Graceful fallback: some special files (e.g., Activities Combined KC) store these values as regular metrics
+          // with a different content type (e.g., activities-combined). Attempt regular metrics resolution.
+          try {
+            const type2 = getContentTypeForHeader(header);
+            const base2 = base;
+            const candidates = [];
+            if (type2 && label) candidates.push(`${base2} (${type2}) [${label}]`);
+            if (label) candidates.push(`${base2} [${label}]`);
+            if (type2) candidates.push(`${base2} (${type2})`);
+            candidates.push(base2);
+            for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+            // Fuzzy across metrics keys when typed candidates fail
+            const baseLower2 = base2.toLowerCase();
+            const mk2 = Object.keys(metrics).find(k => {
+              const stripped = String(k)
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .trim().toLowerCase();
+              if (stripped === baseLower2) return true;
+              if (stripped.endsWith('s') && stripped.slice(0, -1) === baseLower2) return true;
+              if (baseLower2.endsWith('s') && baseLower2.slice(0, -1) === stripped) return true;
+              return false;
+            });
+            if (mk2) return metrics[mk2];
+          } catch(_) {}
           return '';
         }
 
@@ -942,6 +1018,7 @@
         if (type) candidates.push(`${base2} (${type})`);
         candidates.push(base2);
         for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+        
         // Fuzzy metrics lookup: strip [Label] and (...) and compare case-insensitively
         try {
           const baseLower = base2.toLowerCase();
@@ -957,6 +1034,34 @@
           });
           if (mk) return metrics[mk];
         } catch(_) {}
+        
+        // Ultra-fuzzy: match base header against any metric key (ignoring labels/types)
+        try {
+          const needle = base2.toLowerCase().replace(/\s+/g, ' ').trim();
+          if (needle.length > 3) {
+            const mk3 = Object.keys(metrics).find(k => {
+              const hay = String(k)
+                .replace(/\s*\[[^\]]+\]\s*$/, '')
+                .replace(/\s*\([^)]*\)\s*$/, '')
+                .toLowerCase().replace(/\s+/g, ' ').trim();
+              return hay === needle;
+            });
+            if (mk3 !== undefined) return metrics[mk3];
+          }
+        } catch(_) {}
+        
+        // Last resort: partial match for activity-related headers
+        try {
+          const searchTerm = header.toLowerCase().replace(/\s+/g, ' ').trim();
+          if (searchTerm.includes('total') && searchTerm.includes('activit')) {
+            const found = Object.keys(metrics).find(k => {
+              const kl = k.toLowerCase();
+              return kl.includes('total') && kl.includes('activit') && !kl.includes('hour') && !kl.includes('student');
+            });
+            if (found !== undefined) return metrics[found];
+          }
+        } catch(_) {}
+        
         return '';
       } catch (e) {
         return '';
@@ -1929,11 +2034,14 @@
       if (typeof window.previewingTemplateRows === 'undefined') { window.previewingTemplateRows = false; }
       // Store the headerFileMap and fileInfo for color assignment
       const __selectedTpl = useTemplateForPreview ? getSelectedTemplate() : null;
-      if (useTemplateForPreview && __selectedTpl && __selectedTpl.headerFileMap && typeof __selectedTpl.headerFileMap === 'object') {
-        headerFileMap = { ...__selectedTpl.headerFileMap };
-        window.headerFileMap = { ...__selectedTpl.headerFileMap };
-        console.log('Using template headerFileMap for colouring');
-      } else if (data.headerFileMap) {
+      if (useTemplateForPreview && __selectedTpl) {
+        // Merge template map with fresh data map so new typed variants (e.g. activities-combined) resolve
+        const tplMap = (__selectedTpl.headerFileMap && typeof __selectedTpl.headerFileMap === 'object') ? __selectedTpl.headerFileMap : {};
+        const dataMap = (data && data.headerFileMap && typeof data.headerFileMap === 'object') ? data.headerFileMap : {};
+        headerFileMap = { ...tplMap, ...dataMap };
+        window.headerFileMap = { ...headerFileMap };
+        console.log('Merged template headerFileMap with data.headerFileMap');
+      } else if (data && data.headerFileMap) {
         headerFileMap = data.headerFileMap;
         window.headerFileMap = data.headerFileMap; // Also set on window
         console.log('Header file mapping:', headerFileMap);
@@ -1944,14 +2052,14 @@
         console.log('No headerFileMap provided, using fallback coloring');
       }
       
-      // Store file information for content type detection
-      if (useTemplateForPreview && __selectedTpl && Array.isArray(__selectedTpl.fileInfo)) {
-        window.fileInfo = [...__selectedTpl.fileInfo];
-        console.log('Using template fileInfo for colouring');
-      } else if (data.fileInfo) {
+      // Prefer current run's fileInfo to ensure up-to-date content types (e.g., activities-combined)
+      if (data && data.fileInfo) {
         window.fileInfo = data.fileInfo;
-        console.log('File info received:', window.fileInfo);
+        console.log('File info received (current run):', window.fileInfo);
         globalThis.fileInfoData = data.fileInfo;
+      } else if (useTemplateForPreview && __selectedTpl && Array.isArray(__selectedTpl.fileInfo)) {
+        window.fileInfo = [...__selectedTpl.fileInfo];
+        console.log('Using template fileInfo for colouring (fallback)');
       }
       // Overlay any saved selections (type/color) to persist user-chosen colours across renders
       try {
@@ -2007,7 +2115,20 @@
           Array.isArray(tableData) && tableData.length > 0 &&
           window.previewingTemplateRows === true
         ) {
-          console.log('Using precomputed template headers and rows; skipping rebuild in adaptTableToData');
+          console.log('Using precomputed template headers and rows; adjusting headers for department-like duplicates');
+          // Remove department-like duplicates (e.g., Curriculum Area) if Department exists
+          try {
+            const deptLike = new Set(['department','dept','program','course','category','curriculum area','curriculum','subject area','subject','faculty','school','team']);
+            const hasDept = Array.isArray(tableHeaders) && tableHeaders.some(h => String(h || '').trim().toLowerCase() === 'department');
+            if (hasDept && Array.isArray(tableHeaders)) {
+              tableHeaders = ['Department', ...tableHeaders.filter((h, idx) => {
+                if (idx === 0) return false; // will re-add Department at start
+                const low = String(h || '').trim().toLowerCase();
+                return !deptLike.has(low);
+              })];
+            }
+          } catch (_) { console.warn('Failed to strip department-like duplicate headers in precompute path'); }
+
           // Ensure headerFileMap and fileInfo are available from the selected template for coloring
           try {
             // Helper to synthesize fileInfo from headerFileMap
@@ -2046,6 +2167,18 @@
           
           // Start with template headers and structure
           tableHeaders = [...selectedTemplate.headers];
+          // Remove department-like duplicates (e.g., Curriculum Area) if Department is present
+          try {
+            const deptLike = new Set(['department','dept','program','course','category','curriculum area','curriculum','subject area','subject','faculty','school','team']);
+            const hasDept = tableHeaders.some(h => String(h || '').trim().toLowerCase() === 'department');
+            if (hasDept) {
+              tableHeaders = ['Department', ...tableHeaders.filter((h, idx) => {
+                if (idx === 0) return false; // will re-add Department at start
+                const low = String(h || '').trim().toLowerCase();
+                return !deptLike.has(low);
+              })];
+            }
+          } catch(_) {}
           console.log('Template headers:', tableHeaders);
           
           // Build lookup for new data including activities
@@ -2213,6 +2346,23 @@
         other: []
       };
       
+      // Helper: department-like header detection (synonyms)
+      const isDeptLike = (s) => {
+        const x = String(s || '').trim().toLowerCase();
+        return x === 'department' ||
+               x === 'dept' ||
+               x === 'program' ||
+               x === 'course' ||
+               x === 'category' ||
+               x === 'curriculum area' ||
+               x === 'curriculum' ||
+               x === 'subject area' ||
+               x === 'subject' ||
+               x === 'faculty' ||
+               x === 'school' ||
+               x === 'team';
+      };
+
       headers.forEach(header => {
         // Skip purely numeric headers like "1", "2", etc., but allow headers containing digits (e.g., "[data1]")
         if (!header) {
@@ -2225,7 +2375,7 @@
         
         const h = header.toString();
         const hl = h.toLowerCase();
-        const isDept = h === 'Department';
+        const isDept = h === 'Department' || isDeptLike(h);
         
         // Data-driven hint from built map
         const hintedType = (typeof window !== 'undefined' && window.activityHeaderTypeMap) ? window.activityHeaderTypeMap[h] : null;
@@ -2359,7 +2509,14 @@
             for (const h of data.originalHeaders) {
               if (!h) continue;
               const hs = String(h).trim();
-              if (!hs || hs.toLowerCase() === 'department' || /^[0-9]+$/.test(hs)) continue;
+              const hsLower = hs.toLowerCase();
+              const isDeptLike = (
+                hsLower === 'department' || hsLower === 'dept' || hsLower === 'program' || hsLower === 'course' ||
+                hsLower === 'category' || hsLower === 'curriculum area' || hsLower === 'curriculum' ||
+                hsLower === 'subject area' || hsLower === 'subject' || hsLower === 'faculty' ||
+                hsLower === 'school' || hsLower === 'team'
+              );
+              if (!hs || isDeptLike || /^[0-9]+$/.test(hs)) continue;
               // Prefer file-specific mapping to avoid collisions across files
               const label = (data.fileInfo[fileIdx] && (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename))
                 ? (data.fileInfo[fileIdx].label || data.fileInfo[fileIdx].originalName || data.fileInfo[fileIdx].filename)
@@ -4824,6 +4981,7 @@
       'placements': { color: 'bg-blue-100', name: 'Placements' },
       'employer': { color: 'bg-purple-100', name: 'Employer Engagement' },
       'enrichment': { color: 'bg-teal-100', name: 'Enrichment Activities' },
+      'activities-combined': { color: 'bg-lime-100', name: 'Activities Combined KC' },
       'assessments': { color: 'bg-green-200', name: 'Assessments' },
       'careers': { color: 'bg-yellow-100', name: 'Careers' },
       'targets': { color: 'bg-pink-100', name: 'Targets' },
@@ -4977,7 +5135,7 @@
             <option value="enrichment">Enrichment</option>
             <option value="careers">Careers</option>
             <option value="assessments">Assessments</option>
-            <option value="activities-combined">Activities - Combined</option>
+            <option value="activities-combined">Activities Combined KC</option>
             <option value="targets">Targets</option>
             <option value="login">Login</option>
             <option value="default">Default</option>
