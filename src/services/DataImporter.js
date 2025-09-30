@@ -932,26 +932,34 @@ class DataImporter {
         const value = source.metrics[dept][metric];
         
         if (isEmployerActivity) {
-          // Store in employer engagement activities
-          const activityMetric = `${metric} [${fileLabel}]`;
-          target.activities.employerEngagement[dept][activityMetric] = value;
-          console.log(`Added employer activity metric "${activityMetric}" for department: ${dept}`);
+          // Store in employer engagement activities - store BOTH with and without [FileLabel]
+          // Store with label for multi-file scenarios
+          const activityMetricWithLabel = `${metric} [${fileLabel}]`;
+          target.activities.employerEngagement[dept][activityMetricWithLabel] = value;
+          // ALSO store without label for direct lookup
+          target.activities.employerEngagement[dept][metric] = value;
+          console.log(`Added employer activity metric "${metric}" (and "${activityMetricWithLabel}") for department: ${dept}`);
           // Map headers so the UI can resolve file labels for (Employer Engagement) columns
           try {
-            target.headerFileMap[activityMetric] = fileIndex;              // Most specific (with label)
+            target.headerFileMap[activityMetricWithLabel] = fileIndex;     // Most specific (with label)
             target.headerFileMap[metric] = fileIndex;                      // Base header
             target.headerFileMap[`${metric} (employer)`] = fileIndex;      // Typed variant used internally
             target.headerFileMap[`${metric} (employer engagement)`] = fileIndex; // UI variant
+            target.headerFileMap[`${metric} (Employer Engagement)`] = fileIndex; // Capitalised UI variant
             target.headerFileMap[`${metric} (employer activity)`] = fileIndex;   // Alternative UI variant
+            target.headerFileMap[`${metric} (Employer Activity)`] = fileIndex;   // Capitalised alternative
           } catch (_) {}
         } else if (isEnrichmentActivity) {
-          // Store in enrichment activities
-          const activityMetric = `${metric} [${fileLabel}]`;
-          target.activities.enrichment[dept][activityMetric] = value;
-          console.log(`Added enrichment activity metric "${activityMetric}" for department: ${dept}`);
+          // Store in enrichment activities - store BOTH with and without [FileLabel]
+          // Store with label for multi-file scenarios
+          const activityMetricWithLabel = `${metric} [${fileLabel}]`;
+          target.activities.enrichment[dept][activityMetricWithLabel] = value;
+          // ALSO store without label for direct lookup
+          target.activities.enrichment[dept][metric] = value;
+          console.log(`Added enrichment activity metric "${metric}" (and "${activityMetricWithLabel}") for department: ${dept}`);
           // Map headers so the UI can resolve file labels for (Enrichment) columns
           try {
-            target.headerFileMap[activityMetric] = fileIndex;               // Most specific (with label)
+            target.headerFileMap[activityMetricWithLabel] = fileIndex;      // Most specific (with label)
             target.headerFileMap[metric] = fileIndex;                       // Base header
             target.headerFileMap[`${metric} (enrichment)`] = fileIndex;     // Typed variant used internally
             target.headerFileMap[`${metric} (Enrichment)`] = fileIndex;     // Capitalised variant used in tables

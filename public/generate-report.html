@@ -864,6 +864,7 @@
         // Base text (without labels/suffixes)
         let t = '';
         const activityBases = new Set([
+          'total students',             // Total students in activity files
           'students with activities',
           'total activities',
           'students with activities', // covers "% Students with Activities" after % removal
@@ -896,6 +897,10 @@
           const map = (t === 'employer') ? emp : enr;
           const primary = variantsFor(base, label, t === 'employer');
           for (const k of primary) { if (map[k] !== undefined) return map[k]; }
+          
+          // Try direct base lookup (backend now stores both with and without label)
+          if (map[base] !== undefined) return map[base];
+          
           // Fuzzy: strip [label] and any (...) from keys
           const baseLower = base.toLowerCase();
           const fuzzyFind = obj => {
@@ -2569,7 +2574,8 @@
             ?? window.headerFileMap[headerNoEmpSuffix]
             ?? window.headerFileMap[baseNoParen];
           let idx = directIdx;
-          if (idx === undefined || idx === null) {
+          // CRITICAL: Check for undefined/null explicitly, not falsy (0 is a valid file index!)
+          if (typeof idx !== 'number') {
             // Fallback: use [FileLabel] suffix to resolve file index
             const m = String(rawHeader).match(/\[([^\]]+)\]\s*$/);
             if (m && m[1] && Array.isArray(window.fileInfo)) {
@@ -2580,7 +2586,7 @@
                 }
               }
             }
-            if (idx === undefined || idx === null) return null;
+            if (typeof idx !== 'number') return null;
           }
           const info = window.fileInfo[idx];
           const t = info && info.contentType ? String(info.contentType).toLowerCase() : null;
@@ -2614,7 +2620,8 @@
             ?? window.headerFileMap[baseNoParen];
           console.log(`getCustomColor: Looking for "${rawHeader}" -> fileIdx: ${directIdx}`);
           let idx = directIdx;
-          if (idx === undefined || idx === null) {
+          // CRITICAL: Check for number type explicitly, not falsy (0 is a valid file index!)
+          if (typeof idx !== 'number') {
             // Fallback: try to derive by [FileLabel]
             const m = String(rawHeader).match(/\[([^\]]+)\]\s*$/);
             if (m && m[1] && Array.isArray(window.fileInfo)) {
@@ -2626,7 +2633,7 @@
               }
             }
             // If still not found, try base-match across headerFileMap with type preference
-            if (idx === undefined || idx === null) {
+            if (typeof idx !== 'number') {
               const stripBase = s => String(s || '')
                 .replace(/\s*\[[^\]]+\]\s*$/, '')
                 .replace(/\s*\+\/\-\s*$/, '')
@@ -2646,7 +2653,7 @@
               }
               if (candidate !== undefined) idx = candidate;
             }
-            if (idx === undefined || idx === null) {
+            if (typeof idx !== 'number') {
               console.log(`getCustomColor: No file index found for "${rawHeader}"`);
               return null;
             }
@@ -2682,7 +2689,8 @@
             ?? window.headerFileMap[headerNoEmpSuffix]
             ?? window.headerFileMap[baseNoParen];
           let idx = directIdx;
-          if (idx === undefined || idx === null) {
+          // CRITICAL: Check for number type explicitly, not falsy (0 is a valid file index!)
+          if (typeof idx !== 'number') {
             // Fallback: try to derive by [FileLabel]
             const m = String(rawHeader).match(/\[([^\]]+)\]\s*$/);
             if (m && m[1] && Array.isArray(window.fileInfo)) {
@@ -2692,7 +2700,7 @@
               }
             }
           }
-          if (idx === undefined || idx === null) return null;
+          if (typeof idx !== 'number') return null;
           let sel = (window.__fileLevelSelections && window.__fileLevelSelections[idx]) ? window.__fileLevelSelections[idx] : null;
           // Fallback to reading live DOM controls if Apply hasn't been pressed yet
           if (!sel) {
@@ -2776,16 +2784,43 @@
 
       let contentType;
       const manualSel = getManualSelection();
+      const suffixType = getSuffixType();
+      const fileDerivedType = getFileDerivedType();
+      const activityMapType = getActivityMapType();
+      const keywordType = getKeywordType();
+      
+      console.log(`=== TYPE RESOLUTION for "${header}" ===`);
+      console.log(`Suffix type: ${suffixType}`);
+      console.log(`Manual selection: ${manualSel ? JSON.stringify(manualSel) : 'null'}`);
+      console.log(`File-derived type: ${fileDerivedType}`);
+      console.log(`Activity map type: ${activityMapType}`);
+      console.log(`Keyword type: ${keywordType}`);
+      
       if (window.useStrictTypePrecedence) {
         // Prefer explicit header suffixes, then user dropdown selection, then file-derived type
-        contentType = getSuffixType() || (manualSel && manualSel.type) || getFileDerivedType() || getActivityMapType() || getKeywordType() || 'default';
+        contentType = suffixType || (manualSel && manualSel.type) || fileDerivedType || activityMapType || keywordType || 'default';
       } else {
         // Legacy behaviour fallback
-        contentType = getSuffixType() || (manualSel && manualSel.type) || getActivityMapType() || getKeywordType() || 'default';
+        contentType = suffixType || (manualSel && manualSel.type) || activityMapType || keywordType || 'default';
       }
+      
+      console.log(`Final content type: ${contentType}`);
 
-      // Check for custom colour first
-      const customColor = (manualSel && manualSel.color) || getCustomColor();
+      // Check for custom colour - distinguish between user-selected and auto-inferred
+      const userSelectedColor = manualSel && manualSel.color; // From dropdown/color picker
+      const autoInferredColor = getCustomColor(); // From fileInfo contentType
+      let customColor = userSelectedColor || autoInferredColor;
+      
+      // CRITICAL FIX: If header has explicit activity suffix, validate AUTO-INFERRED colors
+      // User-selected colors are ALWAYS honored, but auto-inferred colors must match the suffix type
+      if (!userSelectedColor && autoInferredColor && (contentType === 'enrichment' || contentType === 'employment')) {
+        const expectedColor = (contentType === 'enrichment') ? '#ccfbf1' : '#f3e8ff';
+        if (autoInferredColor !== expectedColor) {
+          console.warn(`⚠️ Auto-inferred color "${autoInferredColor}" conflicts with activity type "${contentType}". Discarding and using default activity color.`);
+          customColor = null; // Discard conflicting auto-inferred color
+        }
+      }
+      
       let color, inlineColor;
       
       console.log(`=== COLOR DECISION for "${header}" ===`);
@@ -3041,10 +3076,20 @@
           const dot = '';
           
           // Use light section background; file accent is shown via left border and dot only (previous style)
+          // Check if user manually selected a color via dropdown for this header's file
+          const manualFileIdx = getHeaderFileIndex(originalHeader);
+          const hasUserSelectedColor = (window.__fileLevelSelections && 
+                                        typeof manualFileIdx === 'number' &&
+                                        window.__fileLevelSelections[manualFileIdx] && 
+                                        window.__fileLevelSelections[manualFileIdx].color);
+          
           let inline = sectionInfo.inlineColor;
           let colorClass = sectionInfo.color;
+          const isCustom = (sectionInfo && sectionInfo.color === 'custom') || hasUserSelectedColor;
+          
+          console.log(`Before enforcement - colorClass: "${colorClass}", inline includes: ${inline?.substring(0, 50)}, isCustom: ${isCustom}, hasUserSelectedColor: ${hasUserSelectedColor}, enforcedType: ${enforcedType}`);
+          
           if (enforcedType) {
-            const isCustom = (sectionInfo && sectionInfo.color === 'custom');
             if (enforcedType === 'placements') {
               // Align type to placements but preserve any custom color chosen by the user
               if (!isCustom) {
@@ -3052,16 +3097,29 @@
                 colorClass = SECTION_COLORS['placements'] || colorClass;
               }
               try { sectionInfo.contentType = 'placements'; } catch(_) {}
-            } else {
-              // For enrichment/employment, preserve custom colours
-              if (!isCustom) {
-                inline = SUFFIX_INLINE[enforcedType] || inline;
-                colorClass = SUFFIX_CLASS[enforcedType] || colorClass;
+            } else if (enforcedType === 'enrichment' || enforcedType === 'employment') {
+              // For enrichment/employment, ONLY override if NO user-selected color
+              if (!hasUserSelectedColor) {
+                // Apply activity type color
+                inline = SUFFIX_INLINE[enforcedType];
+                colorClass = SUFFIX_CLASS[enforcedType];
+                console.log(`Enforcing ${enforcedType} color: ${colorClass}`);
+              } else {
+                console.log(`Preserving user-selected color for ${enforcedType} (fileIdx: ${manualFileIdx})`);
               }
-              // Also reflect into sectionInfo.contentType for downstream text-suffix logic
+              // Always reflect correct contentType for text-suffix logic
               try { sectionInfo.contentType = enforcedType; } catch(_) {}
             }
+          } else if (sectionInfo.contentType === 'enrichment' || sectionInfo.contentType === 'employment') {
+            // Even if no enforcedType, ensure activity types have correct colors (unless custom)
+            if (!hasUserSelectedColor) {
+              const actType = sectionInfo.contentType;
+              if (SUFFIX_INLINE[actType]) inline = SUFFIX_INLINE[actType];
+              if (SUFFIX_CLASS[actType]) colorClass = SUFFIX_CLASS[actType];
+            }
           }
+          
+          console.log(`After enforcement - colorClass: "${colorClass}", inline includes: ${inline?.substring(0, 50)}`);
           
           console.log(`Rendering header "${h}" (original: "${originalHeader}") -> type: ${sectionInfo.contentType}, enforcedType: ${enforcedType || 'none'}, class: "${colorClass}", inline: "${inline}", fileIdx: ${fileIdx}`);
           
