@@ -153,17 +153,20 @@ app.listen(PORT, () => {
   console.log('🏥 Healthcheck endpoint ready at /');
   console.log('📡 API routes available at /api/*');
   
-  // Initialize services after server is listening
-  setTimeout(async () => {
+  // Initialize services after server is listening (non-blocking)
+  setImmediate(async () => {
     console.log('🔄 Starting background service initialization...');
     try {
       const DatabaseService = require('./src/services/DatabaseService');
       const volumeService = require('./src/services/VolumeService');
       const dataPreservationService = require('./src/services/DataPreservationService');
       
-      if (process.env.DATABASE_URL) {
+      if (process.env.DATABASE_URL && process.env.SKIP_MIGRATIONS !== '1') {
         console.log('🐘 PostgreSQL detected - initializing database services...');
+        // Use setImmediate to yield control back to event loop frequently
         await DatabaseService.initialize();
+      } else if (process.env.DATABASE_URL && process.env.SKIP_MIGRATIONS === '1') {
+        console.log('⏭️ Skipping database migrations (SKIP_MIGRATIONS=1)');
       } else {
         console.log('📁 File-based storage - initializing volume service...');
         await volumeService.initialize();
@@ -172,8 +175,9 @@ app.listen(PORT, () => {
       console.log('✅ Background services initialized');
     } catch (err) {
       console.error('⚠️ Service initialization failed (non-critical):', err.message);
+      console.error('Stack:', err.stack);
     }
-  }, 2000);
+  });
 });
 
 module.exports = app;
