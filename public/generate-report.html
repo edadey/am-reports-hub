@@ -3098,21 +3098,20 @@
               }
               try { sectionInfo.contentType = 'placements'; } catch(_) {}
             } else if (enforcedType === 'enrichment' || enforcedType === 'employment') {
-              // For enrichment/employment, ONLY override if NO user-selected color
-              if (!hasUserSelectedColor) {
-                // Apply activity type color
+              // For enrichment/employment, ONLY override if there is no custom color
+              if (!isCustom) {
                 inline = SUFFIX_INLINE[enforcedType];
                 colorClass = SUFFIX_CLASS[enforcedType];
                 console.log(`Enforcing ${enforcedType} color: ${colorClass}`);
               } else {
-                console.log(`Preserving user-selected color for ${enforcedType} (fileIdx: ${manualFileIdx})`);
+                console.log(`Preserving custom color for ${enforcedType} (fileIdx: ${manualFileIdx})`);
               }
               // Always reflect correct contentType for text-suffix logic
               try { sectionInfo.contentType = enforcedType; } catch(_) {}
             }
           } else if (sectionInfo.contentType === 'enrichment' || sectionInfo.contentType === 'employment') {
-            // Even if no enforcedType, ensure activity types have correct colors (unless custom)
-            if (!hasUserSelectedColor) {
+            // Even if no enforcedType, ensure activity types have correct colors (unless a custom color is present)
+            if (!isCustom) {
               const actType = sectionInfo.contentType;
               if (SUFFIX_INLINE[actType]) inline = SUFFIX_INLINE[actType];
               if (SUFFIX_CLASS[actType]) colorClass = SUFFIX_CLASS[actType];
@@ -3629,6 +3628,8 @@
         const headerSections = {};
         const headerColorClasses = {};
         const headerHexColors = {};
+        // Capture live UI selections as a fallback in case the user didn't press Apply
+        const uiSelections = (typeof getFileLevelSelectionsFromUI === 'function') ? getFileLevelSelectionsFromUI() : null;
         // Prefer explicit user assignments; otherwise infer from header content
         (tableHeaders || []).forEach((h, idx) => {
           const disp = displayHeaders[idx];
@@ -3646,12 +3647,18 @@
             const map = (typeof headerFileMap === 'object' && headerFileMap) ? headerFileMap : (window.headerFileMap || {});
             const fileIdx = map[h];
             let hex = '';
+            // 1) Explicit per-file selection saved by Apply
             if (window.__fileLevelSelections && window.__fileLevelSelections[fileIdx] && window.__fileLevelSelections[fileIdx].color) {
               hex = window.__fileLevelSelections[fileIdx].color;
+            // 1b) Fallback to current UI control state (no Apply pressed yet)
+            } else if (uiSelections && uiSelections[fileIdx] && uiSelections[fileIdx].color) {
+              hex = uiSelections[fileIdx].color;
             } else {
+              // 2) fileInfo customColor (from processing or prior selections)
               const fi = (window.fileInfo || (extractedData && extractedData.fileInfo) || []);
               if (Array.isArray(fi) && fi[fileIdx] && fi[fileIdx].customColor) {
                 hex = fi[fileIdx].customColor;
+              // 3) Original Excel header color (if present)
               } else if (Array.isArray(tableHeaderColors) && tableHeaderColors[idx]) {
                 hex = tableHeaderColors[idx];
               }
@@ -5033,6 +5040,40 @@
           const def = defaultColors[typeSel ? typeSel.value : 'default'] || '#dbeafe';
           if (colorInp) colorInp.value = def;
         });
+      });
+
+      // Persist colour changes immediately when user adjusts the picker (no need to click Apply)
+      container.querySelectorAll('.file-assignment-color').forEach(inp => {
+        const persistColor = () => {
+          try {
+            const idx = parseInt(inp.dataset.fileIndex);
+            const color = String(inp.value || '').trim();
+            if (!color) return;
+            // Save to working selections and localStorage
+            if (!window.__fileLevelSelections) window.__fileLevelSelections = {};
+            const prev = window.__fileLevelSelections[idx] || {};
+            const typeSel = container.querySelector(`.file-assignment-type[data-file-index="${idx}"]`);
+            const selType = typeSel ? String(typeSel.value || '').toLowerCase() : (prev.type || 'default');
+            window.__fileLevelSelections[idx] = { type: selType, color };
+            try { localStorage.setItem('fileLevelSelections', JSON.stringify(window.__fileLevelSelections)); } catch(_) {}
+            // Reflect into fileInfo so legend/dots and inline colouring pick it up
+            try {
+              if (Array.isArray(window.fileInfo) && window.fileInfo[idx]) {
+                window.fileInfo[idx].customColor = color;
+                // do not modify contentType here
+              }
+              if (extractedData && Array.isArray(extractedData.fileInfo) && extractedData.fileInfo[idx]) {
+                extractedData.fileInfo[idx].customColor = color;
+              }
+              // Update dots for this file index
+              document.querySelectorAll(`.file-accent-dot[data-file-idx="${idx}"]`).forEach(dot => { dot.style.background = color; });
+            } catch(_) {}
+            // Re-render headers to ensure inline custom colour is applied
+            try { renderTable(); } catch(_) {}
+          } catch(_) {}
+        };
+        inp.addEventListener('input', persistColor);
+        inp.addEventListener('change', persistColor);
       });
     }
 

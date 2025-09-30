@@ -684,8 +684,12 @@ app.get('/api/download/:filename', (req, res) => {
 app.get('/api/previous-report/:collegeId', async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const previousData = await getPreviousReportData(parseInt(collegeId));
-    res.json({ success: true, previousData });
+    const { templateKey } = req.query || {};
+    const previousData = await getPreviousReportData(parseInt(collegeId), templateKey);
+    // For compatibility with older front-end code paths, include a normalized 'data' field
+    // If the stored object already has a 'data' property, surface that. Otherwise return the object itself.
+    const data = previousData && previousData.data ? previousData.data : previousData || null;
+    res.json({ success: true, previousData, data });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

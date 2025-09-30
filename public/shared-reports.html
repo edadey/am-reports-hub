@@ -443,15 +443,30 @@
           return `<th class="${className}" style="padding:10px;text-align:left;border-bottom:1px solid #eef2f7;${inlineStyle}${sticky}">${h}</th>`;
         }).join('');
 
-        // Helper: normalized header key (strip +/- and [Label], keep (Employer Engagement) etc)
-        const cmpKey = h => String(h || '')
-          .replace(/\s*\+\/-?$/, '')
+        // Build previous header index maps similar to dashboard: keep parentheses context
+        const prev = window.previousReportData;
+        const prevHeaders = prev && (prev.headers || prev.data?.headers) ? (prev.headers || prev.data.headers) : [];
+        const keyExact = (h) => String(h ?? '').trim().toLowerCase();
+        const keyNorm = (h) => String(h ?? '')
+          .replace(/\s*\+\/\-?\s*$/, '')
           .replace(/\s*\[.*?\]\s*$/, '')
           .trim()
           .toLowerCase();
-        const prev = window.previousReportData;
-        const prevHeaders = prev && (prev.headers || prev.data?.headers) ? (prev.headers || prev.data.headers) : [];
-        const prevHeaderIndexMap = Array.isArray(prevHeaders) ? prevHeaders.reduce((acc, h, i) => { acc[cmpKey(h)] = i; return acc; }, {}) : {};
+        const prevMaps = (() => {
+          const exact = {}; const norm = {};
+          if (Array.isArray(prevHeaders)) {
+            prevHeaders.forEach((ph, i) => {
+              exact[keyExact(ph)] = i;
+              const k = keyNorm(ph); if (norm[k] === undefined) norm[k] = i;
+            });
+          }
+          return { exact, norm };
+        })();
+        const getPrevIdx = (header, fallbackIdx) => {
+          const ex = prevMaps.exact[keyExact(header)]; if (ex !== undefined) return ex;
+          const nm = prevMaps.norm[keyNorm(header)]; if (nm !== undefined) return nm;
+          return fallbackIdx;
+        };
 
         // Totals and previous totals (for +/- in totals row)
         const totals = {};
@@ -467,8 +482,8 @@
             else { totals[colIndex] = total; }
           } else { totals[colIndex] = ''; }
 
-          // Previous totals matched by header name
-          const prevIdx = prevHeaderIndexMap[cmpKey(header)];
+          // Previous totals matched by header name (prefer exact, then normalized)
+          const prevIdx = getPrevIdx(header, colIndex);
           if (prev && Array.isArray(prev.rows) && prevIdx !== undefined) {
             let pTotal = 0; let pCount = 0; let pHas = false;
             prev.rows.forEach(row => { const v = row[prevIdx]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { pTotal += parseFloat(v); pCount++; pHas = true; } });
@@ -488,7 +503,7 @@
           const prev = window.previousReportData; let changeIndicator = '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:#ffedd5;color:#ea580c;font-size:12px;">0</span>';
           if (!isDepartmentHeader(header) && prev && prev.rows) {
             const previousRow = prev.rows.find(r => r[0] === row[0]);
-            const prevIdx = prevHeaderIndexMap[cmpKey(header)];
+            const prevIdx = getPrevIdx(header, originalColIdx);
             if (previousRow && prevIdx !== undefined && previousRow[prevIdx] !== undefined) {
               const isPercentHeader = String(header).toLowerCase().includes('percent') || String(header).includes('%');
               const rawCurrent = cell; const rawPrevious = previousRow[prevIdx];

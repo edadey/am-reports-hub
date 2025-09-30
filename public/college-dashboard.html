@@ -3735,7 +3735,7 @@
     }
 
     // Calculate total change for a specific column using header-name mapping
-    function calculateTotalChange(colIndex, header, currentTotals, previousData, prevHeaderIndexMap) {
+    function calculateTotalChange(colIndex, header, currentTotals, previousData) {
       if (!previousData || !previousData.rows) {
         return `<span class="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600">-</span>`;
       }
@@ -3753,8 +3753,7 @@
         let validRowCount = 0;
         
         // Use mapped previous column index when available
-        const cmpKey = (h) => String(h || '').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\+\/\-\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
-        const prevIdx = (prevHeaderIndexMap && typeof prevHeaderIndexMap === 'object') ? prevHeaderIndexMap[cmpKey(header)] : colIndex;
+        const prevIdx = getPrevColumnIndex(header, colIndex);
         previousData.rows.forEach(row => {
           if (row[prevIdx] !== '' && row[prevIdx] !== null && !isNaN(parseFloat(row[prevIdx]))) {
             total += parseFloat(row[prevIdx]);
@@ -3768,8 +3767,7 @@
         }
       } else {
         // For numeric columns, calculate sum (same as current totals logic)
-        const cmpKey2 = (h) => String(h || '').replace(/\s*\[[^\]]+\]\s*$/, '').replace(/\s*\+\/\-\s*$/, '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
-        const prevIdx2 = (prevHeaderIndexMap && typeof prevHeaderIndexMap === 'object') ? prevHeaderIndexMap[cmpKey2(header)] : colIndex;
+        const prevIdx2 = getPrevColumnIndex(header, colIndex);
         previousData.rows.forEach(row => {
           if (row[prevIdx2] !== '' && row[prevIdx2] !== null && !isNaN(parseFloat(row[prevIdx2]))) {
             previousTotal += parseFloat(row[prevIdx2]);
@@ -3931,23 +3929,38 @@
         }
       });
 
-      // Build previous header index map for name-aligned comparisons
-      const cmpKey = (h) => String(h || '')
-        .replace(/\s*\[[^\]]+\]\s*$/, '')
-        .replace(/\s*\+\/\-\s*$/, '')
-        .replace(/\s*\([^)]*\)\s*$/, '')
+      // Build previous header index maps for accurate name-aligned comparisons
+      // 1) exact match (keeps parentheses like (Enrichment) vs (Employer Engagement))
+      // 2) normalized match (drops file labels like [File], and '+/-')
+      const keyExact = (h) => String(h ?? '').trim().toLowerCase();
+      const keyNorm = (h) => String(h ?? '')
+        .replace(/\s*\[[^\]]+\]\s*$/, '') // strip trailing [FileLabel]
+        .replace(/\s*\+\/\-\s*$/, '')     // strip +/-
         .trim()
         .toLowerCase();
-      const prevHeaderIndexMap = (() => {
+      const __prevHeaderMaps = (() => {
         try {
           const prev = window.previousReportData;
-          const map = {};
+          const exact = {};
+          const norm = {};
           if (prev && Array.isArray(prev.headers)) {
-            prev.headers.forEach((ph, i) => { map[cmpKey(ph)] = i; });
+            prev.headers.forEach((ph, i) => {
+              exact[keyExact(ph)] = i;
+              // only set normalized if not already set, to avoid clobbering duplicates
+              const k = keyNorm(ph);
+              if (norm[k] === undefined) norm[k] = i;
+            });
           }
-          return map;
-        } catch(_) { return {}; }
+          return { exact, norm };
+        } catch(_) { return { exact: {}, norm: {} }; }
       })();
+      const getPrevColumnIndex = (header, fallbackIdx) => {
+        const ex = __prevHeaderMaps.exact[keyExact(header)];
+        if (ex !== undefined) return ex;
+        const nm = __prevHeaderMaps.norm[keyNorm(header)];
+        if (nm !== undefined) return nm;
+        return fallbackIdx;
+      };
 
       // Render body with proper column alignment and visual elements
       const bodyRows = rows.map((row, rowIdx) => {
@@ -4025,9 +4038,7 @@
             // Calculate change from previous report
             if (window.previousReportData) {
               const previousRow = window.previousReportData.rows ? window.previousReportData.rows.find(r => r[0] === row[0]) : null;
-              const mappedPrevIdx = (prevHeaderIndexMap && prevHeaderIndexMap[cmpKey(header)] !== undefined)
-                ? prevHeaderIndexMap[cmpKey(header)]
-                : originalColIdx;
+              const mappedPrevIdx = getPrevColumnIndex(header, originalColIdx);
               if (previousRow && previousRow[mappedPrevIdx] !== undefined) {
                 const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
                 const rawCurrent = cell;
@@ -4131,7 +4142,7 @@
         if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
           totalsRowCells.push(`
             <td class="px-2 py-4 whitespace-nowrap text-sm font-bold text-blue-600 border-r border-gray-100 text-center bg-gray-50">
-              ${window.previousReportData ? calculateTotalChange(originalColIdx, header, totals, window.previousReportData, prevHeaderIndexMap) : '<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>'}
+              ${window.previousReportData ? calculateTotalChange(originalColIdx, header, totals, window.previousReportData) : '<span class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-600">0</span>'}
             </td>
           `);
         }
