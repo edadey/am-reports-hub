@@ -3733,6 +3733,39 @@
       
       return { section: contentType, color: color, inlineColor: inlineColor };
     }
+    
+    // Build previous header maps (exact + normalized) and helper to find column index
+    function buildPrevHeaderMaps(prevHeaders) {
+      try {
+        const keyExact = (h) => String(h ?? '').trim().toLowerCase();
+        const keyNorm = (h) => String(h ?? '')
+          .replace(/\s*\+\/\-\s*$/, '')
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .trim()
+          .toLowerCase();
+        const exact = {}; const norm = {};
+        (Array.isArray(prevHeaders) ? prevHeaders : []).forEach((ph, i) => {
+          exact[keyExact(ph)] = i;
+          const k = keyNorm(ph); if (norm[k] === undefined) norm[k] = i;
+        });
+        return { exact, norm };
+      } catch (_) { return { exact: {}, norm: {} }; }
+    }
+    function getPrevColumnIndex(header, fallbackIdx, maps) {
+      try {
+        const keyExact = (h) => String(h ?? '').trim().toLowerCase();
+        const keyNorm = (h) => String(h ?? '')
+          .replace(/\s*\+\/\-\s*$/, '')
+          .replace(/\s*\[[^\]]+\]\s*$/, '')
+          .trim()
+          .toLowerCase();
+        if (maps && maps.exact && maps.exact[keyExact(header)] !== undefined) return maps.exact[keyExact(header)];
+        if (maps && maps.norm && maps.norm[keyNorm(header)] !== undefined) return maps.norm[keyNorm(header)];
+      } catch (_) {}
+      return fallbackIdx;
+    }
+    // Ensure availability in broader scope if called indirectly
+    try { window.getPrevColumnIndex = window.getPrevColumnIndex || getPrevColumnIndex; } catch(_) {}
 
     // Calculate total change for a specific column using header-name mapping
     function calculateTotalChange(colIndex, header, currentTotals, previousData) {
@@ -3746,6 +3779,7 @@
       
       // Determine percentage column based on current header
       const isPercentageColumn = header && (header.toLowerCase().includes('percent') || header.includes('%'));
+      const __maps = buildPrevHeaderMaps(previousData.headers || []);
       
       if (isPercentageColumn) {
         // For percentage columns, calculate average (same as current totals logic)
@@ -3753,7 +3787,7 @@
         let validRowCount = 0;
         
         // Use mapped previous column index when available
-        const prevIdx = getPrevColumnIndex(header, colIndex);
+        const prevIdx = getPrevColumnIndex(header, colIndex, __maps);
         previousData.rows.forEach(row => {
           if (row[prevIdx] !== '' && row[prevIdx] !== null && !isNaN(parseFloat(row[prevIdx]))) {
             total += parseFloat(row[prevIdx]);
@@ -3767,7 +3801,7 @@
         }
       } else {
         // For numeric columns, calculate sum (same as current totals logic)
-        const prevIdx2 = getPrevColumnIndex(header, colIndex);
+        const prevIdx2 = getPrevColumnIndex(header, colIndex, __maps);
         previousData.rows.forEach(row => {
           if (row[prevIdx2] !== '' && row[prevIdx2] !== null && !isNaN(parseFloat(row[prevIdx2]))) {
             previousTotal += parseFloat(row[prevIdx2]);
@@ -3929,38 +3963,8 @@
         }
       });
 
-      // Build previous header index maps for accurate name-aligned comparisons
-      // 1) exact match (keeps parentheses like (Enrichment) vs (Employer Engagement))
-      // 2) normalized match (drops file labels like [File], and '+/-')
-      const keyExact = (h) => String(h ?? '').trim().toLowerCase();
-      const keyNorm = (h) => String(h ?? '')
-        .replace(/\s*\[[^\]]+\]\s*$/, '') // strip trailing [FileLabel]
-        .replace(/\s*\+\/\-\s*$/, '')     // strip +/-
-        .trim()
-        .toLowerCase();
-      const __prevHeaderMaps = (() => {
-        try {
-          const prev = window.previousReportData;
-          const exact = {};
-          const norm = {};
-          if (prev && Array.isArray(prev.headers)) {
-            prev.headers.forEach((ph, i) => {
-              exact[keyExact(ph)] = i;
-              // only set normalized if not already set, to avoid clobbering duplicates
-              const k = keyNorm(ph);
-              if (norm[k] === undefined) norm[k] = i;
-            });
-          }
-          return { exact, norm };
-        } catch(_) { return { exact: {}, norm: {} }; }
-      })();
-      const getPrevColumnIndex = (header, fallbackIdx) => {
-        const ex = __prevHeaderMaps.exact[keyExact(header)];
-        if (ex !== undefined) return ex;
-        const nm = __prevHeaderMaps.norm[keyNorm(header)];
-        if (nm !== undefined) return nm;
-        return fallbackIdx;
-      };
+      // Build previous header maps once for this render
+      const __prevMaps = buildPrevHeaderMaps(window.previousReportData?.headers || []);
 
       // Render body with proper column alignment and visual elements
       const bodyRows = rows.map((row, rowIdx) => {
@@ -4038,7 +4042,7 @@
             // Calculate change from previous report
             if (window.previousReportData) {
               const previousRow = window.previousReportData.rows ? window.previousReportData.rows.find(r => r[0] === row[0]) : null;
-              const mappedPrevIdx = getPrevColumnIndex(header, originalColIdx);
+              const mappedPrevIdx = getPrevColumnIndex(header, originalColIdx, __prevMaps);
               if (previousRow && previousRow[mappedPrevIdx] !== undefined) {
                 const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
                 const rawCurrent = cell;
