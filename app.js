@@ -84,68 +84,6 @@ cpanelEnvVars.forEach(varName => {
   }
 });
 
- 
-
-// Replace the contents of a target report from a source report, preserving target createdAt
-app.post('/api/colleges/:collegeId/reports/:reportId/replace-from', authService.requireAuth(), async (req, res) => {
-  try {
-    const { collegeId, reportId } = req.params;
-    const { sourceReportId, deleteSource = false, preserveName = true, preserveSummary = true } = req.body || {};
-    if (!sourceReportId) return res.status(400).json({ success: false, error: 'sourceReportId required' });
-
-    const reportsPath = `reports/${collegeId}.json`;
-    let reports = await volumeService.readFile(reportsPath).catch(() => []);
-    const targetIdx = reports.findIndex(r => String(r.id) === String(reportId));
-    const sourceIdx = reports.findIndex(r => String(r.id) === String(sourceReportId));
-    if (targetIdx === -1 || sourceIdx === -1) return res.status(404).json({ success: false, error: 'Report not found' });
-
-    const target = reports[targetIdx];
-    const source = reports[sourceIdx];
-
-    // Copy data over
-    const updated = { ...target };
-    updated.data = source.data ? JSON.parse(JSON.stringify(source.data)) : target.data;
-    if (!preserveName && source.name) updated.name = source.name;
-    if (!preserveSummary && source.summary !== undefined) updated.summary = source.summary;
-    // Keep createdAt, update updatedAt
-    updated.updatedAt = new Date().toISOString();
-    // Align template metadata
-    if (source.templateKey) updated.templateKey = source.templateKey;
-    if (source.templateName) updated.templateName = source.templateName;
-    updated.data = updated.data || {};
-    updated.data.meta = Object.assign({}, updated.data.meta, {
-      templateKey: source.templateKey || source.data?.meta?.templateKey || updated.data?.meta?.templateKey || null,
-      templateName: source.templateName || source.data?.meta?.templateName || updated.data?.meta?.templateName || null
-    });
-
-    reports[targetIdx] = updated;
-    // Optionally delete the source report
-    if (deleteSource && sourceIdx !== -1) {
-      reports.splice(sourceIdx, 1);
-    }
-
-    await volumeService.writeFile(reportsPath, reports);
-
-    // Refresh previous cache if target is now most recent for its template
-    const tk = updated.templateKey || updated.data?.meta?.templateKey || null;
-    if (tk) {
-      try {
-        const latestForTk = reports
-          .filter(r => (r.templateKey || r.data?.meta?.templateKey) && String(r.templateKey || r.data?.meta?.templateKey) === String(tk))
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        if (latestForTk && String(latestForTk.id) === String(updated.id)) {
-          await storeCurrentReportAsPrevious(collegeId, updated.data, tk);
-        }
-      } catch (_) {}
-    }
-
-    return res.json({ success: true, report: updated });
-  } catch (e) {
-    console.error('Replace-from error:', e);
-    return res.status(500).json({ success: false, error: 'Failed to replace report contents' });
-  }
-});
-
 // Method 4: Set defaults for missing variables
 if (!process.env.OPENAI_MODEL) {
   process.env.OPENAI_MODEL = 'gpt-4o-mini';
@@ -1693,6 +1631,66 @@ app.get('/api/colleges/:collegeId/reports', authService.requireAuth(), async (re
   } catch (error) {
     console.error('Get college reports error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Replace the contents of a target report from a source report, preserving target createdAt
+app.post('/api/colleges/:collegeId/reports/:reportId/replace-from', authService.requireAuth(), async (req, res) => {
+  try {
+    const { collegeId, reportId } = req.params;
+    const { sourceReportId, deleteSource = false, preserveName = true, preserveSummary = true } = req.body || {};
+    if (!sourceReportId) return res.status(400).json({ success: false, error: 'sourceReportId required' });
+
+    const reportsPath = `reports/${collegeId}.json`;
+    let reports = await volumeService.readFile(reportsPath).catch(() => []);
+    const targetIdx = reports.findIndex(r => String(r.id) === String(reportId));
+    const sourceIdx = reports.findIndex(r => String(r.id) === String(sourceReportId));
+    if (targetIdx === -1 || sourceIdx === -1) return res.status(404).json({ success: false, error: 'Report not found' });
+
+    const target = reports[targetIdx];
+    const source = reports[sourceIdx];
+
+    // Copy data over
+    const updated = { ...target };
+    updated.data = source.data ? JSON.parse(JSON.stringify(source.data)) : target.data;
+    if (!preserveName && source.name) updated.name = source.name;
+    if (!preserveSummary && source.summary !== undefined) updated.summary = source.summary;
+    // Keep createdAt, update updatedAt
+    updated.updatedAt = new Date().toISOString();
+    // Align template metadata
+    if (source.templateKey) updated.templateKey = source.templateKey;
+    if (source.templateName) updated.templateName = source.templateName;
+    updated.data = updated.data || {};
+    updated.data.meta = Object.assign({}, updated.data.meta, {
+      templateKey: source.templateKey || source.data?.meta?.templateKey || updated.data?.meta?.templateKey || null,
+      templateName: source.templateName || source.data?.meta?.templateName || updated.data?.meta?.templateName || null
+    });
+
+    reports[targetIdx] = updated;
+    // Optionally delete the source report
+    if (deleteSource && sourceIdx !== -1) {
+      reports.splice(sourceIdx, 1);
+    }
+
+    await volumeService.writeFile(reportsPath, reports);
+
+    // Refresh previous cache if target is now most recent for its template
+    const tk = updated.templateKey || updated.data?.meta?.templateKey || null;
+    if (tk) {
+      try {
+        const latestForTk = reports
+          .filter(r => (r.templateKey || r.data?.meta?.templateKey) && String(r.templateKey || r.data?.meta?.templateKey) === String(tk))
+          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        if (latestForTk && String(latestForTk.id) === String(updated.id)) {
+          await storeCurrentReportAsPrevious(collegeId, updated.data, tk);
+        }
+      } catch (_) {}
+    }
+
+    return res.json({ success: true, report: updated });
+  } catch (e) {
+    console.error('Replace-from error:', e);
+    return res.status(500).json({ success: false, error: 'Failed to replace report contents' });
   }
 });
 
