@@ -53,6 +53,40 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
+// Lightweight auth status check for login page
+app.get('/api/auth/status', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') ||
+                  req.cookies?.token ||
+                  req.query.token;
+
+    if (!token) {
+      return res.json({ authenticated: false });
+    }
+
+    const validation = await authService.validateSession(token);
+    if (!validation.success) {
+      return res.json({ authenticated: false });
+    }
+
+    // Sanitize user payload
+    const user = await authService.getUserById(validation.user.userId);
+    if (!user) return res.json({ authenticated: false });
+    const sanitized = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      accountManagerId: user.accountManagerId
+    };
+    return res.json({ authenticated: true, user: sanitized });
+  } catch (err) {
+    // Never error for status check; just report unauthenticated
+    return res.json({ authenticated: false });
+  }
+});
+
 app.get('/college-dashboard', authService.requireAuth(), (req, res) => {
   res.sendFile(path.join(__dirname, '../public/college-dashboard.html'));
 });
