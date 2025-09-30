@@ -14,74 +14,126 @@ app.get('/', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Fallback auth routes so login page can work even if app.js hasn't loaded yet
-try {
-  const AuthService = require('./src/services/AuthService');
-  const authService = new AuthService();
+// Fallback: get current user details
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') ||
+                  req.cookies?.token ||
+                  req.query.token;
+    if (!token) return res.status(401).json({ error: 'Authentication required' });
+    const AuthService = require('./src/services/AuthService');
+    const authService = new AuthService();
+    const validation = await authService.validateSession(token);
+    if (!validation.success) return res.status(401).json({ error: 'Authentication required' });
+    const user = await authService.getUserById(validation.user.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const sanitized = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      accountManagerId: user.accountManagerId
+    };
+    return res.json({ success: true, user: sanitized });
+  } catch (e) {
+    return res.status(500).json({ error: 'Failed to get user' });
+  }
+});
 
-  // Lightweight status check (no 401s)
-  const statusHandler = async (req, res) => {
-    try {
-      const token = req.headers.authorization?.replace('Bearer ', '') ||
-                    req.cookies?.token ||
-                    req.query.token;
-      if (!token) return res.json({ authenticated: false });
-      const validation = await authService.validateSession(token);
-      if (!validation.success) return res.json({ authenticated: false });
-      const user = await authService.getUserById(validation.user.userId);
-      if (!user) return res.json({ authenticated: false });
-      const sanitized = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-        accountManagerId: user.accountManagerId
-      };
-      return res.json({ authenticated: true, user: sanitized });
-    } catch (_) {
-      return res.json({ authenticated: false });
+// Fallback auth routes so login page can work even if full app hasn't loaded yet
+// Keep these extremely lightweight and dependency-free
+app.get('/auth/status', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') ||
+                  req.cookies?.token ||
+                  req.query.token;
+    if (!token) return res.json({ authenticated: false });
+    const AuthService = require('./src/services/AuthService');
+    const authService = new AuthService();
+    const validation = await authService.validateSession(token);
+    if (!validation.success) return res.json({ authenticated: false });
+    const user = await authService.getUserById(validation.user.userId);
+    if (!user) return res.json({ authenticated: false });
+    const sanitized = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      accountManagerId: user.accountManagerId
+    };
+    return res.json({ authenticated: true, user: sanitized });
+  } catch (_) {
+    return res.json({ authenticated: false });
+  }
+});
+
+app.get('/api/auth/status', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '') ||
+                  req.cookies?.token ||
+                  req.query.token;
+    if (!token) return res.json({ authenticated: false });
+    const AuthService = require('./src/services/AuthService');
+    const authService = new AuthService();
+    const validation = await authService.validateSession(token);
+    if (!validation.success) return res.json({ authenticated: false });
+    const user = await authService.getUserById(validation.user.userId);
+    if (!user) return res.json({ authenticated: false });
+    const sanitized = {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      name: user.name,
+      accountManagerId: user.accountManagerId
+    };
+    return res.json({ authenticated: true, user: sanitized });
+  } catch (_) {
+    return res.json({ authenticated: false });
+  }
+});
+
+// Fallback login with lazy require to avoid startup failures
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
     }
-  };
-
-  app.get('/auth/status', statusHandler);
-  app.get('/api/auth/status', statusHandler);
-
-  // Fallback login
-  app.post('/api/auth/login', async (req, res) => {
+    let AuthService;
     try {
-      const { username, password } = req.body || {};
-      if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required' });
-      }
-      const result = await authService.authenticateUser(
-        username,
-        password,
-        req.ip || req.connection?.remoteAddress,
-        req.headers['user-agent']
-      );
-      if (!result.success) {
-        return res.status(401).json({ error: result.message || 'Invalid credentials' });
-      }
-      // Set HTTP-only cookie
-      res.cookie('token', result.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 24 * 60 * 60 * 1000
-      });
-      return res.json({ success: true, user: result.user });
+      AuthService = require('./src/services/AuthService');
     } catch (e) {
-      console.error('Fallback login error:', e);
-      return res.status(500).json({ error: 'Login failed' });
+      console.error('AuthService load error:', e?.message || e);
+      return res.status(503).json({ error: 'Auth service initializing, please retry in a moment' });
     }
-  });
+    const authService = new AuthService();
+    const result = await authService.authenticateUser(
+      username,
+      password,
+      req.ip || req.connection?.remoteAddress,
+      req.headers['user-agent']
+    );
+    if (!result.success) {
+      return res.status(401).json({ error: result.message || 'Invalid credentials' });
+    }
+    res.cookie('token', result.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    });
+    return res.json({ success: true, user: result.user });
+  } catch (e) {
+    console.error('Fallback login error:', e);
+    return res.status(500).json({ error: 'Login failed' });
+  }
+});
 
-  // Quiet favicon 404
-  app.get('/favicon.ico', (req, res) => res.status(204).end());
-} catch (e) {
-  console.error('Fallback auth routes disabled:', e?.message || e);
-}
+// Quiet favicon 404
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // Start server immediately
 app.listen(PORT, () => {

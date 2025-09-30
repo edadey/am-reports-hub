@@ -259,19 +259,23 @@ class AuthService {
 
   async validateSession(token) {
     try {
-      const session = this.sessionService.getSession(token);
-      
-      if (!session) {
-        console.log('Session validation: Session not found');
-        return { success: false, message: 'Session not found' };
-      }
-
-      // Verify JWT token
+      // Verify JWT first so a valid token can recreate an in-memory session if needed
       const tokenVerification = this.verifyToken(token);
       if (!tokenVerification.success) {
         console.log('Session validation: Invalid token');
         this.sessionService.removeSession(token);
         return { success: false, message: 'Invalid token' };
+      }
+
+      // Try to get an existing session
+      let session = this.sessionService.getSession(token);
+      if (!session) {
+        console.log('Session validation: No session in memory, recreating from valid token');
+        try {
+          this.sessionService.createSession(tokenVerification.user.userId, token);
+        } catch (e) {
+          console.warn('Session recreation failed, proceeding with stateless auth:', e?.message || e);
+        }
       }
 
       console.log('Session validation: Success');
@@ -418,17 +422,14 @@ class AuthService {
       try {
         const token = req.headers.authorization?.replace('Bearer ', '') || 
                      req.cookies?.token || 
-                     req.query.token;
+                      req.query.token;
 
         console.log('🔐 Auth middleware - Token present:', !!token);
         console.log('🔐 Auth middleware - Token source:', req.headers.authorization ? 'header' : req.cookies?.token ? 'cookie' : req.query.token ? 'query' : 'none');
 
         if (!token) {
           console.log('❌ Auth middleware - No token found');
-          // For HTML pages, redirect to login; for API calls, return JSON
-          if (req.headers.accept && req.headers.accept.includes('text/html')) {
-            return res.redirect('/login');
-          }
+          // Avoid server-side redirects to prevent loops; let client handle navigation
           return res.status(401).json({ error: 'Authentication required', redirect: '/login' });
         }
 
@@ -437,13 +438,8 @@ class AuthService {
         
         if (!sessionValidation.success) {
           console.log('❌ Auth middleware - Session validation failed:', sessionValidation.message);
-          // Clear invalid token cookie
-          res.clearCookie('token');
-          // For HTML pages, redirect to login; for API calls, return JSON
-          if (req.headers.accept && req.headers.accept.includes('text/html')) {
-            return res.redirect('/login');
-          }
-          return res.status(401).json({ error: sessionValidation.message, redirect: '/login' });
+          // Do not clear cookie or redirect here to avoid loops
+          return res.status(401).json({ error: sessionValidation.message || 'Authentication required', redirect: '/login' });
         }
 
         console.log('✅ Auth middleware - Authentication successful for user:', sessionValidation.user?.username);
