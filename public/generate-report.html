@@ -989,16 +989,36 @@
               (isEmployerDomain && /(employment|employer|employer-activity)/.test(type2)) ||
               (!isEmployerDomain && /(enrichment|enrichment-activity)/.test(type2));
 
-            // Case A: metrics belonging to the same explicit domain (not activities-combined)
-            if (ok && type2 && type2 !== 'activities-combined') {
-              const base2 = base;
-              const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
+            const base2 = base;
+            const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
+            // Always try explicit domain suffix candidates derived from the header itself
+            {
               const candidates = [];
               if (label) candidates.push(`${base2}${wantSuffix} [${label}]`);
               candidates.push(`${base2}${wantSuffix}`);
+              for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+            }
+
+            // Case A: metrics belonging to the same explicit domain (not activities-combined)
+            if (ok && type2 && type2 !== 'activities-combined') {
+              const candidates = [];
               if (label) candidates.push(`${base2} (${type2}) [${label}]`);
               candidates.push(`${base2} (${type2})`);
               for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+              // Domain-constrained fuzzy across metrics keys
+              const mkDomain = Object.keys(metrics).find(k => {
+                const kl = String(k).toLowerCase();
+                const stripped = kl
+                  .replace(/\s*\[[^\]]+\]\s*$/, '')
+                  .replace(/\s*\([^)]*\)\s*$/, '')
+                  .trim();
+                const sameBase = stripped === base2.toLowerCase();
+                const hasDomain = isEmployerDomain
+                  ? /\(employer\s*engagement\)|\(employer\s*activity\)|\(employment\)|\bemployer\b/.test(kl)
+                  : /\(enrichment\)|\benrichment\b/.test(kl);
+                return sameBase && hasDomain;
+              });
+              if (mkDomain) return metrics[mkDomain];
             }
 
             // Case B: Activities Combined files often store domain in the text ("Enrichment"/"Employer Engagement") without parentheses.
