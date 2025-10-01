@@ -1711,6 +1711,11 @@
             mappedJobProfile: findCol(l => notPercent(l) && (l.includes('students with') && l.includes('mapped') && l.includes('job profile')))
           };
 
+          // Extra robust mapping for common assessment headers in uppercase variants
+          if (idx.with1Assessment < 0) idx.with1Assessment = findCol(l => notPercent(l) && /students\s+with\s*1\s*assessment/.test(l));
+          if (idx.with2Assessments < 0) idx.with2Assessments = findCol(l => notPercent(l) && /students\s+with\s*2\s*assessments?/.test(l));
+          if (idx.with3Assessments < 0) idx.with3Assessments = findCol(l => notPercent(l) && /students\s+with\s*3\s*assessments?/.test(l));
+
           // For each row, recompute any percentage columns
           for (let r = 0; r < tableData.length; r++) {
             const row = tableData[r];
