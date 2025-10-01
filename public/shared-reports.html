@@ -406,10 +406,84 @@
         return String(h || '').trim().toLowerCase().startsWith('department');
       }
 
+      // Recompute percentage columns so they always use Total Students as denominator (retroactive)
+      function recomputePercentages(headers, rows) {
+        try {
+          if (!Array.isArray(headers) || !Array.isArray(rows)) return { rows };
+          const lower = headers.map(h => String(h || '').toLowerCase());
+          const totalIdx = lower.findIndex(h => h.includes('total') && h.includes('student') && !h.includes('%'));
+          if (totalIdx < 0) return { rows };
+
+          const notPercent = (l) => !l.includes('%') && !/\+\/-$/.test(l);
+          const findCol = (pred) => lower.findIndex(h => pred(h));
+
+          const indices = {
+            withAssessments: findCol(l => notPercent(l) && l.includes('students with') && l.includes('assessment') && !/\d\s*assessment/.test(l)),
+            with1Assessment: findCol(l => notPercent(l) && l.includes('students with 1') && l.includes('assessment')),
+            with2Assessments: findCol(l => notPercent(l) && l.includes('students with 2') && l.includes('assessment')),
+            with3Assessments: findCol(l => notPercent(l) && l.includes('students with 3') && l.includes('assessment')),
+            withActivities: findCol(l => notPercent(l) && l.includes('students with activities') && !l.includes('enrichment') && !l.includes('employer')),
+            withActivitiesEnrichment: findCol(l => notPercent(l) && l.includes('students with activities') && l.includes('enrichment')),
+            withActivitiesEmployer: findCol(l => notPercent(l) && l.includes('students with activities') && (l.includes('employer engagement') || l.includes('employer'))),
+            withPlacements: findCol(l => notPercent(l) && (l.includes('students with placement') || l.includes('students with placements'))),
+            completedCareerQuiz: findCol(l => notPercent(l) && (l.includes('students completed') && l.includes('career') && l.includes('quiz'))),
+            mappedJobProfile: findCol(l => notPercent(l) && (l.includes('students with') && l.includes('mapped') && l.includes('job profile')))
+          };
+
+          const isPercentHeader = (l) => l.includes('percent') || l.includes('%');
+          const getNumerator = (row, l) => {
+            if (l.includes('assessment')) {
+              if (indices.withAssessments >= 0) return parseFloat(row[indices.withAssessments]) || 0;
+              const a1 = indices.with1Assessment >= 0 ? (parseFloat(row[indices.with1Assessment]) || 0) : 0;
+              const a2 = indices.with2Assessments >= 0 ? (parseFloat(row[indices.with2Assessments]) || 0) : 0;
+              const a3 = indices.with3Assessments >= 0 ? (parseFloat(row[indices.with3Assessments]) || 0) : 0;
+              return a1 + a2 + a3;
+            }
+            if (l.includes('enrichment')) return indices.withActivitiesEnrichment >= 0 ? (parseFloat(row[indices.withActivitiesEnrichment]) || 0) : 0;
+            if (l.includes('employer')) return indices.withActivitiesEmployer >= 0 ? (parseFloat(row[indices.withActivitiesEmployer]) || 0) : 0;
+            if (l.includes('activity') || l.includes('activities')) return indices.withActivities >= 0 ? (parseFloat(row[indices.withActivities]) || 0) : 0;
+            if (l.includes('placement')) return indices.withPlacements >= 0 ? (parseFloat(row[indices.withPlacements]) || 0) : 0;
+            if (l.includes('career') && l.includes('quiz')) return indices.completedCareerQuiz >= 0 ? (parseFloat(row[indices.completedCareerQuiz]) || 0) : 0;
+            if (l.includes('mapped') && l.includes('job profile')) return indices.mappedJobProfile >= 0 ? (parseFloat(row[indices.mappedJobProfile]) || 0) : 0;
+            return null;
+          };
+
+          const newRows = rows.map(orig => {
+            const row = [...orig];
+            const total = parseFloat(row[totalIdx]) || 0;
+            if (!(total > 0)) return row;
+            for (let c = 0; c < headers.length; c++) {
+              const l = lower[c];
+              if (!isPercentHeader(l)) continue;
+              const num = getNumerator(row, l);
+              if (num !== null) row[c] = (num / total) * 100; // store 0-100
+            }
+            return row;
+          });
+
+          // Provide helper to compute totals percentage based on numerators
+          function computeTotalsPercentForColumn(colIdx) {
+            const l = lower[colIdx];
+            if (!isPercentHeader(l)) return null;
+            let numSum = 0; let totalSum = 0;
+            for (const row of rows) {
+              const total = parseFloat(row[totalIdx]) || 0;
+              if (!(total > 0)) continue;
+              const num = getNumerator(row, l);
+              if (num !== null) { numSum += num; totalSum += total; }
+            }
+            return totalSum > 0 ? (numSum / totalSum) * 100 : null;
+          }
+
+          return { rows: newRows, computeTotalsPercentForColumn };
+        } catch (_) { return { rows }; }
+      }
+
       function displayReportData(reportData) {
         const container = document.getElementById('reportDataContainer');
         if (!reportData || !reportData.data) { container.innerHTML = '<div class="muted">No data available in this report</div>'; return; }
-        const { headers = [], rows = [], meta = {} } = reportData.data;
+        const { headers = [], rows: rawRows = [], meta = {} } = reportData.data;
+        const { rows, computeTotalsPercentForColumn } = recomputePercentages(headers, rawRows);
         if (!headers.length || !rows.length) { container.innerHTML = '<div class="muted">No data available in this report</div>'; return; }
         const metaClasses = meta.headerColorClasses || {};
         const metaHex = meta.headerHexColors || {};
@@ -478,8 +552,13 @@
           let total = 0; let count = 0; let has = false;
           rows.forEach(row => { const v = row[colIndex]; if (v !== '' && v !== null && !isNaN(parseFloat(v))) { total += parseFloat(v); count++; has = true; } });
           if (has) {
-            if (String(header).toLowerCase().includes('percent') || String(header).includes('%')) { totals[colIndex] = count > 0 ? (total / count) : 0; }
-            else { totals[colIndex] = total; }
+            const isPct = String(header).toLowerCase().includes('percent') || String(header).includes('%');
+            if (isPct) {
+              const recomputed = computeTotalsPercentForColumn ? computeTotalsPercentForColumn(colIndex) : null;
+              totals[colIndex] = (recomputed !== null) ? recomputed : (count > 0 ? (total / count) : 0);
+            } else {
+              totals[colIndex] = total;
+            }
           } else { totals[colIndex] = ''; }
 
           // Previous totals matched by header name (prefer exact, then normalized)
