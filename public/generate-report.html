@@ -2685,14 +2685,15 @@
 
       // Define content-based colors - unified canonical palette
       const CONTENT_COLORS = {
-        'placements': 'bg-blue-100',      // Blue for placements
-        'enrichment': 'bg-teal-100',      // Teal for enrichment (distinct from placements)
-        'employment': 'bg-purple-100',    // Purple for employment
-        'careers': 'bg-yellow-100',       // Yellow for careers
-        'assessments': 'bg-green-200',    // Green-200 for assessments
-        'targets': 'bg-pink-100',         // Pink for targets
-        'login': 'bg-indigo-100',         // Indigo for login data
-        'default': 'bg-gray-100'          // Gray for unknown
+        'placements': 'bg-blue-100',         // Blue for placements
+        'enrichment': 'bg-teal-100',         // Teal for enrichment
+        'employment': 'bg-purple-100',       // Purple for employment
+        'careers': 'bg-yellow-100',          // Yellow for careers
+        'assessments': 'bg-green-200',       // Green-200 for assessments
+        'activities-combined': 'bg-lime-100',// Lime for Activities Combined KC
+        'targets': 'bg-pink-100',            // Pink for targets
+        'login': 'bg-indigo-100',            // Indigo for login data
+        'default': 'bg-gray-100'             // Gray for unknown
       };
       
       // Define inline styles as fallback for better specificity
@@ -2702,6 +2703,7 @@
         'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',
         'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
         'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',
+        'activities-combined': 'background-color: #ecfccb !important; border-color: #ecfccb !important;',
         'targets': 'background-color: #fce7f3 !important; border-color: #fce7f3 !important;',
         'login': 'background-color: #e0e7ff !important; border-color: #e0e7ff !important;',
         'default': 'background-color: #f3f4f6 !important; border-color: #f3f4f6 !important;'
@@ -3261,24 +3263,19 @@
               }
               try { sectionInfo.contentType = 'placements'; } catch(_) {}
             } else if (enforcedType === 'enrichment' || enforcedType === 'employment') {
-              // For enrichment/employment, ONLY override if there is no custom color
-              if (!isCustom) {
-                inline = SUFFIX_INLINE[enforcedType];
-                colorClass = SUFFIX_CLASS[enforcedType];
-                console.log(`Enforcing ${enforcedType} color: ${colorClass}`);
-              } else {
-                console.log(`Preserving custom color for ${enforcedType} (fileIdx: ${manualFileIdx})`);
-              }
+              // ALWAYS enforce enrichment/employer engagement colors based on suffix tags
+              // These are semantic categories that must have consistent colors
+              inline = SUFFIX_INLINE[enforcedType];
+              colorClass = SUFFIX_CLASS[enforcedType];
+              console.log(`Enforcing ${enforcedType} color: ${colorClass}`);
               // Always reflect correct contentType for text-suffix logic
               try { sectionInfo.contentType = enforcedType; } catch(_) {}
             }
           } else if (sectionInfo.contentType === 'enrichment' || sectionInfo.contentType === 'employment') {
-            // Even if no enforcedType, ensure activity types have correct colors (unless a custom color is present)
-            if (!isCustom) {
-              const actType = sectionInfo.contentType;
-              if (SUFFIX_INLINE[actType]) inline = SUFFIX_INLINE[actType];
-              if (SUFFIX_CLASS[actType]) colorClass = SUFFIX_CLASS[actType];
-            }
+            // Even if no enforcedType, ensure activity types have correct colors
+            const actType = sectionInfo.contentType;
+            if (SUFFIX_INLINE[actType]) inline = SUFFIX_INLINE[actType];
+            if (SUFFIX_CLASS[actType]) colorClass = SUFFIX_CLASS[actType];
           }
           
           console.log(`After enforcement - colorClass: "${colorClass}", inline includes: ${inline?.substring(0, 50)}`);

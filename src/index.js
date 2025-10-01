@@ -887,13 +887,15 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
     // Function to determine column section and color (aligned with dashboard/app.js)
     function getColumnSection(header) {
       const headerLower = String(header || '').toLowerCase();
+      // Excel colors aligned with UI (Tailwind) palette
       const COLORS = {
-        placements: 'FFDBEAFE',
-        assessments: 'FFCCFBF1',
-        careers: 'FFFED7AA',
-        activities: 'FFFEF3C7',
-        enrichment: 'FFDCFCE7',
-        employment: 'FFF3E8FF',
+        placements: 'FFDBEAFE',            // bg-blue-100
+        assessments: 'FFBBF7D0',           // bg-green-200
+        careers: 'FFFED7AA',               // bg-yellow-100
+        activities: 'FFFEF3C7',            // bg-yellow-100-ish (legacy activities)
+        enrichment: 'FFCCFBF1',            // bg-teal-100
+        employment: 'FFF3E8FF',            // bg-purple-100
+        'activities-combined': 'FFECFCCB', // bg-lime-100
         'employer-activity': 'FFFEE2E2',
         'enrichment-activity': 'FFE0F7FA',
         targets: 'FFFCE7F3',
@@ -901,21 +903,27 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', async (req, res) => 
         default: 'FFF3F4F6'
       };
       const pick = (section) => ({ section, color: COLORS[section] || COLORS.default });
-      if (headerLower === 'department') return { section: 'Department', color: 'FFFEF3C7' };
+      if (headerLower === 'department') return { section: 'Department', color: COLORS.activities };
+
+      // 1) Prioritise explicit suffixes
+      if (headerLower.includes('(activities-combined)') || headerLower.includes('(activities combined kc)')) return pick('activities-combined');
       if (headerLower.includes('(employer activity)')) return pick('employer-activity');
       if (headerLower.includes('(enrichment activity)')) return pick('enrichment-activity');
       if (headerLower.includes('(enrichment)')) return pick('enrichment');
-      if (headerLower.includes('(employer)') || headerLower.includes('(employment)')) return pick('employment');
+      if (headerLower.includes('(employer engagement)') || headerLower.includes('(employer)') || headerLower.includes('(employment)')) return pick('employment');
       if (headerLower.includes('(placements)')) return pick('placements');
       if (headerLower.includes('(careers)')) return pick('careers');
       if (headerLower.includes('(assessments)')) return pick('assessments');
       if (headerLower.includes('(targets)')) return pick('targets');
       if (headerLower.includes('(login)')) return pick('login');
+
+      // 2) Heuristics (no suffix)
       if (headerLower.includes('placement') || headerLower.includes('placed') || headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) return pick('placements');
       if (headerLower.includes('enrichment')) return pick('enrichment');
       if (headerLower.includes('employer') && (headerLower.includes('engagement') || headerLower.includes('activity'))) return pick('employment');
       if (headerLower.includes('career') || headerLower.includes('job profile') || headerLower.includes('quiz')) return pick('careers');
       if (headerLower.includes('assessment') || headerLower.includes('average score') || headerLower.includes('students without')) return pick('assessments');
+      if (headerLower.includes('activities combined')) return pick('activities-combined');
       if (headerLower.includes('activity') || (headerLower.includes('hours') && !headerLower.includes('scheduled'))) return pick('activities');
       if (headerLower.includes('login') || headerLower.includes('access')) return pick('login');
       return pick('default');

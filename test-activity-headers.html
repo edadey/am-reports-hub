@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Activity Headers Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+    .pass { background: #d4edda; }
+    .fail { background: #f8d7da; }
+    .header { font-weight: bold; margin-bottom: 5px; }
+  </style>
+</head>
+<body>
+  <h1>Activity Headers Resolution Test</h1>
+  <div id="results"></div>
+
+  <script>
+    // Mock data structure
+    const testData = {
+      departments: ['Test Department'],
+      metrics: {
+        'Test Department': {
+          'Total Students (placements) [File1]': 100,
+          'Placements Confirmed': 50
+        }
+      },
+      activities: {
+        employerEngagement: {
+          'Test Department': {
+            'Students with Activities': 75,
+            'Students with Activities [EmployerFile]': 80,
+            'Total Activity Hours': 200,
+            'Total Activity Hours (Employer Engagement)': 210,
+            'Students Engaged': 60
+          }
+        },
+        enrichment: {
+          'Test Department': {
+            'Students with Activities': 65,
+            'Students with Activities [EnrichmentFile]': 70,
+            'Total Activity Hours': 150,
+            'Total Activity Hours (Enrichment)': 160,
+            'Students Participating': 55
+          }
+        }
+      }
+    };
+
+    // Test cases
+    const tests = [
+      // Employer Engagement headers
+      {
+        name: 'Employer Engagement - with explicit tag',
+        header: 'Students with Activities (Employer Engagement)',
+        expected: 75,
+        shouldLookIn: 'employerEngagement'
+      },
+      {
+        name: 'Employer Engagement - with file label',
+        header: 'Students with Activities [EmployerFile]',
+        expected: 80,
+        shouldLookIn: 'employerEngagement'
+      },
+      {
+        name: 'Employer Engagement - Activity Hours with tag',
+        header: 'Total Activity Hours (Employer Engagement)',
+        expected: 210,
+        shouldLookIn: 'employerEngagement'
+      },
+      {
+        name: 'Employer Engagement - plain header',
+        header: 'Students Engaged (Employer Engagement)',
+        expected: 60,
+        shouldLookIn: 'employerEngagement'
+      },
+      
+      // Enrichment headers
+      {
+        name: 'Enrichment - with explicit tag',
+        header: 'Students with Activities (Enrichment)',
+        expected: 65,
+        shouldLookIn: 'enrichment'
+      },
+      {
+        name: 'Enrichment - with file label',
+        header: 'Students with Activities [EnrichmentFile]',
+        expected: 70,
+        shouldLookIn: 'enrichment'
+      },
+      {
+        name: 'Enrichment - Activity Hours with tag',
+        header: 'Total Activity Hours (Enrichment)',
+        expected: 160,
+        shouldLookIn: 'enrichment'
+      },
+      {
+        name: 'Enrichment - plain header',
+        header: 'Students Participating (Enrichment)',
+        expected: 55,
+        shouldLookIn: 'enrichment'
+      },
+      
+      // Regular metrics (non-activity)
+      {
+        name: 'Regular metric - Placements with type and label',
+        header: 'Total Students (placements) [File1]',
+        expected: 100,
+        shouldLookIn: 'metrics'
+      },
+      {
+        name: 'Regular metric - Placements plain',
+        header: 'Placements Confirmed',
+        expected: 50,
+        shouldLookIn: 'metrics'
+      }
+    ];
+
+    // Simplified resolver logic (mimics the actual resolver)
+    function testResolve(header, dept, data) {
+      const metrics = (data.metrics || {})[dept] || {};
+      const emp = data.activities?.employerEngagement?.[dept] || {};
+      const enr = data.activities?.enrichment?.[dept] || {};
+
+      // Detect activity type
+      const hasEmpEngagementTag = /\(Employer Engagement\)/i.test(header);
+      const hasEnrichmentTag = /\(Enrichment\)/i.test(header);
+      
+      let base = String(header)
+        .replace(/\s*\[[^\]]+\]\s*$/, '')
+        .replace(/\s*\((Employer Engagement|Enrichment|[^)]*)\)\s*$/i, '')
+        .trim();
+
+      let t = '';
+      if (hasEmpEngagementTag) t = 'employer';
+      else if (hasEnrichmentTag) t = 'enrichment';
+
+      // Activity lookups
+      if (t === 'employer' || t === 'enrichment') {
+        const map = (t === 'employer') ? emp : enr;
+        
+        // Try exact match
+        if (map[header] !== undefined) return map[header];
+        if (map[base] !== undefined) return map[base];
+        
+        // Try with label extracted
+        const labelMatch = header.match(/\[([^\]]+)\]/);
+        if (labelMatch) {
+          const withLabel = `${base} [${labelMatch[1]}]`;
+          if (map[withLabel] !== undefined) return map[withLabel];
+        }
+        
+        // Fuzzy match
+        const baseLower = base.toLowerCase();
+        const found = Object.keys(map).find(k => {
+          const stripped = k.replace(/\s*\[[^\]]+\]\s*$/, '')
+                           .replace(/\s*\([^)]*\)\s*$/, '')
+                           .trim().toLowerCase();
+          return stripped === baseLower;
+        });
+        if (found) return map[found];
+        
+        return null;
+      }
+
+      // Regular metrics
+      if (metrics[header] !== undefined) return metrics[header];
+      if (metrics[base] !== undefined) return metrics[base];
+      
+      // Fuzzy metrics
+      const baseLower = base.toLowerCase();
+      const found = Object.keys(metrics).find(k => {
+        const stripped = k.replace(/\s*\[[^\]]+\]\s*$/, '')
+                         .replace(/\s*\([^)]*\)\s*$/, '')
+                         .trim().toLowerCase();
+        return stripped === baseLower;
+      });
+      if (found) return metrics[found];
+      
+      return null;
+    }
+
+    // Run tests
+    const results = document.getElementById('results');
+    let passed = 0;
+    let failed = 0;
+
+    tests.forEach(test => {
+      const result = testResolve(test.header, 'Test Department', testData);
+      const pass = result === test.expected;
+      
+      if (pass) passed++;
+      else failed++;
+
+      const div = document.createElement('div');
+      div.className = `test ${pass ? 'pass' : 'fail'}`;
+      div.innerHTML = `
+        <div class="header">${pass ? '✅' : '❌'} ${test.name}</div>
+        <div>Header: "${test.header}"</div>
+        <div>Expected: ${test.expected} | Got: ${result}</div>
+        <div>Should look in: ${test.shouldLookIn}</div>
+      `;
+      results.appendChild(div);
+    });
+
+    // Summary
+    const summary = document.createElement('div');
+    summary.style.cssText = 'margin-top: 20px; padding: 15px; background: #e7f3ff; border: 2px solid #0066cc; font-size: 18px;';
+    summary.innerHTML = `
+      <strong>Test Summary:</strong><br>
+      ✅ Passed: ${passed}<br>
+      ❌ Failed: ${failed}<br>
+      Total: ${tests.length}
+    `;
+    results.insertBefore(summary, results.firstChild);
+  </script>
+</body>
+</html>
