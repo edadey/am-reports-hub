@@ -3155,8 +3155,9 @@
           const isChange = h.endsWith(' +/-');
           const baseH = isChange ? h.replace(' +/-', '') : h;
           const baseDisp = stripFileLabel(baseH);
-          const hasSuffix = /\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)/i.test(baseDisp);
+          const hasSuffix = /\(Employer Engagement\)|\(Enrichment\)|\(Employer Activity\)|\(Enrichment Activity\)|\(Activities Combined KC\)|\(activities-combined\)/i.test(baseDisp);
           let displayText;
+          let tForEnforce = '';
           if (!hasSuffix) {
             // Determine type via fileIndex -> fileInfo and activityHeaderTypeMap
             let t = '';
@@ -3182,15 +3183,33 @@
             }
             if (t === 'employment' || t === 'employer') {
               displayText = `${baseDisp} (Employer Engagement)`;
+              tForEnforce = 'employment';
             } else if (t === 'enrichment') {
               displayText = `${baseDisp} (Enrichment)`;
+              tForEnforce = 'enrichment';
             } else {
               displayText = baseDisp;
             }
           } else {
             displayText = baseDisp;
+            try {
+              if (/\(enrichment( activity)?\)/i.test(baseDisp)) tForEnforce = 'enrichment';
+              else if (/\(employer (engagement|activity)\)/i.test(baseDisp)) tForEnforce = 'employment';
+              else if (/\((activities combined kc|activities-combined)\)/i.test(baseDisp)) tForEnforce = 'activities-combined';
+            } catch(_) {}
           }
           if (isChange) displayText += ' +/-';
+          // Enforce canonical section color for activity headers in original-headers mode
+          try {
+            const ENFORCE_INLINE = {
+              'enrichment': 'background-color: #ccfbf1 !important; border-color: #ccfbf1 !important;',
+              'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',
+              'activities-combined': 'background-color: #ecfccb !important; border-color: #ecfccb !important;'
+            };
+            if (tForEnforce && ENFORCE_INLINE[tForEnforce]) {
+              inlineStyle = ENFORCE_INLINE[tForEnforce];
+            }
+          } catch(_) {}
           
           return `<th class="${headerStyle}" style="${inlineStyle}">${displayText}</th>`;
         } else {

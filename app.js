@@ -4665,16 +4665,17 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
     const headerRowIndex = 4;
     const dataStartRow = headerRowIndex + 1;
     const uiArgbBySection = {
-      placements: 'FFDBEAFE',    // light blue
-      assessments: 'FFCCFBF1',   // light teal
-      careers: 'FFFED7AA',       // light orange
-      activities: 'FFFED7AA',    // light orange
-      enrichment: 'FFDCFCE7',    // light green
-      employment: 'FFF3E8FF',    // light purple
-      targets: 'FFFCE7F3',       // light pink
-      login: 'FFE0E7FF',         // light indigo
-      department: 'FFFED7AA',    // amber-ish
-      default: 'FFF3F4F6'        // light grey
+      placements: 'FFDBEAFE',            // bg-blue-100
+      assessments: 'FFBBF7D0',           // bg-green-200
+      careers: 'FFFED7AA',               // bg-yellow/orange-100
+      activities: 'FFFEF3C7',            // bg-yellow-100 (legacy activities)
+      enrichment: 'FFCCFBF1',            // bg-teal-100
+      employment: 'FFF3E8FF',            // bg-purple-100
+      'activities-combined': 'FFECFCCB', // bg-lime-100
+      targets: 'FFFCE7F3',               // bg-pink-100
+      login: 'FFE0E7FF',                 // bg-indigo-100
+      department: 'FFFEF3C7',            // same as activities/yellow
+      default: 'FFF3F4F6'                // light grey
     };
     // Map Tailwind bg-* classes to ARGB for Excel
     const classToArgb = {
@@ -4684,7 +4685,8 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
       'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
       'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
-      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
+      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2',
+      'bg-lime-100': 'FFECFCCB'
     };
     const toArgb = (hex) => {
       if (!hex || typeof hex !== 'string') return null;
@@ -4697,9 +4699,20 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
     const headerColorClasses = (meta && meta.headerColorClasses) ? meta.headerColorClasses : {};
     function sectionFromHeader(h) {
       const s = String(h || '').toLowerCase();
-      if (s.includes('placements')) return 'placements';
+      // 1) Prioritise explicit suffixes added in UI
+      if (/(activities\s*combined\s*kc|activities-combined)/i.test(s)) return 'activities-combined';
+      if (/\(enrichment\)|\(enrichment activity\)/i.test(s)) return 'enrichment';
+      if (/\(employer\s*(engagement|activity)\)/i.test(s)) return 'employment';
+      if (/\(placements\)/i.test(s)) return 'placements';
+      if (/\(careers\)/i.test(s)) return 'careers';
+      if (/\(assessments\)/i.test(s)) return 'assessments';
+      if (/\(targets\)/i.test(s)) return 'targets';
+      if (/\(login\)/i.test(s)) return 'login';
+      // 2) Heuristics (no suffix)
+      if (s.includes('placements') || s.includes('placed') || s.includes('scheduled to date')) return 'placements';
       if (s.includes('enrichment')) return 'enrichment';
       if (s.includes('employment') || (s.includes('employer') && !s.includes('enrichment'))) return 'employment';
+      if (s.includes('activities combined')) return 'activities-combined';
       if (s.includes('careers')) return 'careers';
       if (s.includes('assessments')) return 'assessments';
       if (s.includes('targets')) return 'targets';
