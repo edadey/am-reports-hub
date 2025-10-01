@@ -842,16 +842,17 @@
     // Resolve the content type for a given header using headerFileMap -> fileInfo
     function getContentTypeForHeader(header) {
       try {
-        if (!header || !window.headerFileMap || !Array.isArray(window.fileInfo)) return null;
+        const safeSection = (typeof getSectionType === 'function') ? getSectionType(header) : null;
+        if (!header || !window.headerFileMap || !Array.isArray(window.fileInfo)) return safeSection || null;
         const base = String(header).replace(/ \(Employer Engagement\)| \(Enrichment\)/, '').trim();
         const candidates = [header, base, base.replace(/ \(.*\)$/,'')];
         let idx;
         for (const k of candidates) {
           if (window.headerFileMap[k] !== undefined) { idx = window.headerFileMap[k]; break; }
         }
-        if (idx === undefined || idx === null) return null;
+        if (idx === undefined || idx === null) return safeSection || null;
         const fi = window.fileInfo[idx];
-        return fi && fi.contentType ? String(fi.contentType).toLowerCase() : null;
+        return (fi && fi.contentType ? String(fi.contentType).toLowerCase() : null) || safeSection || null;
       } catch (_) { return null; }
     }
 
@@ -1028,6 +1029,34 @@
                 });
                 if (mk !== undefined && mk !== null) return metrics[mk];
               }
+            }
+          } catch(_) {}
+          
+          // Case C (last resort for production parity): If this is an Activities Combined header like
+          // "Students with N Enrichment Activities" or "Students with Employer Engagement Activities"
+          // and we still haven't found a value, perform a domain- and count-aware scan across metrics keys.
+          // This is restricted to activities-combined context to avoid cross-domain leakage.
+          try {
+            const type2 = (getContentTypeForHeader(header) || '').toLowerCase();
+            if (type2 === 'activities-combined') {
+              const hl = String(header).toLowerCase();
+              const isEmployerDomain = (t === 'employer');
+              const domainRegex = isEmployerDomain
+                ? /employer\s+(engagement|activity)|\bemployer\b/
+                : /\benrichment\b/;
+              const numMatch = hl.match(/students\s+with\s+(\d+)\s+.*activit/i);
+              const wantNum = numMatch ? numMatch[1] : null;
+              const key = Object.keys(metrics).find(k => {
+                const kl = String(k).toLowerCase();
+                if (!domainRegex.test(kl)) return false;
+                if (!/students\s+with\s+.*activit/.test(kl)) return false;
+                if (wantNum) {
+                  const km = kl.match(/students\s+with\s+(\d+)\s+.*activit/);
+                  if (!km || km[1] !== wantNum) return false;
+                }
+                return true;
+              });
+              if (key) return metrics[key];
             }
           } catch(_) {}
           return '';
