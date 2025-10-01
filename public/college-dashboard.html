@@ -3598,6 +3598,7 @@
         'employment': 'bg-purple-100',        // Purple for employment (employer engagement)
         'careers': 'bg-yellow-100',           // Yellow for careers
         'activities': 'bg-orange-100',        // Orange for generic activities
+        'activities-combined': 'bg-lime-100', // Lime for Activities Combined KC
         'assessments': 'bg-green-200',        // Green-200 for assessments
         'employer-activity': 'bg-amber-100',  // Cream/amber for employer activities
         'enrichment-activity': 'bg-cyan-100', // Light cyan for enrichment activities
@@ -3613,6 +3614,7 @@
         'employment': 'background-color: #f3e8ff !important; border-color: #f3e8ff !important;',
         'careers': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
         'activities': 'background-color: #fed7aa !important; border-color: #fed7aa !important;',
+        'activities-combined': 'background-color: #ecfccb !important; border-color: #ecfccb !important;',
         'assessments': 'background-color: #bbf7d0 !important; border-color: #bbf7d0 !important;',
         'employer-activity': 'background-color: #fef3c7 !important; border-color: #fef3c7 !important;',
         'enrichment-activity': 'background-color: #e0f7fa !important; border-color: #e0f7fa !important;',
@@ -3638,21 +3640,21 @@
           return 'enrichment-activity';
         }
         
+        // Check for explicit employer engagement suffix (must come before general employer check)
+        if (headerLower.includes('(employer engagement)')) {
+          return 'employment';
+        }
+        // Activities combined explicit suffixes
+        if (headerLower.includes('(activities-combined)') || headerLower.includes('(activities combined kc)')) {
+          return 'activities-combined';
+        }
+        
         // Then check for older suffixes
         if (headerLower.includes('(enrichment)')) {
           return 'enrichment';
         }
         
         if (headerLower.includes('(employer)')) {
-          return 'employment';
-        }
-        
-        // Also check for variations in case
-        if (headerLower.includes('enrichment')) {
-          return 'enrichment';
-        }
-        
-        if (headerLower.includes('employer')) {
           return 'employment';
         }
         
@@ -3677,18 +3679,39 @@
         }
         
         // Fallback to header content analysis if no filename info
+        // Recognise KC combined activity summary patterns
+        try {
+          const hl = headerLower;
+          const isKCCombined = (
+            /^students\s+with\s+\d+\s+enrichment\s+activit/.test(hl) ||
+            hl.includes('total students with activities') ||
+            hl.includes('% students with activities') ||
+            hl.includes('percent students with activities') ||
+            hl.includes('total activities') ||
+            (hl.includes('activity hours') && !hl.includes('scheduled')) ||
+            hl.includes('students with employer engagement activities')
+          );
+          if (isKCCombined) {
+            return 'activities-combined';
+          }
+        } catch(_) {}
         if (headerLower.includes('placement') || headerLower.includes('placed') || 
             headerLower.includes('employer confirmed') || headerLower.includes('student confirmed') ||
             headerLower.includes('hours scheduled') || headerLower.includes('scheduled to date')) {
           return 'placements';
         }
         
+        // Check for employer engagement in text (e.g., headers without explicit suffixes)
+        if (headerLower.includes('employer') && headerLower.includes('engagement')) {
+          return 'employment';
+        }
+        
+        // Broader enrichment/employer checks only if no suffix was found
         if (headerLower.includes('enrichment') || headerLower.includes('enrich')) {
           return 'enrichment';
         }
         
-        if (headerLower.includes('employer') && headerLower.includes('engagement') && 
-            !headerLower.includes('(employer activity)')) {
+        if (headerLower.includes('employer') || headerLower.includes('employ')) {
           return 'employment';
         }
         
@@ -3899,9 +3922,11 @@
       });
 
       // Prefer saved header color classes and hex colors from report metadata (set during generation)
+      // Also accept saved section types to guarantee persistence of preview colours even if classes/hex weren't saved
       const meta = (reportData && reportData.data && reportData.data.meta) ? reportData.data.meta : {};
       const metaClasses = meta.headerColorClasses || {};
       const metaHex = meta.headerHexColors || {};
+      const metaSections = meta.headerSections || {};
       
       // Render headers with section colors
       const headerCells = completeHeaders.map(h => {
@@ -3910,6 +3935,17 @@
         const originalHeader = isChangeColumn ? h.replace(' +/-', '') : h;
         const savedClass = metaClasses[originalHeader];
         const savedHex = metaHex[originalHeader];
+        let savedSection = metaSections[originalHeader];
+        // Detect explicit suffixes in the actual header text to correct any stale saved sections
+        // This addresses reports generated before the classifier fix where many activity headers were tagged as activities-combined
+        try {
+          const hl = String(originalHeader || '').toLowerCase();
+          if (/(\(employer engagement\))/.test(hl)) savedSection = 'employment';
+          else if (/(\(employer activity\))/.test(hl)) savedSection = 'employer-activity';
+          else if (/(\(enrichment activity\))/.test(hl)) savedSection = 'enrichment-activity';
+          else if (/(\(enrichment\))/.test(hl)) savedSection = 'enrichment';
+          else if (/(\(activities-combined\)|\(activities combined kc\))/.test(hl)) savedSection = 'activities-combined';
+        } catch(_) {}
         const toggle = document.getElementById('departmentStickyToggle');
         const isSticky = toggle ? toggle.checked : true;
         const sticky = originalHeader === 'Department' && isSticky ? 'position: sticky; left: 0; top: 0; z-index: 5; min-width: 260px; background: #fff;' : '';
@@ -3920,6 +3956,13 @@
         } else if (savedClass) {
           inlineStyle = inlineFromClass(savedClass);
           className = savedClass;
+        } else if (savedSection) {
+          // Map saved section type to our canonical colours; this mirrors preview getSectionType() output
+          const secKey = String(savedSection).toLowerCase();
+          const mappedClass = (CONTENT_COLORS && CONTENT_COLORS[secKey]) ? CONTENT_COLORS[secKey] : '';
+          const mappedInline = (INLINE_COLORS && INLINE_COLORS[secKey]) ? INLINE_COLORS[secKey] : '';
+          className = mappedClass;
+          inlineStyle = mappedInline;
         } else {
           const section = getColumnSection(originalHeader);
           inlineStyle = section.inlineColor || '';

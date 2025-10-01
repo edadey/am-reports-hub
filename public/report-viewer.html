@@ -61,11 +61,19 @@
     'bg-orange-100': '#FED7AA', 'bg-red-100': '#FEE2E2',
     'bg-lime-100': '#ECFCCB'
   };
+  function baseHeaderKey(h){
+    return String(h||'')
+      .replace(/\s*\+\/\-\s*$/, '')
+      .replace(/\s*\[[^\]]+\]\s*$/, '')
+      .trim();
+  }
   function sectionColor(header, meta) {
     const key = String(header||'');
+    const base = baseHeaderKey(key);
     const h = key.toLowerCase();
-    const hexMeta = meta?.headerHexColors?.[key];
-    const clsMeta = meta?.headerColorClasses?.[key];
+    const hb = base.toLowerCase();
+    const hexMeta = meta?.headerHexColors?.[key] || meta?.headerHexColors?.[base];
+    const clsMeta = meta?.headerColorClasses?.[key] || meta?.headerColorClasses?.[base];
     // 1) Use saved exact hex from preview if present
     if (hexMeta && /^#?[0-9A-Fa-f]{6,8}$/.test(hexMeta)) {
       const clean = hexMeta.startsWith('#') ? hexMeta : ('#'+hexMeta);
@@ -74,15 +82,16 @@
     }
     // 2) Use saved class from preview
     if (clsMeta && classToHex[clsMeta]) return { bg: classToHex[clsMeta], fg:'#111827' };
-    // 3) Canonical heuristics matching UI colours
-    if (/(activities\s*combined\s*kc|activities-combined)/i.test(h)) return { bg:'#ECFCCB', fg:'#365314' };
-    if (/(\(enrichment\)|\(enrichment activity\))/i.test(h) || h.includes('enrichment')) return { bg:'#CCFBF1', fg:'#134E4A' };
-    if (/(\(employer\s*(engagement|activity)\))/i.test(h) || (h.includes('employer') && h.includes('activit'))) return { bg:'#F3E8FF', fg:'#6B21A8' };
-    if (/(\(placements\))/i.test(h) || h.includes('placement') || h.includes('placed')) return { bg:'#DBEAFE', fg:'#1E40AF' };
-    if (/(\(careers\))/i.test(h) || h.includes('career') || h.includes('quiz')) return { bg:'#FEF3C7', fg:'#92400E' };
-    if (/(\(assessments\))/i.test(h) || h.includes('assessment') || h.includes('score')) return { bg:'#BBF7D0', fg:'#14532D' };
-    if (/(\(targets\))/i.test(h) || h.includes('target')) return { bg:'#FCE7F3', fg:'#BE185D' };
-    if (/(\(login\))/i.test(h) || h.includes('login')) return { bg:'#E0E7FF', fg:'#3730A3' };
+    // 3) Canonical heuristics matching UI colours (check exact and base)
+    const has = (needle) => (h.includes(needle) || hb.includes(needle));
+    if (/(activities\s*combined\s*kc|activities-combined)/i.test(h) || /(activities\s*combined\s*kc|activities-combined)/i.test(hb)) return { bg:'#ECFCCB', fg:'#365314' };
+    if (/(\(enrichment\)|\(enrichment activity\))/i.test(h) || /(\(enrichment\)|\(enrichment activity\))/i.test(hb) || has('enrichment')) return { bg:'#CCFBF1', fg:'#134E4A' };
+    if (/(\(employer\s*(engagement|activity)\))/i.test(h) || /(\(employer\s*(engagement|activity)\))/i.test(hb) || (has('employer') && (has('activity') || has('activities')))) return { bg:'#F3E8FF', fg:'#6B21A8' };
+    if (/(\(placements\))/i.test(h) || /(\(placements\))/i.test(hb) || has('placement') || has('placed')) return { bg:'#DBEAFE', fg:'#1E40AF' };
+    if (/(\(careers\))/i.test(h) || /(\(careers\))/i.test(hb) || has('career') || has('quiz')) return { bg:'#FEF3C7', fg:'#92400E' };
+    if (/(\(assessments\))/i.test(h) || /(\(assessments\))/i.test(hb) || has('assessment') || has('score')) return { bg:'#BBF7D0', fg:'#14532D' };
+    if (/(\(targets\))/i.test(h) || /(\(targets\))/i.test(hb) || has('target')) return { bg:'#FCE7F3', fg:'#BE185D' };
+    if (/(\(login\))/i.test(h) || /(\(login\))/i.test(hb) || has('login')) return { bg:'#E0E7FF', fg:'#3730A3' };
     return { bg:'#F3F4F6', fg:'#374151' };
   }
 
@@ -122,7 +131,15 @@
       const th = document.createElement('th');
       th.className='header';
       const sc = sectionColor(h, meta);
-      th.style.background = sc.bg; th.style.color=sc.fg;
+      // Use inline important styles to avoid sticky header default overriding
+      try {
+        th.style.setProperty('background', sc.bg, 'important');
+        th.style.setProperty('background-color', sc.bg, 'important');
+        th.style.setProperty('border-color', sc.bg, 'important');
+        th.style.setProperty('color', sc.fg, 'important');
+      } catch (_) {
+        th.style.background = sc.bg; th.style.color = sc.fg;
+      }
       th.textContent = h;
       hr.appendChild(th);
     });

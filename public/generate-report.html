@@ -473,25 +473,6 @@
         ) {
           return 'placements';
         }
-        
-        // Special: Activities Combined KC header patterns
-        // Recognise KC-specific activity summary columns and map to the combined category
-        try {
-          const hl = headerLower;
-          const isKCCombined = (
-            /^students\s+with\s+\d+\s+enrichment\s+activit/.test(hl) ||
-            hl.includes('total students with activities') ||
-            hl.includes('% students with activities') ||
-            hl.includes('percent students with activities') ||
-            hl.includes('total activities') ||
-            (hl.includes('activity hours') && !hl.includes('scheduled')) ||
-            hl.includes('students with employer engagement activities')
-          );
-          if (isKCCombined) {
-            return 'activities-combined';
-          }
-        } catch(_) {}
-        
         // Then check for explicit engagement/activity suffixes
         if (headerLower.includes('(employer engagement)')) {
           return 'employment';
@@ -505,6 +486,28 @@
         if (headerLower.includes('(activities-combined)') || headerLower.includes('(activities combined kc)')) {
           return 'activities-combined';
         }
+        
+        // Special: Activities Combined KC header patterns (heuristic)
+        // Recognise KC-specific activity summary columns and map to the combined category
+        // Skip if the header explicitly indicates employer or enrichment (to avoid override)
+        try {
+          const hl = headerLower;
+          const hasExplicitActivityType = /(\(employer engagement\)|\(employer activity\)|\(enrichment\)|\(enrichment activity\))/i.test(hl);
+          if (!hasExplicitActivityType) {
+            const isKCCombined = (
+              /^students\s+with\s+\d+\s+enrichment\s+activit/.test(hl) ||
+              hl.includes('total students with activities') ||
+              hl.includes('% students with activities') ||
+              hl.includes('percent students with activities') ||
+              hl.includes('total activities') ||
+              (hl.includes('activity hours') && !hl.includes('scheduled')) ||
+              hl.includes('students with employer engagement activities')
+            );
+            if (isKCCombined) {
+              return 'activities-combined';
+            }
+          }
+        } catch(_) {}
         
         // Then check for content type suffixes from backend processing
         if (headerLower.includes('(enrichment)')) {
@@ -977,30 +980,26 @@
           const fuzzyPrimary = fuzzyFind(map);
           if (fuzzyPrimary !== undefined) return fuzzyPrimary;
 
-          // Graceful fallback: some special files (e.g., Activities Combined KC) store these values as regular metrics
-          // with a different content type (e.g., activities-combined). Attempt regular metrics resolution.
+          // Targeted fallback: only read from metrics if the header domain matches (avoid cross-pulling enrichment into employer columns)
           try {
-            const type2 = getContentTypeForHeader(header);
-            const base2 = base;
-            const candidates = [];
-            if (type2 && label) candidates.push(`${base2} (${type2}) [${label}]`);
-            if (label) candidates.push(`${base2} [${label}]`);
-            if (type2) candidates.push(`${base2} (${type2})`);
-            candidates.push(base2);
-            for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
-            // Fuzzy across metrics keys when typed candidates fail
-            const baseLower2 = base2.toLowerCase();
-            const mk2 = Object.keys(metrics).find(k => {
-              const stripped = String(k)
-                .replace(/\s*\[[^\]]+\]\s*$/, '')
-                .replace(/\s*\([^)]*\)\s*$/, '')
-                .trim().toLowerCase();
-              if (stripped === baseLower2) return true;
-              if (stripped.endsWith('s') && stripped.slice(0, -1) === baseLower2) return true;
-              if (baseLower2.endsWith('s') && baseLower2.slice(0, -1) === stripped) return true;
-              return false;
-            });
-            if (mk2) return metrics[mk2];
+            const type2 = (getContentTypeForHeader(header) || '').toLowerCase();
+            const isEmployerDomain = (t === 'employer');
+            const ok =
+              (isEmployerDomain && /(employment|employer|employer-activity)/.test(type2)) ||
+              (!isEmployerDomain && /(enrichment|enrichment-activity)/.test(type2));
+            // Allow activities-combined to contribute, but still require explicit domain suffix in the key
+            if (ok || type2 === 'activities-combined') {
+              const base2 = base;
+              const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
+              const candidates = [];
+              if (label) candidates.push(`${base2}${wantSuffix} [${label}]`);
+              candidates.push(`${base2}${wantSuffix}`);
+              if (ok && type2 && type2 !== 'activities-combined') {
+                if (label) candidates.push(`${base2} (${type2}) [${label}]`);
+                candidates.push(`${base2} (${type2})`);
+              }
+              for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+            }
           } catch(_) {}
           return '';
         }
