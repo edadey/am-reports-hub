@@ -987,18 +987,47 @@
             const ok =
               (isEmployerDomain && /(employment|employer|employer-activity)/.test(type2)) ||
               (!isEmployerDomain && /(enrichment|enrichment-activity)/.test(type2));
-            // Allow activities-combined to contribute, but still require explicit domain suffix in the key
-            if (ok || type2 === 'activities-combined') {
+
+            // Case A: metrics belonging to the same explicit domain (not activities-combined)
+            if (ok && type2 && type2 !== 'activities-combined') {
               const base2 = base;
               const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
               const candidates = [];
               if (label) candidates.push(`${base2}${wantSuffix} [${label}]`);
               candidates.push(`${base2}${wantSuffix}`);
-              if (ok && type2 && type2 !== 'activities-combined') {
-                if (label) candidates.push(`${base2} (${type2}) [${label}]`);
-                candidates.push(`${base2} (${type2})`);
-              }
+              if (label) candidates.push(`${base2} (${type2}) [${label}]`);
+              candidates.push(`${base2} (${type2})`);
               for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+            }
+
+            // Case B: Activities Combined files often store domain in the text ("Enrichment"/"Employer Engagement") without parentheses.
+            // Allow lookup by base text constrained by domain words. This preserves separation while restoring data for combined columns.
+            if (type2 === 'activities-combined') {
+              const base2 = base.toLowerCase();
+              const domainOk = isEmployerDomain
+                ? /employer\s+engagement|employer\s+activity|employer\b/i.test(base2)
+                : /enrichment\b/i.test(base2);
+              if (domainOk) {
+                // exact key first (with and without [label])
+                if (label && metrics[`${base} [${label}]`] !== undefined) return metrics[`${base} [${label}]`];
+                if (metrics[base] !== undefined) return metrics[base];
+                // domain-constrained fuzzy: find a metrics key whose stripped base equals ours and includes the right domain word
+                const mk = Object.keys(metrics).find(k => {
+                  const kl = String(k).toLowerCase();
+                  const stripped = kl
+                    .replace(/\s*\[[^\]]+\]\s*$/, '')
+                    .replace(/\s*\([^)]*\)\s*$/, '')
+                    .trim();
+                  const sameBase = stripped === base2 ||
+                                   (stripped.endsWith('s') && stripped.slice(0, -1) === base2) ||
+                                   (base2.endsWith('s') && base2.slice(0, -1) === stripped);
+                  const hasDomain = isEmployerDomain
+                    ? /employer\s+engagement|employer\s+activity|employer\b/i.test(kl)
+                    : /enrichment\b/i.test(kl);
+                  return sameBase && hasDomain;
+                });
+                if (mk !== undefined && mk !== null) return metrics[mk];
+              }
             }
           } catch(_) {}
           return '';
