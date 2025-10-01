@@ -18,21 +18,6 @@ try {
   console.log('⚠️ Could not load .env file via dotenv:', error.message);
 }
 
-// (moved) Maintenance endpoint is defined after app/authService initialization below
-
-// Helper: compute stable header signature as a fallback template key
-function computeHeaderSignature(headers) {
-  try {
-    const s = Array.isArray(headers) ? headers.join('|') : String(headers || '');
-    let hash = 0;
-    for (let i = 0; i < s.length; i++) {
-      hash = ((hash << 5) - hash) + s.charCodeAt(i);
-      hash |= 0;
-    }
-    return 'hdr_' + Math.abs(hash).toString(36);
-  } catch (_) { return 'hdr_unknown'; }
-}
-
 // Method 2: Manual .env file reading for cPanel compatibility
 if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'your-openai-api-key-here') {
   console.log('🔍 Attempting manual .env file reading...');
@@ -435,11 +420,6 @@ app.get('/backup-dashboard', authService.requireAuth(), (req, res) => {
 
 app.get('/admin-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
   res.sendFile(path.join(__dirname, 'public/admin-dashboard.html'));
-});
-
-// Admin contacts page
-app.get('/admin-contacts', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
-  res.sendFile(path.join(__dirname, 'public/admin-contacts.html'));
 });
 
 app.get('/railway-backup-dashboard', authService.requireAuth(), authService.requireRole(['admin']), (req, res) => {
@@ -1634,66 +1614,6 @@ app.get('/api/colleges/:collegeId/reports', authService.requireAuth(), async (re
   }
 });
 
-// Replace the contents of a target report from a source report, preserving target createdAt
-app.post('/api/colleges/:collegeId/reports/:reportId/replace-from', authService.requireAuth(), async (req, res) => {
-  try {
-    const { collegeId, reportId } = req.params;
-    const { sourceReportId, deleteSource = false, preserveName = true, preserveSummary = true } = req.body || {};
-    if (!sourceReportId) return res.status(400).json({ success: false, error: 'sourceReportId required' });
-
-    const reportsPath = `reports/${collegeId}.json`;
-    let reports = await volumeService.readFile(reportsPath).catch(() => []);
-    const targetIdx = reports.findIndex(r => String(r.id) === String(reportId));
-    const sourceIdx = reports.findIndex(r => String(r.id) === String(sourceReportId));
-    if (targetIdx === -1 || sourceIdx === -1) return res.status(404).json({ success: false, error: 'Report not found' });
-
-    const target = reports[targetIdx];
-    const source = reports[sourceIdx];
-
-    // Copy data over
-    const updated = { ...target };
-    updated.data = source.data ? JSON.parse(JSON.stringify(source.data)) : target.data;
-    if (!preserveName && source.name) updated.name = source.name;
-    if (!preserveSummary && source.summary !== undefined) updated.summary = source.summary;
-    // Keep createdAt, update updatedAt
-    updated.updatedAt = new Date().toISOString();
-    // Align template metadata
-    if (source.templateKey) updated.templateKey = source.templateKey;
-    if (source.templateName) updated.templateName = source.templateName;
-    updated.data = updated.data || {};
-    updated.data.meta = Object.assign({}, updated.data.meta, {
-      templateKey: source.templateKey || source.data?.meta?.templateKey || updated.data?.meta?.templateKey || null,
-      templateName: source.templateName || source.data?.meta?.templateName || updated.data?.meta?.templateName || null
-    });
-
-    reports[targetIdx] = updated;
-    // Optionally delete the source report
-    if (deleteSource && sourceIdx !== -1) {
-      reports.splice(sourceIdx, 1);
-    }
-
-    await volumeService.writeFile(reportsPath, reports);
-
-    // Refresh previous cache if target is now most recent for its template
-    const tk = updated.templateKey || updated.data?.meta?.templateKey || null;
-    if (tk) {
-      try {
-        const latestForTk = reports
-          .filter(r => (r.templateKey || r.data?.meta?.templateKey) && String(r.templateKey || r.data?.meta?.templateKey) === String(tk))
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        if (latestForTk && String(latestForTk.id) === String(updated.id)) {
-          await storeCurrentReportAsPrevious(collegeId, updated.data, tk);
-        }
-      } catch (_) {}
-    }
-
-    return res.json({ success: true, report: updated });
-  } catch (e) {
-    console.error('Replace-from error:', e);
-    return res.status(500).json({ success: false, error: 'Failed to replace report contents' });
-  }
-});
-
 // Generate a shareable read-only link to a college's reports
 app.post('/api/colleges/:collegeId/reports/share', authService.requireAuth(), async (req, res) => {
   try {
@@ -1835,32 +1755,20 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const college = colleges.find(c => c.id === parseInt(collegeId) || c.id === collegeId || c.id.toString() === collegeId);
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
 
-    // Load previous report data for change indicators (template-aware)
+    // Load previous report data for change indicators
     let previousData = null;
     try {
       const reports = await getCollegeReports(parseInt(collegeId));
       if (reports && reports.length > 0) {
         const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
-        if (currentReportIndex >= 0) {
-          const current = sortedReports[currentReportIndex];
-          const currentTK = current.templateKey || current.data?.meta?.templateKey || null;
-          const headerSig = (arr) => Array.isArray(arr) ? arr.join('|') : '';
-          const currentSig = headerSig(current.data?.headers);
-          const prevSame = sortedReports.slice(currentReportIndex + 1).find(r => {
-            const tk = r.templateKey || r.data?.meta?.templateKey || null;
-            if (currentTK && tk) return String(tk) === String(currentTK);
-            if (!currentTK && !tk) {
-              return headerSig(r.data?.headers) === currentSig;
-            }
-            return false;
-          });
-          if (prevSame) previousData = prevSame.data;
+        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
+          const previousReport = sortedReports[currentReportIndex + 1];
+          previousData = previousReport.data;
         }
       }
     } catch (_) {
-      const currentTK = report.templateKey || report.data?.meta?.templateKey || null;
-      previousData = await getPreviousReportData(parseInt(collegeId), currentTK);
+      previousData = await getPreviousReportData(parseInt(collegeId));
     }
 
     // Create Excel workbook with formatting
@@ -1892,7 +1800,7 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
       if (header === 'Department') return { section: 'Department', color: 'FFFEF3C7' };
       if (h.includes('placements') || h.includes('placed') || h.includes('scheduled to date')) return { section: 'placements', color: SECTION_COLORS_EXCEL.placements };
       if (h.includes('enrichment')) return { section: 'enrichment', color: SECTION_COLORS_EXCEL.enrichment };
-      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')) && !h.includes('enrichment'))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
+      if (h.includes('employment') || (h.includes('employer') && (h.includes('engagement') || h.includes('activity') || h.includes('activities') || h.includes('students with') || h.includes('total students') || h.includes('total activities')))) return { section: 'employment', color: SECTION_COLORS_EXCEL.employment };
       if (h.includes('career') || h.includes('quiz') || h.includes('job profile') || h.includes('mapped')) return { section: 'careers', color: SECTION_COLORS_EXCEL.careers };
       if (h.includes('assessment') || h.includes('score') || h.includes('students without') || h.includes('assessed')) return { section: 'assessments', color: SECTION_COLORS_EXCEL.assessments };
       if (h.includes('activity') || (h.includes('hours') && !h.includes('scheduled'))) return { section: 'activities', color: SECTION_COLORS_EXCEL.activities };
@@ -1921,43 +1829,12 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
 
     // Set header values and style
     worksheet.getRow(dataStartRow).values = completeHeaders;
-    // Prefer saved meta colours if present
-    const classToArgbShared = {
-      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
-      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
-      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
-      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
-      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
-      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
-      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2'
-    };
-    const toArgbShared = (hex) => {
-      if (!hex || typeof hex !== 'string') return null;
-      const clean = hex.replace('#','').toUpperCase();
-      const rgb = clean.length === 8 ? clean.slice(2) : clean;
-      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
-      return `FF${rgb}`;
-    };
-    const metaShared = report.data?.meta || {};
-    const headerHexShared = metaShared.headerHexColors || {};
-    const headerClassShared = metaShared.headerColorClasses || {};
     completeHeaders.forEach((header, index) => {
       const cell = worksheet.getCell(dataStartRow, index + 1);
       const isChange = header.endsWith(' +/-');
       const baseHeader = isChange ? header.replace(' +/-', '') : header;
-      // Determine ARGB
-      let argb = null;
-      const savedHex = headerHexShared[baseHeader];
-      if (savedHex) argb = toArgbShared(savedHex);
-      if (!argb) {
-        const cls = headerClassShared[baseHeader];
-        if (cls && classToArgbShared[cls]) argb = classToArgbShared[cls];
-      }
-      if (!argb) {
-        const sectionInfo = getColumnSection(baseHeader);
-        argb = sectionInfo.color;
-      }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
+      const sectionInfo = getColumnSection(baseHeader);
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: sectionInfo.color } };
       cell.font = { bold: true, color: { argb: 'FF1F2937' }, size: 11, name: 'Arial' };
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       cell.border = { top: { style: 'thick', color: { argb: 'FFE5E7EB' } }, left: { style: 'thin', color: { argb: 'FFE5E7EB' } }, bottom: { style: 'thick', color: { argb: 'FFE5E7EB' } }, right: { style: 'thin', color: { argb: 'FFE5E7EB' } } };
@@ -2055,11 +1932,10 @@ app.get('/api/shared/colleges/:collegeId/reports/:reportId/excel', async (req, r
     const cleanReportName = safeReportName.replace(new RegExp(safeCollegeName, 'gi'), '').trim();
     const filename = `${safeCollegeName}_${cleanReportName}_${new Date().toISOString().split('T')[0]}.xlsx`;
 
-    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', Buffer.byteLength(buffer));
-    res.status(200).send(Buffer.from(buffer));
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (error) {
     console.error('Shared excel download error:', error);
     res.status(500).json({ success: false, error: 'Failed to export excel' });
@@ -2172,26 +2048,31 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     );
     const collegeName = college ? college.name.replace(/[^a-zA-Z0-9\s]/g, '') : 'College';
     
-    // Load previous report data for change indicators - SCOPE BY TEMPLATE
-    // Only compare against a previous report created with the SAME template to avoid mismatches
+    // Load previous report data for change indicators - use same logic as frontend
     let previousData = null;
     try {
-      const templateKey = report.templateKey || report.data?.meta?.templateKey || null;
-      if (templateKey) {
-        const prevEntry = await getPreviousReportData(parseInt(collegeId), String(templateKey));
-        // prevEntry may be { data, timestamp } or raw data
-        previousData = prevEntry && prevEntry.data ? prevEntry.data : prevEntry;
-        if (previousData) {
-          console.log('Excel: Loaded template-scoped previous report for comparison');
+      // Get all reports for this college (same as frontend)
+      const reports = await getCollegeReports(parseInt(collegeId));
+      if (reports && reports.length > 0) {
+        // Sort reports by date (newest first) - same as frontend
+        const sortedReports = reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        
+        // Find the current report index
+        const currentReportIndex = sortedReports.findIndex(r => r.id === reportId);
+        
+        // Get the previous report (next in the array since it's sorted newest first)
+        if (currentReportIndex >= 0 && currentReportIndex < sortedReports.length - 1) {
+          const previousReport = sortedReports[currentReportIndex + 1];
+          previousData = previousReport.data;
+          console.log('Excel: Loaded previous report for comparison:', previousReport.name, previousReport.createdAt);
         } else {
-          console.log('Excel: No template-scoped previous report found');
+          console.log('Excel: No previous report found for comparison');
         }
-      } else {
-        console.log('Excel: No templateKey on report; skipping comparison');
       }
     } catch (error) {
-      console.error('Excel: Error loading previous report data (template-scoped):', error);
-      previousData = null;
+      console.error('Excel: Error loading previous report data:', error);
+      // Fallback to the old method
+      previousData = await getPreviousReportData(parseInt(collegeId));
     }
     
     // Create Excel workbook
@@ -2231,19 +2112,16 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     // Function to determine column section and color
     function getColumnSection(header, headerFileMap = null) {
       // Define colors that exactly match frontend Tailwind classes (Excel hex format)
-      // Keep this mapping aligned with SECTION_COLORS_EXCEL in public/generate-report.html
       const SECTION_COLORS_EXCEL = {
-        'placements': 'FFDBEAFE',          // bg-blue-100 - Light blue
-        'assessments': 'FFBBF7D0',         // bg-green-200 - Light green
-        'careers': 'FFFED7AA',             // bg-orange-100 - Light orange
-        'activities': 'FFFEF3C7',          // bg-yellow-100 - Light yellow
-        'enrichment': 'FFCCFBF1',          // bg-teal-100 - Light teal
-        'employment': 'FFF3E8FF',          // bg-purple-100 - Light purple
-        'employer-activity': 'FFFEE2E2',   // bg-red-100 - Light red
-        'enrichment-activity': 'FFE0F7FA', // bg-cyan-100 - Light cyan
-        'targets': 'FFFCE7F3',             // bg-pink-100 - Light pink
-        'login': 'FFE0E7FF',               // bg-indigo-100 - Light indigo
-        'default': 'FFF3F4F6'              // bg-gray-100 - Light gray
+        'placements': 'FFDBEAFE',      // bg-blue-100 - Light blue
+        'assessments': 'FFBBF7D0',      // bg-green-200 - Light green
+        'careers': 'FFFEF3C7',          // bg-yellow-100 - Light yellow
+        'activities': 'FFFEF3C7',       // bg-yellow-100 - Light yellow
+        'enrichment': 'FFBFDBFE',       // bg-blue-200 - Blue-200
+        'employment': 'FFF3E8FF',       // bg-purple-100 - Light purple
+        'targets': 'FFFCE7F3',          // bg-pink-100 - Light pink
+        'login': 'FFE0E7FF',            // bg-indigo-100 - Light indigo
+        'default': 'FFF3F4F6'           // bg-gray-100 - Light gray
       };
       
       // Function to determine section type from header - matches frontend logic exactly
@@ -2255,7 +2133,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
           return 'enrichment';
         }
         
-        if (headerLower.includes('(employer)') || headerLower.includes('(employment)')) {
+        if (headerLower.includes('(employer)')) {
           return 'employment';
         }
         
@@ -2291,8 +2169,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         }
         
         if (headerLower.includes('employer') && (headerLower.includes('engagement') || 
-            headerLower.includes('activity') || headerLower.includes('activities')) && 
-            !headerLower.includes('enrichment')) {
+            headerLower.includes('activity') || headerLower.includes('activities'))) {
           return 'employment';
         }
         
@@ -2324,7 +2201,7 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             (headerLower.includes('employer') && (headerLower.includes('engagement') || 
             headerLower.includes('activity') || headerLower.includes('activities') ||
             headerLower.includes('students with') || headerLower.includes('total students') ||
-            headerLower.includes('total activities')) && !headerLower.includes('enrichment'))) {
+            headerLower.includes('total activities')))) {
           return 'employment';
         }
         
@@ -2363,45 +2240,6 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       console.log('No headerFileMap found, using content-based coloring for Excel export');
     }
     
-    // Prepare previous-report lookup maps for accurate +/- calculation by Department and header name
-    const prevHeaders = previousData && Array.isArray(previousData.headers) ? previousData.headers : null;
-    const prevRows = previousData && Array.isArray(previousData.rows) ? previousData.rows : null;
-    const prevHeaderIndex = new Map();
-    if (prevHeaders) prevHeaders.forEach((h, i) => prevHeaderIndex.set(String(h || ''), i));
-    const prevDeptRowMap = new Map();
-    if (prevRows) prevRows.forEach(r => {
-      const key = (r && r.length ? String(r[0] || '') : '').trim().toLowerCase();
-      if (key) prevDeptRowMap.set(key, r);
-    });
-
-    // Helpers for numeric detection and parsing
-    const isPercentageHeader = (h) => {
-      const s = String(h || '').toLowerCase();
-      return s.includes('percent') || s.includes('%');
-    };
-    const parseNumberLike = (val) => {
-      if (val === undefined || val === null || val === '') return null;
-      if (typeof val === 'number') return isFinite(val) ? val : null;
-      const str = String(val).trim();
-      if (!str) return null;
-      if (str.endsWith('%')) {
-        const p = parseFloat(str);
-        return isNaN(p) ? null : p / 100;
-      }
-      const n = parseFloat(str);
-      return isNaN(n) ? null : n;
-    };
-    const isNumericColumn = (colIndex) => {
-      if (isPercentageHeader(headers[colIndex])) return true;
-      // Check first 25 rows (or all if fewer) for numeric values
-      const limit = Math.min(rows.length, 25);
-      for (let i = 0; i < limit; i++) {
-        const v = parseNumberLike(rows[i]?.[colIndex]);
-        if (typeof v === 'number') return true;
-      }
-      return false;
-    };
-
     // Build complete header structure with change columns positioned correctly
     let completeHeaders = [];
     let changeColumnMap = new Map(); // Maps original column index to change column index
@@ -2409,8 +2247,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     headers.forEach((header, colIndex) => {
       completeHeaders.push(header);
       
-      // Add change indicator column only for numeric/percentage columns (not Department)
-      if (header !== 'Department' && isNumericColumn(colIndex)) {
+      // Add change indicator column if this is a numeric column (not Department)
+      if (header !== 'Department' && (header.toLowerCase().includes('percent') || header.includes('%') || !isNaN(parseFloat('0')))) {
         const changeHeader = `${header} +/-`;
         completeHeaders.push(changeHeader);
         changeColumnMap.set(colIndex, completeHeaders.length - 1);
@@ -2504,14 +2342,8 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         const cell = dataRow.getCell(colIndex + 1);
         
         // Ensure all values are properly set, even empty ones
-        if (value === undefined || value === null || value === '') {
-          // For percentage columns, display 0% when there is no info
-          if ((header && (header.toLowerCase().includes('percent') || header.includes('%')))) {
-            cell.value = 0;
-            cell.numFmt = '0.00%';
-          } else {
-            cell.value = '';
-          }
+        if (value === undefined || value === null) {
+          cell.value = '';
         } else {
           cell.value = value;
         }
@@ -2599,48 +2431,69 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
         // Add change indicator if this column has a change column
         if (changeColumnMap.has(originalColIndex)) {
           const changeCell = dataRow.getCell(colIndex + 1);
+          const changeValue = calculateChange(value, previousData, rowIndex, originalColIndex);
           
-          // Compute change by matching Department and header name in previous data
-          let changeValue = null;
-          const deptKey = String(row[0] || '').trim().toLowerCase();
-          const prevRow = deptKey ? prevDeptRowMap.get(deptKey) : null;
-          const prevColIdx = prevHeaderIndex.has(header) ? prevHeaderIndex.get(header) : null;
-          const currentNum = isPercentageHeader(header) ? parseNumberLike(value) : parseNumberLike(value);
-          const prevNum = (prevRow != null && prevColIdx != null) ? (isPercentageHeader(header) ? parseNumberLike(prevRow[prevColIdx]) : parseNumberLike(prevRow[prevColIdx])) : null;
-          
-          if (currentNum != null && prevNum != null) {
-            changeValue = currentNum - prevNum;
-          } else if (!previousData) {
-            // Match dashboard behavior when there's no previous report for this template
-            changeValue = 0;
-          }
+          // Debug: Log change calculation
+          console.log(`🔄 Change calculation for row ${rowIndex}, col ${originalColIndex}: current=${value}, previous=${previousData?.rows?.[rowIndex]?.[originalColIndex]}, change=${changeValue}`);
           
           if (changeValue !== null) {
             changeCell.value = changeValue;
             
             // Enhanced color coding to match frontend badge styling
             if (changeValue > 0) {
-              changeCell.font = { color: { argb: 'FF2E7D32' }, bold: true, size: 10 };
-              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E8' } };
+              changeCell.font = { 
+                color: { argb: 'FF2E7D32' }, // Green text
+                bold: true,
+                size: 10
+              };
+              changeCell.fill = { 
+                type: 'pattern', 
+                pattern: 'solid', 
+                fgColor: { argb: 'FFE8F5E8' } // Light green background
+              };
             } else if (changeValue < 0) {
-              changeCell.font = { color: { argb: 'FFC62828' }, bold: true, size: 10 };
-              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEBEE' } };
+              changeCell.font = { 
+                color: { argb: 'FFC62828' }, // Red text
+                bold: true,
+                size: 10
+              };
+              changeCell.fill = { 
+                type: 'pattern', 
+                pattern: 'solid', 
+                fgColor: { argb: 'FFFFEBEE' } // Light red background
+              };
             } else {
-              changeCell.font = { color: { argb: 'FFE65100' }, bold: true, size: 10 };
-              changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3E0' } };
+              changeCell.font = { 
+                color: { argb: 'FFE65100' }, // Orange text
+                bold: true,
+                size: 10
+              };
+              changeCell.fill = { 
+                type: 'pattern', 
+                pattern: 'solid', 
+                fgColor: { argb: 'FFFFF3E0' } // Light orange background
+              };
             }
             
             // Format as percentage for percentage columns
-            if (isPercentageHeader(header)) {
+            if (header.toLowerCase().includes('percent') || header.includes('%')) {
               changeCell.numFmt = '+0.00%;-0.00%;0.00%';
             } else {
               changeCell.numFmt = '+0.00;-0.00;0.00';
             }
           } else {
-            // Set empty string when we cannot determine change
+            // Set empty string for null values to ensure proper formatting
             changeCell.value = '';
-            changeCell.font = { color: { argb: 'FF666666' }, bold: true, size: 10 };
-            changeCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } };
+            changeCell.font = { 
+              color: { argb: 'FF666666' }, // Gray text
+              bold: true,
+              size: 10
+            };
+            changeCell.fill = { 
+              type: 'pattern', 
+              pattern: 'solid', 
+              fgColor: { argb: 'FFF5F5F5' } // Light gray background
+            };
           }
           
           // Note: Change cells maintain their color coding (green/red/orange) 
@@ -2694,44 +2547,29 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             }
           });
           
-          // For percentage columns, calculate average across ALL rows (treat empties as 0)
-          if (header.toLowerCase().includes('percent') || header.includes('%')) {
-            const count = rows.length;
-            let totalNormalized = 0;
-            rows.forEach(r => {
-              const raw = r[originalColIndex];
-              if (raw === undefined || raw === null || raw === '') return; // 0 contribution
-              if (typeof raw === 'number') {
-                const num = raw > 1 ? raw / 100 : raw;
-                if (!isNaN(num) && isFinite(num)) totalNormalized += num;
-              } else if (typeof raw === 'string') {
-                const s = raw.trim();
-                if (!s) return; // treat empty as 0
-                if (s.endsWith('%')) {
-                  const p = parseFloat(s);
-                  if (!isNaN(p)) totalNormalized += p / 100;
-                } else {
-                  const p = parseFloat(s);
-                  if (!isNaN(p)) totalNormalized += p <= 1 ? p : p / 100;
-                }
-              }
-            });
-            const average = count > 0 ? totalNormalized / count : 0;
-            
-            // Format total percentage properly
-            cell.value = average;
-            cell.numFmt = '0.00%';
-            cell.font = { bold: true };
-            
-            // Style totals row with same formatting as +/- cells
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFF5F5F5' }
-            };
-            cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
-          } else {
-            if (hasValidData) {
+          if (hasValidData) {
+            // For percentage columns, calculate average instead of sum
+            if (header.toLowerCase().includes('percent') || header.includes('%')) {
+              const validRows = rows.filter(row => 
+                row[originalColIndex] !== '' && 
+                row[originalColIndex] !== null && 
+                !isNaN(parseFloat(row[originalColIndex]))
+              );
+              const average = validRows.length > 0 ? total / validRows.length : 0;
+              
+              // Format total percentage properly
+              cell.value = average;
+              cell.numFmt = '0.00%';
+              cell.font = { bold: true };
+              
+              // Style totals row with same formatting as +/- cells
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF5F5F5' }
+              };
+              cell.font = { bold: true, color: { argb: 'FF666666' } }; // Gray text like +/- cells
+            } else {
               cell.value = total;
               cell.font = { bold: true };
               
@@ -2741,10 +2579,10 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
               } else {
                 cell.numFmt = '0';
               }
-            } else {
-              // Even if no valid data, set empty string to ensure cell is properly formatted
-              cell.value = '';
             }
+          } else {
+            // Even if no valid data, set empty string to ensure cell is properly formatted
+            cell.value = '';
           }
         }
         
@@ -2877,47 +2715,20 @@ function calculateChange(currentValue, previousData, rowIndex, colIndex) {
 app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const { templateKey } = req.query;
     
     // Try both storage methods for backwards compatibility
     let previousData = null;
     
-    // Preferred: centralized volume storage with template grouping
+    // First try the centralized method (preferred)
     try {
-      const previousReportsPath = 'previous-reports.json';
-      const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-      const entry = previousReports[collegeId];
-      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-        if (templateKey && entry[templateKey]) {
-          previousData = entry[templateKey];
-        } else {
-          // fallback to any available previous data
-          const anyKey = Object.keys(entry)[0];
-          previousData = anyKey ? entry[anyKey] : null;
-        }
-      }
-    } catch (_) {}
-    
-    // Legacy centralized (file system path inside data/)
-    if (!previousData) {
-      try {
-        const legacyPath = 'data/previous-reports.json';
-        const previousReports = await fs.readJson(legacyPath).catch(() => ({}));
-        const entry = previousReports[collegeId];
-        if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-          if (templateKey && entry[templateKey]) previousData = entry[templateKey];
-          else {
-            const anyKey = Object.keys(entry)[0];
-            previousData = anyKey ? entry[anyKey] : null;
-          }
-        } else if (entry) {
-          // very old format
-          previousData = entry;
-        }
-      } catch (_) {}
+      const previousReportsPath = 'data/previous-reports.json';
+      const previousReports = await fs.readJson(previousReportsPath).catch(() => ({}));
+      previousData = previousReports[collegeId] || null;
+    } catch (error) {
+      console.log('Centralized previous report data not found, trying individual file method');
     }
     
-    // Very old fallback: individual file method
+    // Fallback to individual file method
     if (!previousData) {
       try {
         const previousReportPath = `data/reports/${collegeId}_previous.json`;
@@ -2925,75 +2736,37 @@ app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req
           const data = await fs.readJson(previousReportPath);
           previousData = { data: data, timestamp: new Date().toISOString() };
         }
-      } catch (_) {}
+      } catch (error) {
+        console.log('Individual previous report file not found');
+      }
     }
     
-    // Derive from existing reports for this college filtered by templateKey
-    // Always prefer the most recent matching report from the reports list if it's newer than cached
-    if (templateKey) {
-      try {
-        const reports = await getCollegeReports(parseInt(collegeId));
-        if (Array.isArray(reports) && reports.length > 0) {
-          const sorted = reports.slice().sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
-          // Find the most recent report for this templateKey (not necessarily the latest overall)
-          const match = sorted.find(r => {
-            const tk = r.templateKey || r.data?.meta?.templateKey || null;
-            return tk && String(tk) === String(templateKey);
-          });
-          if (match && match.data) {
-            const derived = { data: match.data, timestamp: match.createdAt };
-            const cachedTs = previousData && previousData.timestamp ? new Date(previousData.timestamp).getTime() : 0;
-            const derivedTs = derived.timestamp ? new Date(derived.timestamp).getTime() : 0;
-            if (!previousData || derivedTs >= cachedTs) {
-              previousData = derived;
-              // Cache it for future
-              try {
-                const previousReportsPath = 'previous-reports.json';
-                const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-                if (!prevMap[collegeId] || typeof prevMap[collegeId] !== 'object' || Array.isArray(prevMap[collegeId])) prevMap[collegeId] = {};
-                prevMap[collegeId][String(templateKey)] = previousData;
-                await volumeService.writeFile(previousReportsPath, prevMap);
-              } catch (_) {}
-            }
-          }
-        }
-      } catch (_) {}
+    // Return consistent response structure for all clients
+    if (previousData) {
+      res.json({ 
+        success: true, 
+        previousData: previousData,
+        data: previousData // For backwards compatibility with generate-report.html
+      });
+    } else {
+      res.json({ 
+        success: true, 
+        previousData: null,
+        data: null
+      });
     }
-    
-    res.json({ success: true, previousData, data: previousData || null });
   } catch (error) {
     console.error('Get previous report error:', error);
     res.status(500).json({ error: 'Failed to get previous report data' });
   }
 });
 
-// Store previous report (template-scoped)
-app.post('/api/previous-report/:collegeId', authService.requireAuth(), async (req, res) => {
-  try {
-    const { collegeId } = req.params;
-    const { data, templateKey } = req.body || {};
-    if (!data) return res.status(400).json({ success: false, error: 'No data provided' });
-    await storeCurrentReportAsPrevious(collegeId, data, templateKey);
-    res.json({ success: true });
-  } catch (e) {
-    console.error('Store previous report API error:', e);
-    res.status(500).json({ success: false, error: 'Failed to store previous report' });
-  }
-});
-
 // Helper function to get previous report data - use centralized method
-async function getPreviousReportData(collegeId, templateKey) {
+async function getPreviousReportData(collegeId) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    const entry = previousReports[collegeId];
-    if (!entry) return null;
-    if (typeof entry === 'object' && !Array.isArray(entry)) {
-      if (templateKey && entry[templateKey]) return entry[templateKey];
-      const anyKey = Object.keys(entry)[0];
-      return anyKey ? entry[anyKey] : null;
-    }
-    return entry;
+    return previousReports[collegeId] || null;
   } catch (error) {
     console.error('Get previous report error:', error);
     return null;
@@ -3001,15 +2774,12 @@ async function getPreviousReportData(collegeId, templateKey) {
 }
 
 // Store current report as previous - use centralized method
-async function storeCurrentReportAsPrevious(collegeId, reportData, templateKey) {
+async function storeCurrentReportAsPrevious(collegeId, reportData) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-    const tk = templateKey || '_default';
-    if (!previousReports[collegeId] || typeof previousReports[collegeId] !== 'object' || Array.isArray(previousReports[collegeId])) {
-      previousReports[collegeId] = {};
-    }
-    previousReports[collegeId][tk] = {
+    
+    previousReports[collegeId] = {
       data: reportData,
       timestamp: new Date().toISOString()
     };
@@ -3044,126 +2814,6 @@ app.get('/api/dashboard/college/:collegeId', authService.requireAuth(), async (r
 });
 
 // File Upload Routes
-// Handler for header extraction only
-async function handleHeaderExtractionOnly(req, res) {
-  try {
-    const XLSX = require('xlsx');
-    const allHeaders = [];
-    const headerFileMap = {};
-    const fileInfo = [];
-
-    // Process each file to extract headers with a per-file label to avoid mixing
-    for (let fileIndex = 0; fileIndex < req.files.length; fileIndex++) {
-      const file = req.files[fileIndex];
-      console.log(`Extracting headers from: ${file.originalname}`);
-
-      // Build a short label from the filename
-      const parsedName = path.parse(file.originalname || 'file');
-      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
-      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
-      fileInfo.push({ originalName: file.originalname, filename: file.filename, label: fileLabel });
-
-      const workbook = XLSX.readFile(file.path);
-
-      // Process each sheet in the workbook
-      workbook.SheetNames.forEach(sheetName => {
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        if (jsonData && jsonData.length > 0) {
-          const headers = jsonData[0]; // First row contains headers
-          if (Array.isArray(headers)) {
-            headers.forEach(header => {
-              if (header && header.toString().trim() !== '') {
-                const labeled = `${header.toString().trim()} [${fileLabel}]`;
-                allHeaders.push(labeled);
-                headerFileMap[labeled] = fileIndex;
-              }
-            });
-          }
-        }
-      });
-    }
-
-    console.log(`Extracted ${allHeaders.length} headers (file-labeled):`, allHeaders);
-
-    res.json({
-      success: true,
-      message: `Extracted ${allHeaders.length} headers (file-labeled) from ${req.files.length} files`,
-      headers: allHeaders,
-      fileCount: req.files.length,
-      headerFileMap,
-      fileInfo
-    });
-  } catch (error) {
-    console.error('Header extraction error:', error);
-    res.status(500).json({ error: 'Header extraction failed: ' + error.message });
-  }
-}
-
-// Handler for manual assignment processing
-async function handleManualAssignment(req, res) {
-  try {
-    console.log('Processing files with manual header assignments');
-    
-    // Get header assignments from request body
-    let headerAssignments = {};
-    if (req.body.headerAssignments) {
-      try {
-        headerAssignments = JSON.parse(req.body.headerAssignments);
-        console.log('Header assignments received:', headerAssignments);
-      } catch (error) {
-        console.warn('Could not parse header assignments:', error.message);
-      }
-    }
-    
-    // Optional: file-level type/color selections (for per-file colours)
-    let manualFileSelections = {};
-    if (req.body.fileTypes) {
-      try {
-        manualFileSelections = JSON.parse(req.body.fileTypes);
-        console.log('Manual assignment file type selections received:', manualFileSelections);
-      } catch (error) {
-        console.warn('Could not parse manual file type selections:', error.message);
-      }
-    }
-    
-    // Map files with manual assignment logic
-    const mappedFiles = req.files.map((file, index) => {
-      return {
-        filename: file.filename,
-        path: file.path,
-        originalName: file.originalname,
-        userSelectedType: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].type) ? manualFileSelections[index].type : 'manual',
-        userSelectedColor: (manualFileSelections && manualFileSelections[index] && manualFileSelections[index].color) ? manualFileSelections[index].color : '#dbeafe',
-        headerAssignments: headerAssignments // Pass assignments to each file
-      };
-    });
-    
-    console.log('Mapped files for manual assignment:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
-    
-    // Process files with the manual assignment logic
-    const result = await dataImporter.processFilesWithManualAssignment(mappedFiles, headerAssignments);
-    
-    if (result) {
-      console.log('Files processed successfully with manual assignments');
-      res.json({
-        success: true,
-        message: `${req.files.length} files processed successfully with manual assignments`,
-        data: result,
-        filename: req.files.map(f => f.originalname).join(', '),
-        headerAssignments: headerAssignments
-      });
-    } else {
-      console.log('Failed to process files with manual assignments');
-      res.status(400).json({ error: 'Failed to process files with manual assignments' });
-    }
-  } catch (error) {
-    console.error('Manual assignment processing error:', error);
-    res.status(500).json({ error: 'Manual assignment processing failed: ' + error.message });
-  }
-}
-
 app.post('/api/upload', authService.requireAuth(), upload.array('files'), async (req, res) => {
   try {
     console.log('📁 File upload request received');
@@ -3177,42 +2827,12 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
     
     console.log(`📄 Processing ${req.files.length} files:`, req.files.map(f => f.originalname));
     
-    // Check if this is a header extraction only request
-    if (req.body.extractHeadersOnly === 'true') {
-      console.log('🔍 Header extraction only requested');
-      return await handleHeaderExtractionOnly(req, res);
-    }
-    
-    // Check if this is a manual assignment request
-    if (req.body.useManualAssignment === 'true') {
-      console.log('🎨 Manual assignment requested');
-      return await handleManualAssignment(req, res);
-    }
-    
-    // Get file type selections from request body
-    let fileTypeSelections = {};
-    if (req.body.fileTypes) {
-      try {
-        fileTypeSelections = JSON.parse(req.body.fileTypes);
-        console.log('📋 File type selections received:', fileTypeSelections);
-      } catch (error) {
-        console.warn('⚠️ Could not parse file type selections:', error.message);
-      }
-    }
-    
-    // Map files to the expected format with user-selected types and colours
-    const mappedFiles = req.files.map((file, index) => {
-      const selection = fileTypeSelections[index];
-      return {
-        filename: file.filename,
-        path: file.path,
-        originalName: file.originalname,
-        userSelectedType: selection?.type || selection || 'default',
-        userSelectedColor: selection?.color || '#dbeafe'
-      };
-    });
-    
-    console.log('📋 Mapped files with types:', mappedFiles.map(f => ({ name: f.originalName, type: f.userSelectedType })));
+    // Map files to the expected format
+    const mappedFiles = req.files.map(file => ({
+      filename: file.filename,
+      path: file.path,
+      originalName: file.originalname
+    }));
     
     // Process all files and combine them
     const result = await dataImporter.processFiles(mappedFiles);
@@ -3279,10 +2899,6 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       rawGrid: []
     };
 
-    // Store headers from each file separately for proper mapping
-    const fileHeaders = [];
-    const allFileData = []; // Store data from all files
-
     for (const file of req.files) {
       console.log(`📄 Reading raw file: ${file.originalname}`);
       
@@ -3290,15 +2906,8 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       const workbook = XLSX.readFile(file.path);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-      
-      // Store data from this file
-      allFileData.push({
-        filename: file.originalname,
-        data: jsonData
-      });
-      
-      // Use the first file's raw grid as the main structure
-      if (Array.isArray(jsonData) && jsonData.length && rawData.rawGrid.length === 0) {
+      // Keep the entire raw grid so the client can faithfully recreate the sheet
+      if (Array.isArray(jsonData) && jsonData.length) {
         rawData.rawGrid = jsonData;
       }
       
@@ -3323,47 +2932,9 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
         const rawHeaders = jsonData[headerRowIndex] || [];
         console.log(`📋 Raw headers from ${file.originalname}:`, rawHeaders);
         
-        // Store headers from this specific file
-        const cleanHeaders = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
-        fileHeaders.push(cleanHeaders);
-
-        // Derive a per-file label to keep identical header names distinct across files
-        const parsedName = path.parse(file.originalname || 'file');
-        let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
-        if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
-        
-        // Combine headers from all files WITHOUT de-duplicating across files.
-        // Always append a file label suffix to preserve per-file structure.
-        cleanHeaders.forEach(header => {
-          const labeledHeader = `${header} [${fileLabel}]`;
-          rawData.headers.push(labeledHeader);
-        });
-        console.log(`✅ Clean headers from ${file.originalname}:`, cleanHeaders);
-        
-        // Combine data rows from all files
-        if (jsonData.length > headerRowIndex + 1) {
-          const dataRows = jsonData.slice(headerRowIndex + 1);
-          // Build a quick lookup from this file's raw header -> index
-          const headerIndexMap = new Map();
-          cleanHeaders.forEach((h, i) => headerIndexMap.set(h, i));
-          
-          dataRows.forEach(row => {
-            if (row && row.some(cell => cell !== null && cell !== undefined && cell.toString().trim() !== '')) {
-              // Align this row to the combined labeled headers, only filling values for this file's headers
-              const aligned = rawData.headers.map(h => {
-                // Expect headers in format: "Header [Label]"
-                const match = String(h).match(/^(.*) \[(.*)\]$/);
-                if (!match) return '';
-                const baseHeader = match[1];
-                const labelInHeader = match[2];
-                if (labelInHeader !== fileLabel) return '';
-                const idx = headerIndexMap.get(baseHeader);
-                return (idx !== undefined && row[idx] !== undefined) ? row[idx] : '';
-              });
-              rawData.rows.push(aligned);
-            }
-          });
-        }
+        // Store ALL headers exactly as they appear in the file
+        rawData.headers = rawHeaders.filter(h => h !== null && h !== undefined && h.toString().trim() !== '');
+        console.log(`✅ Clean headers:`, rawData.headers);
         
         // Extract header colors from Excel file
         rawData.headerColors = [];
@@ -3545,15 +3116,27 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
           rawData.headerColors = rawData.headers.map(() => null);
         }
         
-        // Build departments list based on detected department column for this file
         // Find department column (first non-empty column by default)
         const deptColIndex = rawHeaders.findIndex(h => h && h.toString().trim() !== '');
         console.log(`📍 Department column index: ${deptColIndex}`);
-        const dataRowsForDepts = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
-        dataRowsForDepts.forEach(row => {
+        
+        // Get data rows (skip the header row)
+        const dataRows = jsonData.slice(headerRowIndex + 1).filter(row => row && row.length > 0 && row[deptColIndex]);
+        
+        // Build departments and data directly
+        dataRows.forEach(row => {
           const dept = row[deptColIndex];
-          if (dept && dept.toString().trim() !== '' && !rawData.departments.includes(dept)) {
-            rawData.departments.push(dept);
+          if (dept && dept.toString().trim() !== '') {
+            if (!rawData.departments.includes(dept)) {
+              rawData.departments.push(dept);
+            }
+            
+            // Build complete row with all values
+            const fullRow = rawData.headers.map((header, idx) => {
+              return row[idx] || '';
+            });
+            fullRow[0] = dept; // Ensure department is first
+            rawData.rows.push(fullRow);
           }
         });
       }
@@ -3562,88 +3145,10 @@ app.post('/api/template-preview', authService.requireAuth(), upload.array('files
       fs.remove(file.path).catch(console.error);
     }
     
-    // Build headerFileMap and fileInfo for section-based coloring
-    const headerFileMap = {};
-    const fileInfo = [];
-    
-    // Get file type selections from request body
-    let fileTypeSelections = {};
-    if (req.body.fileTypes) {
-      try {
-        fileTypeSelections = JSON.parse(req.body.fileTypes);
-        console.log('📋 Template preview file type selections received:', fileTypeSelections);
-      } catch (error) {
-        console.warn('⚠️ Could not parse template preview file type selections:', error.message);
-      }
-    }
-    
-    // Process each file and map its specific headers
-    req.files.forEach((file, fileIndex) => {
-      // Use user-selected type if available, otherwise detect from filename
-      let contentType = fileTypeSelections[fileIndex] || 'default';
-      
-      if (!fileTypeSelections[fileIndex]) {
-        // Fallback to filename detection
-        const filenameLower = file.originalname.toLowerCase();
-        if (filenameLower.includes('placement') || filenameLower.includes('placed')) {
-          contentType = 'placements';
-        } else if (filenameLower.includes('employer') || filenameLower.includes('engagement') || 
-                   filenameLower.includes('employer activity') || filenameLower.includes('employer activities') ||
-                   filenameLower.includes('employer engagement')) {
-          contentType = 'employment';
-        } else if (filenameLower.includes('enrichment') || filenameLower.includes('enrich')) {
-          contentType = 'enrichment';
-        } else if (filenameLower.includes('career') || filenameLower.includes('careers') || filenameLower.includes('my futures') || filenameLower.includes('myfutures') || filenameLower.includes('my-futures')) {
-          contentType = 'careers';
-        } else if (filenameLower.includes('assessment') || filenameLower.includes('assess')) {
-          contentType = 'assessments';
-        } else if (filenameLower.includes('target') || filenameLower.includes('targets')) {
-          contentType = 'targets';
-        } else if (filenameLower.includes('login') || filenameLower.includes('access')) {
-          contentType = 'login';
-        }
-      }
-      
-      // Normalize content type names to match frontend expectations
-      if (contentType === 'employer') {
-        contentType = 'employment';
-      }
-      
-      fileInfo.push({
-        originalName: file.originalname,
-        filename: file.filename,
-        contentType: contentType,
-        customColor: fileTypeSelections[fileIndex]?.color || '#dbeafe'
-      });
-      
-      // Map headers from THIS specific file to this file index (file-based coloring)
-      const headersForThisFile = fileHeaders[fileIndex] || [];
-      // Compute the label used above for headers from this file
-      const parsedName = path.parse(file.originalname || 'file');
-      let fileLabel = (parsedName.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
-      if (fileLabel.length > 24) fileLabel = fileLabel.substring(0, 24).trim();
-      headersForThisFile.forEach(header => {
-        if (header && header.toString().trim() !== '') {
-          const labeledHeader = `${header} [${fileLabel}]`;
-          headerFileMap[labeledHeader] = fileIndex;
-          console.log(`Mapped header "${labeledHeader}" to file ${fileIndex} (${file.originalname}) - type: ${contentType}`);
-        }
-      });
-    });
-    
-    // Add headerFileMap and fileInfo to response
-    rawData.headerFileMap = headerFileMap;
-    rawData.fileInfo = fileInfo;
-    
     console.log('📊 Raw template preview data prepared:');
-    console.log(`  - Files processed: ${req.files.length}`);
     console.log(`  - Headers: ${rawData.headers.length}`, rawData.headers);
     console.log(`  - Departments: ${rawData.departments.length}`, rawData.departments);
     console.log(`  - Rows: ${rawData.rows.length}`);
-    console.log(`  - FileHeaders array:`, fileHeaders);
-    console.log(`  - HeaderFileMap:`, headerFileMap);
-    console.log(`  - FileInfo:`, fileInfo);
-    console.log(`  - All file data:`, allFileData.map(f => ({ filename: f.filename, rows: f.data.length })));
     
     res.json({
       success: true,
@@ -3797,18 +3302,19 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
       fileInfo: processedData.fileInfo || [],
       headerFileMap: processedData.headerFileMap || {}
     };
-
-    // Save template (DISABLED route fallback)
+    
+    // Save template
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
-
+    
     // Create backup snapshot
     try {
       await snapshotTemplatesToBackups(volumeService, existingTemplates, 'template-upload');
     } catch (backupError) {
       console.warn('Failed to create backup snapshot:', backupError.message);
     }
-
+    
+    console.log('✅ Template created successfully:', templateName);
     res.json({
       success: true,
       message: `Template "${templateName}" created successfully from ${req.files.length} files`,
@@ -3819,16 +3325,24 @@ app.post('/api/upload-template-DISABLED', authService.requireAuth(), upload.arra
         headers: template.headers,
         rowCount: template.tableData.length,
         columnCount: template.headers.length
+      },
+      processedData: {
+        departments: processedData.departments.length,
+        totalMetrics: Object.keys(processedData.metrics).length,
+        files: req.files.map(f => f.originalname)
       }
     });
+    
   } catch (error) {
     console.error('Template upload error:', error);
     res.status(500).json({ 
       error: 'Template upload failed: ' + error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
+// Template Creation from Preview Route - Create template from previewed data
 app.post('/api/create-template-from-preview', authService.requireAuth(), async (req, res) => {
   try {
     console.log('📋 Template creation from preview request received');
@@ -3883,18 +3397,6 @@ app.post('/api/create-template-from-preview', authService.requireAuth(), async (
     existingTemplates.push(template);
     await writeTemplatesAllLocations(existingTemplates);
     
-    // Also save to database if available so /api/templates (DB-preferred) can return it
-    if (process.env.DATABASE_URL) {
-      try {
-        console.log('🐘 Saving preview-created template to database...');
-        await databaseUserManager.initialize();
-        await databaseUserManager.saveTemplate(template);
-        console.log('✅ Preview-created template saved to database');
-      } catch (dbError) {
-        console.warn('⚠️ Failed to save preview-created template to database:', dbError.message);
-      }
-    }
-    
     // Create backup snapshot
     try {
       await snapshotTemplatesToBackups(volumeService, existingTemplates, 'template-preview-creation');
@@ -3924,15 +3426,17 @@ app.post('/api/create-template-from-preview', authService.requireAuth(), async (
     });
   }
 });
+
+// Report Generation Routes
 app.post('/api/reports/generate', authService.requireAuth(), async (req, res) => {
   try {
-    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
+    const { collegeId, reportData, reportName, summary } = req.body;
     
     if (!collegeId || !reportData) {
       return res.status(400).json({ error: 'College ID and report data are required' });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
     
     if (result.success) {
       res.json({
@@ -3960,7 +3464,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       reportDataLength: req.body.reportData?.length || 0
     });
     
-    const { collegeId, reportData, reportName, summary, templateKey, templateName } = req.body;
+    const { collegeId, reportData, reportName, summary } = req.body;
     
     if (!collegeId || !reportData) {
       console.log('❌ Missing required data:', { 
@@ -3980,7 +3484,7 @@ app.post('/api/generate-report', authService.requireAuth(), async (req, res) => 
       });
     }
     
-    const result = await saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName);
+    const result = await saveCollegeReport(collegeId, reportData, reportName, summary);
     
     if (result.success) {
       res.json({
@@ -4541,8 +4045,6 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
     // Preserve the original template ID and creation date
     const originalTemplate = templates[templateIndex];
     const updatedTemplate = {
-      // Spread original template to preserve any extra metadata (e.g., headerFileMap, fileInfo, type, createdBy)
-      ...originalTemplate,
       id: originalTemplate.id, // Keep original ID
       name: name.trim(),
       description: description || '',
@@ -4550,9 +4052,6 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
       tableData: tableData,
       columnCount: columnCount || headers.length,
       rowCount: rowCount || tableData.length,
-      // If client provided updated metadata for file mapping/colouring, accept it; otherwise keep previous
-      headerFileMap: (req.body && typeof req.body.headerFileMap === 'object') ? req.body.headerFileMap : originalTemplate.headerFileMap,
-      fileInfo: (req.body && Array.isArray(req.body.fileInfo)) ? req.body.fileInfo : originalTemplate.fileInfo,
       createdAt: originalTemplate.createdAt, // Keep original creation date
       updatedAt: new Date().toISOString(), // Add/update modification date
       validationChecksum: 'updated-checksum',
@@ -4649,7 +4148,7 @@ app.post('/api/templates/restore', authService.requireAuth(), async (req, res) =
 // Export Excel from editor payload, preserving basic formatting
 app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
   try {
-    const { headers = [], rows = [], name = 'Report', createdAt, meta = {} } = req.body || {};
+    const { headers = [], rows = [], name = 'Report', createdAt } = req.body || {};
 
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Report Data');
@@ -4665,54 +4164,22 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
     const headerRowIndex = 4;
     const dataStartRow = headerRowIndex + 1;
     const uiArgbBySection = {
-      placements: 'FFDBEAFE',            // bg-blue-100
-      assessments: 'FFBBF7D0',           // bg-green-200
-      careers: 'FFFED7AA',               // bg-yellow/orange-100
-      activities: 'FFFEF3C7',            // bg-yellow-100 (legacy activities)
-      enrichment: 'FFCCFBF1',            // bg-teal-100
-      employment: 'FFF3E8FF',            // bg-purple-100
-      'activities-combined': 'FFECFCCB', // bg-lime-100
-      targets: 'FFFCE7F3',               // bg-pink-100
-      login: 'FFE0E7FF',                 // bg-indigo-100
-      department: 'FFFEF3C7',            // same as activities/yellow
-      default: 'FFF3F4F6'                // light grey
+      placements: 'FFDBEAFE',    // light blue
+      assessments: 'FFCCFBF1',   // light teal
+      careers: 'FFFED7AA',       // light orange
+      activities: 'FFFED7AA',    // light orange
+      enrichment: 'FFDCFCE7',    // light green
+      employment: 'FFF3E8FF',    // light purple
+      targets: 'FFFCE7F3',       // light pink
+      login: 'FFE0E7FF',         // light indigo
+      department: 'FFFED7AA',    // amber-ish
+      default: 'FFF3F4F6'        // light grey
     };
-    // Map Tailwind bg-* classes to ARGB for Excel
-    const classToArgb = {
-      'bg-blue-100': 'FFDBEAFE', 'bg-blue-200': 'FFBFDBFE',
-      'bg-purple-100': 'FFF3E8FF', 'bg-yellow-100': 'FFFEF3C7',
-      'bg-green-100': 'FFDCFCE7', 'bg-green-200': 'FFBBF7D0',
-      'bg-pink-100': 'FFFCE7F3', 'bg-indigo-100': 'FFE0E7FF',
-      'bg-gray-100': 'FFF3F4F6', 'bg-amber-100': 'FFFEF3C7',
-      'bg-teal-100': 'FFCCFBF1', 'bg-cyan-100': 'FFE0F7FA',
-      'bg-orange-100': 'FFFED7AA', 'bg-red-100': 'FFFEE2E2',
-      'bg-lime-100': 'FFECFCCB'
-    };
-    const toArgb = (hex) => {
-      if (!hex || typeof hex !== 'string') return null;
-      const clean = hex.replace('#', '').toUpperCase();
-      const rgb = clean.length === 8 ? clean.slice(2) : clean;
-      if (!/^[0-9A-F]{6}$/.test(rgb)) return null;
-      return `FF${rgb}`;
-    };
-    const headerHexColors = (meta && meta.headerHexColors) ? meta.headerHexColors : {};
-    const headerColorClasses = (meta && meta.headerColorClasses) ? meta.headerColorClasses : {};
     function sectionFromHeader(h) {
       const s = String(h || '').toLowerCase();
-      // 1) Prioritise explicit suffixes added in UI
-      if (/(activities\s*combined\s*kc|activities-combined)/i.test(s)) return 'activities-combined';
-      if (/\(enrichment\)|\(enrichment activity\)/i.test(s)) return 'enrichment';
-      if (/\(employer\s*(engagement|activity)\)/i.test(s)) return 'employment';
-      if (/\(placements\)/i.test(s)) return 'placements';
-      if (/\(careers\)/i.test(s)) return 'careers';
-      if (/\(assessments\)/i.test(s)) return 'assessments';
-      if (/\(targets\)/i.test(s)) return 'targets';
-      if (/\(login\)/i.test(s)) return 'login';
-      // 2) Heuristics (no suffix)
-      if (s.includes('placements') || s.includes('placed') || s.includes('scheduled to date')) return 'placements';
+      if (s.includes('placements')) return 'placements';
       if (s.includes('enrichment')) return 'enrichment';
-      if (s.includes('employment') || (s.includes('employer') && !s.includes('enrichment'))) return 'employment';
-      if (s.includes('activities combined')) return 'activities-combined';
+      if (s.includes('employment')) return 'employment';
       if (s.includes('careers')) return 'careers';
       if (s.includes('assessments')) return 'assessments';
       if (s.includes('targets')) return 'targets';
@@ -4727,20 +4194,8 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
         const cell = headerRow.getCell(idx + 1);
         cell.value = h;
         cell.font = { bold: true, color: { argb: 'FF111111' } };
-        // Prefer explicit saved hex colours, then saved class, then section fallback
-        let argb = null;
-        const savedHex = headerHexColors && headerHexColors[h] ? headerHexColors[h] : null;
-        if (savedHex) {
-          argb = toArgb(savedHex);
-        }
-        if (!argb) {
-          const cls = headerColorClasses && headerColorClasses[h] ? headerColorClasses[h] : null;
-          if (cls && classToArgb[cls]) argb = classToArgb[cls];
-        }
-        if (!argb) {
-          const sec = sectionFromHeader(h);
-          argb = uiArgbBySection[sec] || uiArgbBySection.default;
-        }
+        const sec = sectionFromHeader(h);
+        const argb = uiArgbBySection[sec] || uiArgbBySection.default;
         columnArgb[idx] = argb;
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } };
         cell.alignment = { vertical: 'middle', horizontal: 'left' };
@@ -4777,9 +4232,7 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
             cell.value = num;
             cell.numFmt = '0.0%';
           } else {
-            // No info/unparseable => treat as 0%
-            cell.value = 0;
-            cell.numFmt = '0.0%';
+            cell.value = val == null ? '' : val;
           }
         } else {
           cell.value = val == null ? '' : val;
@@ -4813,12 +4266,10 @@ app.post('/api/export-excel', authService.requireAuth(), async (req, res) => {
       }
     }
 
-    const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx`;
-    const buffer = await workbook.xlsx.writeBuffer();
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', Buffer.byteLength(buffer));
-    res.status(200).send(Buffer.from(buffer));
+    res.setHeader('Content-Disposition', `attachment; filename="${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.xlsx"`);
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (e) {
     console.error('Export Excel error:', e);
     res.status(500).json({ error: 'Failed to export Excel' });
@@ -4947,7 +4398,7 @@ async function getCollegeReports(collegeId) {
   }
 }
 
-async function saveCollegeReport(collegeId, reportData, reportName, summary, templateKey, templateName) {
+async function saveCollegeReport(collegeId, reportData, reportName, summary) {
   try {
     console.log(`💾 Saving report for college ${collegeId} to volume...`);
     console.log(`📄 Report name: ${reportName}`);
@@ -4993,15 +4444,6 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary, tem
       validationChecksum: validationResult.checksum,
       validationTime: validationResult.validationTime
     };
-    // Attach template metadata (file JSON top-level + embedded in data for DB)
-    if (templateKey) report.templateKey = String(templateKey);
-    if (templateName) report.templateName = String(templateName);
-    report.data = report.data || {};
-    const incomingMeta = (reportData && reportData.meta) ? reportData.meta : {};
-    report.data.meta = Object.assign({}, report.data.meta, incomingMeta, {
-      templateKey: templateKey || report.data?.meta?.templateKey || null,
-      templateName: templateName || report.data?.meta?.templateName || null
-    });
     
     console.log(`📋 Adding new report with ID: ${report.id}`);
     reports.push(report);
@@ -5018,7 +4460,7 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary, tem
         const dbReportData = {
           name: report.name,
           collegeId: parseInt(collegeId),
-          data: report.data, // contains meta.templateKey/templateName
+          data: report.data,
           summary: report.summary,
           createdBy: report.createdBy,
           validationChecksum: report.validationChecksum,
@@ -5043,9 +4485,8 @@ async function saveCollegeReport(collegeId, reportData, reportName, summary, tem
       // Don't fail the save if backup fails
     }
     
-    // Store as previous report for comparison (template-scoped)
-    const tk = templateKey || report.templateKey || null;
-    await storeCurrentReportAsPrevious(collegeId, reportData, tk);
+    // Store as previous report for comparison
+    await storeCurrentReportAsPrevious(collegeId, reportData);
     
     // Update analytics with the new report
     try {
@@ -5139,75 +4580,6 @@ async function deleteCollegeReport(collegeId, reportId) {
     return { success: false, message: 'Failed to delete report' };
   }
 }
-
-// Update an existing report without changing its createdAt (preserve timestamp)
-app.put('/api/colleges/:collegeId/reports/:reportId', authService.requireAuth(), async (req, res) => {
-  try {
-    const { collegeId, reportId } = req.params;
-    const { reportData, reportName, summary, templateKey, templateName } = req.body || {};
-
-    const reportsPath = `reports/${collegeId}.json`;
-    let reports = await volumeService.readFile(reportsPath).catch(() => []);
-    const idx = reports.findIndex(r => String(r.id) === String(reportId));
-    if (idx === -1) return res.status(404).json({ success: false, error: 'Report not found' });
-
-    const existing = reports[idx];
-    const updated = { ...existing };
-    // Update content while preserving original createdAt
-    if (reportData && reportData.headers && reportData.rows) {
-      updated.data = {
-        ...(updated.data || {}),
-        headers: reportData.headers,
-        rows: reportData.rows,
-        meta: Object.assign({}, updated.data?.meta, reportData.meta || {})
-      };
-    }
-    if (reportName) updated.name = reportName;
-    if (summary !== undefined) updated.summary = summary;
-    if (templateKey) updated.templateKey = String(templateKey);
-    if (templateName) updated.templateName = String(templateName);
-    updated.updatedAt = new Date().toISOString();
-
-    reports[idx] = updated;
-    await volumeService.writeFile(reportsPath, reports);
-
-    // If this is the most recent report for its template, refresh the previous-reports cache
-    const tk = updated.templateKey || updated.data?.meta?.templateKey || templateKey || null;
-    if (tk) {
-      try {
-        const latestForTk = reports
-          .filter(r => (r.templateKey || r.data?.meta?.templateKey) && String(r.templateKey || r.data?.meta?.templateKey) === String(tk))
-          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-        if (latestForTk && String(latestForTk.id) === String(updated.id)) {
-          await storeCurrentReportAsPrevious(collegeId, updated.data, tk);
-        }
-      } catch (_) {}
-    }
-
-    return res.json({ success: true, report: updated });
-  } catch (e) {
-    console.error('Update college report error:', e);
-    return res.status(500).json({ success: false, error: 'Failed to update report' });
-  }
-});
-
-// Explicitly mark a report as the baseline for future +/- comparisons for its template
-app.post('/api/colleges/:collegeId/reports/:reportId/use-as-previous', authService.requireAuth(), async (req, res) => {
-  try {
-    const { collegeId, reportId } = req.params;
-    const reportsPath = `reports/${collegeId}.json`;
-    const reports = await volumeService.readFile(reportsPath).catch(() => []);
-    const report = reports.find(r => String(r.id) === String(reportId));
-    if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
-    const tk = report.templateKey || report.data?.meta?.templateKey || null;
-    if (!tk) return res.status(400).json({ success: false, error: 'Report has no template identity to mark as baseline' });
-    await storeCurrentReportAsPrevious(collegeId, report.data, tk);
-    return res.json({ success: true });
-  } catch (e) {
-    console.error('Mark-as-previous error:', e);
-    return res.status(500).json({ success: false, error: 'Failed to mark report as previous' });
-  }
-});
 
 // KPI API Endpoints
 app.get('/api/colleges/:collegeId/kpis', authService.requireAuth(), async (req, res) => {
@@ -6827,9 +6199,14 @@ if (require.main === module) {
     }, 5000); // Wait 5 seconds before starting services to ensure healthcheck is ready
   });
 } else {
-  // Loaded as module - DO NOT initialize services here to avoid conflicts
-  console.log('📦 app.js loaded as module (no standalone server started)');
-  // Services will be initialized by the parent (server.js) if needed
+  // Initialize services when loaded as module
+  setTimeout(() => {
+    console.log('🔄 Starting background service initialization...');
+    initializeServices().catch(error => {
+      console.error('❌ Service initialization failed:', error);
+      console.log('⚠️ Continuing with basic functionality - some features may be limited');
+    });
+  }, 1000);
 }
 
 module.exports = app; 
