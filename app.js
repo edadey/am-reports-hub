@@ -2836,7 +2836,27 @@ app.post('/api/upload', authService.requireAuth(), upload.array('files'), async 
     
     // Process all files and combine them
     const result = await dataImporter.processFiles(mappedFiles);
-    
+
+    // Special mode: headers-only extraction for manual assignment UI
+    const headersOnly = String(req.body?.extractHeadersOnly || '').toLowerCase() === 'true';
+    if (headersOnly) {
+      console.log('🧩 Headers-only mode requested — returning headers/fileInfo/headerFileMap at top-level');
+      const rawHeaders = Array.isArray(result.originalHeaders) ? result.originalHeaders : [];
+      // Clean and dedupe headers for UI, exclude department-like
+      const headers = Array.from(new Set(
+        rawHeaders
+          .map(h => (h == null ? '' : String(h)).trim())
+          .filter(h => h && !/^(department|dept|program|course|category)$/i.test(h))
+      ));
+      return res.json({
+        success: true,
+        message: `${req.files.length} files processed successfully (headers-only)`,
+        headers,
+        headerFileMap: result.headerFileMap || {},
+        fileInfo: result.fileInfo || [],
+      });
+    }
+
     if (result) {
       console.log('✅ Files processed successfully');
       res.json({
