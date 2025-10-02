@@ -399,7 +399,7 @@
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
       try { if (window.opener) window.opener.postMessage({ type: 'excel-editor-saved' }, '*'); } catch (_) {}
-      window.location.href = 'index.html?tab=reports&fromExcel=1';
+      window.location.href = '/generate-report.html?fromExcel=1';
     }
 
     async function populateCollegePicker() {

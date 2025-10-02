@@ -17,8 +17,8 @@ async function debugHeaderColors() {
   });
 
   try {
-    console.log('🌐 Navigating to login with redirect to reports tab...');
-    await page.goto('http://localhost:3000/login.html?redirect=/index.html?tab=reports');
+    console.log('🌐 Navigating to login with redirect to new generator page...');
+    await page.goto('http://localhost:3000/login.html?redirect=/generate-report.html');
     
     console.log('⏳ Waiting for login page to load...');
     await page.waitForLoadState('networkidle');
@@ -35,8 +35,8 @@ async function debugHeaderColors() {
     await page.fill('#password', adminPassword);
     await page.click('#loginBtn');
 
-    console.log('🔑 Submitted credentials, waiting for redirect to reports tab...');
-    await page.waitForURL('**/index.html?tab=reports', { timeout: 20000 });
+    console.log('🔑 Submitted credentials, waiting for redirect to new generator...');
+    await page.waitForURL('**/generate-report.html**', { timeout: 20000 });
 
     console.log('📄 On generate-report page. Preparing to upload sample files...');
 

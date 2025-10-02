@@ -24,15 +24,44 @@ class DataImporter {
     for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
       const file = files[fileIndex];
       try {
-        // Store file information
-        const contentType = this.detectContentTypeFromFilename(file.originalName);
+        // Store file information - use user-selected type if available, otherwise detect from filename
+        let contentType = file.userSelectedType || this.detectContentTypeFromFilename(file.originalName);
+        
+        // Normalize content type names to match frontend expectations
+        if (contentType === 'employer') {
+          contentType = 'employment';
+        }
+        
+        // Derive a short, stable label from the original filename for per-file column separation
+        const parsed = path.parse(file.originalName || file.originalname || 'file');
+        let label = (parsed.name || 'file').replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+        // Limit label length to keep headers readable
+        if (label.length > 24) label = label.substring(0, 24).trim();
+
+        const CONTENT_TYPE_COLORS = {
+          'placements': '#dbeafe',
+          'employment': '#f3e8ff',
+          'employer': '#f3e8ff',
+          'enrichment': '#ccfbf1',
+          'activities-combined': '#ecfccb',
+          'careers': '#fef3c7',
+          'assessments': '#bbf7d0',
+          'targets': '#fce7f3',
+          'login': '#e0e7ff',
+          'activities': '#f3f4f6',
+          'default': '#f3f4f6'
+        };
+        const inferredColor = CONTENT_TYPE_COLORS[contentType] || CONTENT_TYPE_COLORS.default;
+
         processedData.fileInfo[fileIndex] = {
           originalName: file.originalName,
           filename: file.filename,
-          contentType: contentType
+          contentType: contentType,
+          customColor: file.userSelectedColor || inferredColor,
+          label
         };
         
-        console.log(`Processing file ${fileIndex}: "${file.originalName}" -> contentType: "${contentType}"`);
+        console.log(`Processing file ${fileIndex}: "${file.originalName}" -> contentType: "${contentType}" (${file.userSelectedType ? 'user-selected' : 'filename-detected'})`);
 
         const fileData = await this.readFile(file.path);
         console.log(`File data keys for ${file.originalName}:`, Object.keys(fileData));
@@ -46,13 +75,100 @@ class DataImporter {
         console.log(`   - Sample metrics:`, Object.keys(extractedData.metrics).slice(0, 3).map(dept => 
           `${dept}: [${Object.keys(extractedData.metrics[dept]).slice(0, 3).join(', ')}]`));
         
-        // Track which headers came from this file - add content type to ALL headers
+        // Track which headers came from this file - map ALL header variations
         if (extractedData.headerList) {
           extractedData.headerList.forEach(header => {
-            // Always add content type to header name for clear identification
+            // Map the original header name (for frontend lookup)
+            processedData.headerFileMap[header] = fileIndex;
+            console.log(`Mapped original header "${header}" to file ${fileIndex} (${file.originalName})`);
+            
+            // Map the suffixed header name (for internal processing)
             const uniqueHeader = `${header} (${contentType})`;
-            console.log(`Renamed header "${header}" to "${uniqueHeader}" for file: ${file.originalName}`);
             processedData.headerFileMap[uniqueHeader] = fileIndex;
+            console.log(`Mapped suffixed header "${uniqueHeader}" to file ${fileIndex} (${file.originalName})`);
+
+            // Map file-specific unique headers to prevent cross-file collisions
+            const fileLabel = processedData.fileInfo[fileIndex]?.label || `File${fileIndex + 1}`;
+            const fileSpecificHeader = `${header} [${fileLabel}]`;
+            processedData.headerFileMap[fileSpecificHeader] = fileIndex;
+            console.log(`Mapped file-specific header "${fileSpecificHeader}" to file ${fileIndex} (${file.originalName})`);
+
+            const fileSpecificTypedHeader = `${header} (${contentType}) [${fileLabel}]`;
+            processedData.headerFileMap[fileSpecificTypedHeader] = fileIndex;
+            console.log(`Mapped file-specific typed header "${fileSpecificTypedHeader}" to file ${fileIndex} (${file.originalName})`);
+            
+            // Only map variations that match the actual content type of this file
+            // This prevents cross-file header contamination
+            const validVariations = [];
+            
+            // Add only content type specific variations for this file
+            if (contentType === 'employer' || contentType === 'employment') {
+              validVariations.push(
+                `${header} (employer engagement)`,
+                `${header} (Employer Engagement)`,
+                `${header} (employer activity)`,
+                `${header} (Employer Activity)`,
+                `${header} (employment)`
+              );
+            } else if (contentType === 'enrichment') {
+              validVariations.push(
+                `${header} (enrichment)`,
+                `${header} (Enrichment)`,
+                `${header} (enrichment activity)`,
+                `${header} (Enrichment Activity)`
+              );
+            } else if (contentType === 'placements') {
+              validVariations.push(`${header} (placements)`);
+            } else if (contentType === 'assessments') {
+              validVariations.push(`${header} (assessments)`);
+            } else if (contentType === 'careers') {
+              validVariations.push(`${header} (careers)`);
+            } else if (contentType === 'targets') {
+              validVariations.push(`${header} (targets)`);
+            } else if (contentType === 'login') {
+              validVariations.push(`${header} (login)`);
+            }
+            
+            // Map only the valid variations for this file's content type
+            validVariations.forEach(variation => {
+              processedData.headerFileMap[variation] = fileIndex;
+              console.log(`Mapped content-specific variation "${variation}" to file ${fileIndex} (${file.originalName})`);
+            });
+          });
+        }
+        // Additionally, map original headers for this file to ensure columns render even when values are absent
+        if (Array.isArray(extractedData.originalHeaders)) {
+          const fileLabel = processedData.fileInfo[fileIndex]?.label || `File${fileIndex + 1}`;
+          extractedData.originalHeaders.forEach(origHeader => {
+            if (!origHeader) return;
+            const h = String(origHeader).trim();
+            if (!h) return;
+            // Skip department and numeric-only headers
+            const hl = h.toLowerCase();
+            if (hl === 'department' || /^[0-9]+$/.test(h)) return;
+
+            // Base mappings
+            processedData.headerFileMap[h] = fileIndex;
+            const typed = `${h} (${contentType})`;
+            processedData.headerFileMap[typed] = fileIndex;
+            // File-specific unique headers
+            processedData.headerFileMap[`${h} [${fileLabel}]`] = fileIndex;
+            processedData.headerFileMap[`${h} (${contentType}) [${fileLabel}]`] = fileIndex;
+
+            // Activity synonyms based on content type
+            if (contentType === 'employment' || contentType === 'employer') {
+              processedData.headerFileMap[`${h} (employer)`] = fileIndex;
+              processedData.headerFileMap[`${h} (employer engagement)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Employer Engagement)`] = fileIndex;
+              processedData.headerFileMap[`${h} (employer activity)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Employer Activity)`] = fileIndex;
+            }
+            if (contentType === 'enrichment') {
+              processedData.headerFileMap[`${h} (enrichment)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Enrichment)`] = fileIndex;
+              processedData.headerFileMap[`${h} (enrichment activity)`] = fileIndex;
+              processedData.headerFileMap[`${h} (Enrichment Activity)`] = fileIndex;
+            }
           });
         }
         
@@ -101,11 +217,23 @@ class DataImporter {
       return 'enrichment';
     }
     
-    if (filenameLower.includes('employer') || filenameLower.includes('engagement') || 
-        filenameLower.includes('employer activity') || filenameLower.includes('employer activities') ||
-        filenameLower.includes('employer engagement')) {
+    // Check for specific employer patterns - be more precise to avoid conflicts
+    if (filenameLower.includes('employer engagement') || 
+        filenameLower.includes('employer activity') || filenameLower.includes('employer activities')) {
       console.log(`✅ Detected EMPLOYER from filename`);
       return 'employer';
+    }
+    
+    // Only check for standalone 'employer' if not in a placement context
+    if (filenameLower.includes('employer') && !filenameLower.includes('placement') && !filenameLower.includes('placed')) {
+      console.log(`✅ Detected EMPLOYER from filename`);
+      return 'employer';
+    }
+
+    // Careers platform synonyms (e.g., My Futures)
+    if (filenameLower.includes('my futures') || filenameLower.includes('myfutures') || filenameLower.includes('my-futures')) {
+      console.log(`✅ Detected CAREERS (My Futures) from filename`);
+      return 'careers';
     }
     
     // Generic activity detection - files that contain activity data but aren't specifically named
@@ -167,20 +295,25 @@ class DataImporter {
       }
       
       // Check for employer activity pattern - updated for actual format
-      if (allText.includes('employernonemployer is employer activity') ||
+      // Be more specific to avoid false positives with placement files
+      if ((allText.includes('employernonemployer is employer activity') ||
           allText.includes('is employer activity') ||
-          allText.includes('employernonemployer is employer')) {
+          allText.includes('employernonemployer is employer')) &&
+          !allText.includes('placement') && !allText.includes('placed')) {
         console.log(`✅ Found EMPLOYER ACTIVITY filter pattern`);
         return 'employer';
       }
       
-      // Fallback patterns for other formats
-      if (allText.includes('enrichment')) {
+      // Fallback patterns for other formats - be more specific
+      if (allText.includes('enrichment') && !allText.includes('placement') && !allText.includes('placed')) {
         console.log(`✅ Found ENRICHMENT from general pattern`);
         return 'enrichment';
       }
       
-      if (allText.includes('employer')) {
+      // Only classify as employer if it's specifically about employer activities, not placement-related employer data
+      if (allText.includes('employer') && 
+          (allText.includes('activity') || allText.includes('engagement')) && 
+          !allText.includes('placement') && !allText.includes('placed')) {
         console.log(`✅ Found EMPLOYER from general pattern`);  
         return 'employer';
       }
@@ -205,9 +338,11 @@ class DataImporter {
           return 'enrichment';
         }
         
-        if (rowText.includes('employer activity') || rowText.includes('employer activities') ||
+        // More specific employer activity detection to avoid placement file conflicts
+        if ((rowText.includes('employer activity') || rowText.includes('employer activities') ||
             rowText.includes('employer engagement') ||
-            (rowText.includes('employer') && (rowText.includes('hours') || rowText.includes('students') || rowText.includes('activity')))) {
+            (rowText.includes('employer') && (rowText.includes('hours') || rowText.includes('students') || rowText.includes('activity')))) &&
+            !rowText.includes('placement') && !rowText.includes('placed')) {
           console.log(`✅ Detected employer activity from content: "${rowText}"`);
           return 'employer';
         }
@@ -299,8 +434,12 @@ class DataImporter {
     extracted.originalHeaders = [...headers]; // Store ALL headers including empty ones
     console.log(`Captured ALL original headers for ${fileName}:`, extracted.originalHeaders);
     
-    // Find key columns based on your report structure
-    const departmentColIndex = this.findColumnIndex(headers, ['Department', 'Program', 'Course', 'Category']);
+    // Find key columns based on your report structure (support common synonyms)
+    const departmentColIndex = this.findColumnIndex(headers, [
+      'Department', 'Program', 'Course', 'Category',
+      'Curriculum Area', 'Curriculum', 'Subject Area', 'Subject',
+      'Faculty', 'School', 'Team'
+    ]);
     console.log(`Department column index for ${fileName}:`, departmentColIndex);
     
     // Filter out problematic headers (numbered columns, duplicates, etc.)
@@ -361,11 +500,16 @@ class DataImporter {
     });
 
     dataRows.forEach(row => {
-      if (row && row.length > 0 && row[0]) {
-        const department = row[departmentColIndex] || 'Unknown Department';
+      if (row && row.length > 0) {
+        const departmentCell = row[departmentColIndex];
+        // Require a non-empty Department cell rather than column 0
+        if (departmentCell === undefined || departmentCell === null || String(departmentCell).toString().trim() === '') {
+          return;
+        }
+        const department = departmentCell || 'Unknown Department';
         
         // Skip rows that are just numbered indicators
-        if (department.toString().trim() === '1' || department.toString().trim() === '2') {
+        if (String(department).trim() === '1' || String(department).trim() === '2') {
           return;
         }
         
@@ -409,6 +553,7 @@ class DataImporter {
   }
 
   findColumnIndex(headers, possibleNames) {
+    // 1) Exact or startsWith matches for a curated list of possible names
     for (const name of possibleNames) {
       const index = headers.findIndex(header => {
         if (!header) return false;
@@ -423,6 +568,32 @@ class DataImporter {
         return index;
       }
     }
+    // 2) Fallback fuzzy detection using common synonyms and patterns
+    try {
+      const patterns = [
+        /^(dept|department)\b/i,
+        /\bcurriculum\s*area\b/i,
+        /\bcurriculum\b/i,
+        /\bsubject\s*area\b/i,
+        /\bsubject\b/i,
+        /\bprogram\b/i,
+        /\bcourse\b/i,
+        /\bcategory\b/i,
+        /\bfaculty\b/i,
+        /\bschool\b/i,
+        /\bteam\b/i
+      ];
+      const idx = headers.findIndex(header => {
+        if (!header) return false;
+        const s = header.toString();
+        return patterns.some(p => p.test(s));
+      });
+      if (idx !== -1) {
+        console.log(`Fuzzy-found department-like column "${headers[idx]}" at index ${idx}`);
+        return idx;
+      }
+    } catch(_) {}
+
     console.log(`No department column found, defaulting to index 0`);
     return 0; // Default to first column
   }
@@ -432,14 +603,318 @@ class DataImporter {
       return null;
     }
 
-    // Try to parse as number
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
+    // If already a number, return as-is
+    if (typeof value === 'number') {
+      return value;
+    }
+
+    // Normalize string
+    const s = String(value).trim();
+    if (!s) return null;
+
+    // Handle percentage strings like "10.2%" or " 4% "
+    const percentMatch = s.match(/^\s*(-?\d+(?:[\.,]\d+)?)\s*%\s*$/);
+    if (percentMatch) {
+      // Replace comma decimal separators if present and parse
+      const num = parseFloat(percentMatch[1].replace(/,/g, ''));
+      return isNaN(num) ? null : num; // Keep as 0-100; UI handles 0-1 and 0-100
+    }
+
+    // Remove thousands separators before parsing (e.g., "1,500" -> 1500)
+    const normalized = s.replace(/,/g, '');
+    const numValue = Number(normalized);
+    if (!Number.isNaN(numValue)) {
       return numValue;
     }
 
     // Return as string if not a number
-    return value.toString();
+    return s;
+  }
+
+  async processFilesWithManualAssignment(files, headerAssignments) {
+    console.log('\n=== PROCESSING FILES WITH MANUAL ASSIGNMENT ===');
+    console.log('Header assignments:', headerAssignments);
+    
+    const processedData = {
+      departments: [],
+      metrics: {},
+      activities: {
+        employerEngagement: {},
+        enrichment: {}
+      },
+      originalHeaders: [],
+      timestamp: new Date().toISOString(),
+      headerFileMap: {},
+      fileInfo: [],
+      manualAssignments: headerAssignments
+    };
+
+    for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+      const file = files[fileIndex];
+      try {
+        // Build a short label from the filename (sanitised) for per-file suffixing
+        const parsedName = (file.originalName || '').split('.')[0] || 'file';
+        let label = parsedName.replace(/[^a-zA-Z0-9]+/g, ' ').trim();
+        if (label.length > 24) label = label.substring(0, 24).trim();
+
+        processedData.fileInfo[fileIndex] = {
+          originalName: file.originalName,
+          filename: file.filename,
+          contentType: (file.userSelectedType && typeof file.userSelectedType === 'string') ? file.userSelectedType.toLowerCase() : 'default',
+          customColor: file.userSelectedColor || '#dbeafe',
+          label
+        };
+        
+        console.log(`Processing file ${fileIndex}: "${file.originalName}" with manual assignments`);
+
+        const fileData = await this.readFile(file.path);
+        const extractedData = this.extractDataWithManualAssignment(fileData, file.originalName, fileIndex, headerAssignments);
+        
+        // Map original headers for this file into headerFileMap so columns render even when values are absent
+        try {
+          const fileLabel = processedData.fileInfo[fileIndex]?.label || `File${fileIndex + 1}`;
+          const contentType = processedData.fileInfo[fileIndex]?.contentType || 'default';
+          if (Array.isArray(extractedData.originalHeaders)) {
+            extractedData.originalHeaders.forEach(h0 => {
+              if (!h0) return;
+              const h = String(h0).trim();
+              if (!h || h.toLowerCase() === 'department' || /^[0-9]+$/.test(h)) return;
+              processedData.headerFileMap[h] = fileIndex;
+              processedData.headerFileMap[`${h} (${contentType})`] = fileIndex;
+              processedData.headerFileMap[`${h} [${fileLabel}]`] = fileIndex;
+              processedData.headerFileMap[`${h} (${contentType}) [${fileLabel}]`] = fileIndex;
+              if (contentType === 'employer' || contentType === 'employment') {
+                processedData.headerFileMap[`${h} (employer)`] = fileIndex;
+                processedData.headerFileMap[`${h} (employer engagement)`] = fileIndex;
+                processedData.headerFileMap[`${h} (employer activity)`] = fileIndex;
+              }
+              if (contentType === 'enrichment') {
+                processedData.headerFileMap[`${h} (enrichment)`] = fileIndex;
+                processedData.headerFileMap[`${h} (enrichment activity)`] = fileIndex;
+              }
+            });
+          }
+        } catch (_) {}
+
+        // Merge data using manual assignment logic
+        this.mergeDataWithManualAssignment(processedData, extractedData, fileIndex, headerAssignments);
+      } catch (error) {
+        console.error(`Error processing file ${file.originalName}:`, error);
+        throw new Error(`Failed to process ${file.originalName}: ${error.message}`);
+      }
+    }
+
+    console.log('\n=== MANUAL ASSIGNMENT PROCESSING COMPLETE ===');
+    console.log(`Total files processed: ${processedData.fileInfo.length}`);
+    console.log(`Departments found: ${processedData.departments.length}`);
+    
+    return processedData;
+  }
+  
+  extractDataWithManualAssignment(fileData, fileName, fileIndex, headerAssignments) {
+    const extracted = {
+      departments: [],
+      metrics: {},
+      headerList: [],
+      originalHeaders: [],
+      activityType: null
+    };
+
+    // Process each sheet
+    Object.keys(fileData).forEach(sheetName => {
+      const sheetData = fileData[sheetName];
+      if (sheetData && sheetData.length > 0) {
+        this.processSheetWithManualAssignment(sheetData, extracted, fileName, fileIndex, headerAssignments);
+      }
+    });
+
+    return extracted;
+  }
+  
+  processSheetWithManualAssignment(sheetData, extracted, fileName, fileIndex, headerAssignments) {
+    if (!sheetData || sheetData.length < 2) return;
+
+    const headers = sheetData[0];
+    const dataRows = sheetData.slice(1);
+    
+    if (!Array.isArray(headers)) {
+      console.warn('Headers is not an array:', headers);
+      return;
+    }
+        
+    // Capture all headers
+    extracted.originalHeaders = [...headers];
+    
+    // Find department column (supports synonyms like Curriculum Area)
+    const departmentColIndex = this.findColumnIndex(headers, [
+      'Department', 'Program', 'Course', 'Category',
+      'Curriculum Area', 'Curriculum', 'Subject Area', 'Subject',
+      'Faculty', 'School', 'Team'
+    ]);
+    
+    // Process headers with manual assignments
+    const assignedHeaders = headers.filter((header, index) => {
+      if (!header || index === departmentColIndex) return false;
+      
+      const headerStr = header.toString().trim();
+      if (headerStr === '' || /^[0-9]+$/.test(headerStr)) return false;
+      
+      // Add to header list if it has an assignment or if unassigned
+      extracted.headerList.push(header);
+      return true;
+    });
+    
+    console.log(`Headers with potential assignments for ${fileName}:`, assignedHeaders);
+
+    // Process data rows
+    dataRows.forEach(row => {
+      if (row && row.length > 0) {
+        const departmentCell = row[departmentColIndex];
+        if (departmentCell === undefined || departmentCell === null || String(departmentCell).toString().trim() === '') {
+          return;
+        }
+        const department = departmentCell || 'Unknown Department';
+        
+        // Skip metadata rows
+        const rowText = row.join(' ').toLowerCase();
+        if (rowText.includes('enrichment activity') || rowText.includes('employer activity') ||
+            rowText.includes('report date') || rowText.includes('generated on')) {
+          return;
+        }
+        
+        if (!extracted.departments.includes(department)) {
+          extracted.departments.push(department);
+        }
+
+        if (!extracted.metrics[department]) {
+          extracted.metrics[department] = {};
+        }
+
+        // Process each header with its assignment
+        assignedHeaders.forEach((header, headerIndex) => {
+          const originalIndex = headers.indexOf(header);
+          if (originalIndex !== -1 && row[originalIndex] !== undefined) {
+            const value = this.parseValue(row[originalIndex]);
+            if (value !== null) {
+              // Store with assignment info
+              const assignment = headerAssignments[header];
+              if (assignment) {
+                const assignedMetric = `${header} (${assignment})`;
+                extracted.metrics[department][assignedMetric] = value;
+                console.log(`Assigned metric "${assignedMetric}" for department: ${department}`);
+              } else {
+                // Unassigned header - use default
+                extracted.metrics[department][header] = value;
+              }
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  mergeDataWithManualAssignment(target, source, fileIndex, headerAssignments) {
+    console.log('\n=== MERGE DATA WITH MANUAL ASSIGNMENT ===');
+    
+    // Merge departments
+    source.departments.forEach(dept => {
+      if (!target.departments.includes(dept)) {
+        target.departments.push(dept);
+      }
+    });
+
+    // Merge original headers
+    if (source.originalHeaders && Array.isArray(source.originalHeaders)) {
+      if (!target.originalHeaders) target.originalHeaders = [];
+      source.originalHeaders.forEach(header => {
+        if (!target.originalHeaders.includes(header)) {
+          target.originalHeaders.push(header);
+        }
+      });
+    }
+
+    // Merge metrics with assignment-based categorization, suffixing per-file label to prevent collisions
+    Object.keys(source.metrics).forEach(dept => {
+      if (!target.metrics[dept]) {
+        target.metrics[dept] = {};
+      }
+      if (!target.activities.employerEngagement[dept]) {
+        target.activities.employerEngagement[dept] = {};
+      }
+      if (!target.activities.enrichment[dept]) {
+        target.activities.enrichment[dept] = {};
+      }
+      
+      Object.keys(source.metrics[dept]).forEach(metric => {
+        const value = source.metrics[dept][metric];
+        // Extract assignment from metric name if it was assigned
+        const assignmentMatch = metric.match(/^(.+) \(([^)]+)\)$/);
+        const fileLabel = (target.fileInfo && target.fileInfo[fileIndex] && target.fileInfo[fileIndex].label)
+          ? target.fileInfo[fileIndex].label
+          : `File${fileIndex + 1}`;
+        const fileType = (target.fileInfo && target.fileInfo[fileIndex] && target.fileInfo[fileIndex].contentType)
+          ? String(target.fileInfo[fileIndex].contentType).toLowerCase()
+          : '';
+        if (assignmentMatch) {
+          const originalHeader = assignmentMatch[1];
+          const assignment = assignmentMatch[2];
+          
+          // Route to appropriate section based on assignment
+          if (assignment === 'employer' || assignment === 'employment') {
+            const activityMetric = `${originalHeader} [${fileLabel}]`;
+            target.activities.employerEngagement[dept][activityMetric] = value;
+            target.headerFileMap[activityMetric] = fileIndex;
+            // Map unlabeled and typed variants for front-end lookup
+            target.headerFileMap[originalHeader] = fileIndex;
+            target.headerFileMap[`${originalHeader} (employer)`] = fileIndex;
+            target.headerFileMap[`${originalHeader} (employer engagement)`] = fileIndex;
+            target.headerFileMap[`${originalHeader} (employer activity)`] = fileIndex;
+          } else if (assignment === 'enrichment') {
+            const activityMetric = `${originalHeader} [${fileLabel}]`;
+            target.activities.enrichment[dept][activityMetric] = value;
+            target.headerFileMap[activityMetric] = fileIndex;
+            target.headerFileMap[originalHeader] = fileIndex;
+            target.headerFileMap[`${originalHeader} (enrichment)`] = fileIndex;
+            target.headerFileMap[`${originalHeader} (enrichment activity)`] = fileIndex;
+          } else {
+            // Other assignments go to regular metrics; keep assignment for color grouping and add file label
+            const assignedLabeled = `${originalHeader} (${assignment}) [${fileLabel}]`;
+            target.metrics[dept][assignedLabeled] = value;
+            target.headerFileMap[assignedLabeled] = fileIndex;
+            // Map unlabeled and typed variants for front-end lookup
+            target.headerFileMap[originalHeader] = fileIndex;
+            target.headerFileMap[`${originalHeader} (${assignment})`] = fileIndex;
+          }
+        } else {
+          // No explicit per-header assignment. Respect file-level type for activities.
+          const baseHeader = metric; // here 'metric' is the original header text
+          if (fileType === 'employer' || fileType === 'employment') {
+            const activityMetric = `${baseHeader} [${fileLabel}]`;
+            target.activities.employerEngagement[dept][activityMetric] = value;
+            target.headerFileMap[activityMetric] = fileIndex;
+            // Map base and synonyms so the UI can resolve
+            target.headerFileMap[baseHeader] = fileIndex;
+            target.headerFileMap[`${baseHeader} (employer)`] = fileIndex;
+            target.headerFileMap[`${baseHeader} (employer engagement)`] = fileIndex;
+            target.headerFileMap[`${baseHeader} (employer activity)`] = fileIndex;
+          } else if (fileType === 'enrichment') {
+            const activityMetric = `${baseHeader} [${fileLabel}]`;
+            target.activities.enrichment[dept][activityMetric] = value;
+            target.headerFileMap[activityMetric] = fileIndex;
+            target.headerFileMap[baseHeader] = fileIndex;
+            target.headerFileMap[`${baseHeader} (enrichment)`] = fileIndex;
+            target.headerFileMap[`${baseHeader} (enrichment activity)`] = fileIndex;
+          } else {
+            // Unassigned headers for non-activity files go to regular metrics, suffix with file label
+            const unlabeled = `${metric} [${fileLabel}]`;
+            target.metrics[dept][unlabeled] = value;
+            target.headerFileMap[unlabeled] = fileIndex;
+            // Map base header without label
+            target.headerFileMap[metric] = fileIndex;
+          }
+        }
+      });
+    });
   }
 
   mergeData(target, source, fileIndex, contentType) {
@@ -468,13 +943,19 @@ class DataImporter {
     }
 
     // Determine if this is activities data
-    const isEmployerActivity = contentType === 'employer' || source.activityType === 'employer';
-    const isEnrichmentActivity = contentType === 'enrichment' || source.activityType === 'enrichment' || 
-                                 (contentType === 'activities' && source.activityType === 'enrichment');
+    const isKCCombined = String(contentType || '').toLowerCase() === 'activities-combined';
+    const isEmployerActivity = !isKCCombined && (contentType === 'employer' || contentType === 'employment' || source.activityType === 'employer');
+    const isEnrichmentActivity = !isKCCombined && (contentType === 'enrichment' || source.activityType === 'enrichment' || 
+                                 (contentType === 'activities' && source.activityType === 'enrichment'));
     const isGenericActivity = (contentType === 'activities' && !source.activityType) || 
                              (contentType === 'activities' && source.activityType === null);
     
     console.log(`Activity classification: isEmployer=${isEmployerActivity}, isEnrichment=${isEnrichmentActivity}, isGeneric=${isGenericActivity}`);
+
+    // Determine a stable file label for suffixing metric names (prevents collisions across files)
+    const fileLabel = (target.fileInfo && target.fileInfo[fileIndex] && target.fileInfo[fileIndex].label)
+      ? target.fileInfo[fileIndex].label
+      : `File${fileIndex + 1}`;
 
     // Merge metrics - handle activities vs regular metrics
     Object.keys(source.metrics).forEach(dept => {
@@ -488,26 +969,65 @@ class DataImporter {
       if (!target.activities.enrichment[dept]) {
         target.activities.enrichment[dept] = {};
       }
+      // Ensure headerFileMap exists for label lookups on the front-end
+      if (!target.headerFileMap) {
+        target.headerFileMap = {};
+      }
       
       Object.keys(source.metrics[dept]).forEach(metric => {
         const value = source.metrics[dept][metric];
         
         if (isEmployerActivity) {
-          // Store in employer engagement activities
+          // Store in employer engagement activities - store BOTH with and without [FileLabel]
+          // Store with label for multi-file scenarios
+          const activityMetricWithLabel = `${metric} [${fileLabel}]`;
+          target.activities.employerEngagement[dept][activityMetricWithLabel] = value;
+          // ALSO store without label for direct lookup
           target.activities.employerEngagement[dept][metric] = value;
-          console.log(`Added employer activity metric "${metric}" for department: ${dept}`);
+          console.log(`Added employer activity metric "${metric}" (and "${activityMetricWithLabel}") for department: ${dept}`);
+          // Map headers so the UI can resolve file labels for (Employer Engagement) columns
+          try {
+            target.headerFileMap[activityMetricWithLabel] = fileIndex;     // Most specific (with label)
+            target.headerFileMap[metric] = fileIndex;                      // Base header
+            target.headerFileMap[`${metric} (employer)`] = fileIndex;      // Typed variant used internally
+            target.headerFileMap[`${metric} (employer engagement)`] = fileIndex; // UI variant
+            target.headerFileMap[`${metric} (Employer Engagement)`] = fileIndex; // Capitalised UI variant
+            target.headerFileMap[`${metric} (employer activity)`] = fileIndex;   // Alternative UI variant
+            target.headerFileMap[`${metric} (Employer Activity)`] = fileIndex;   // Capitalised alternative
+          } catch (_) {}
         } else if (isEnrichmentActivity) {
-          // Store in enrichment activities
+          // Store in enrichment activities - store BOTH with and without [FileLabel]
+          // Store with label for multi-file scenarios
+          const activityMetricWithLabel = `${metric} [${fileLabel}]`;
+          target.activities.enrichment[dept][activityMetricWithLabel] = value;
+          // ALSO store without label for direct lookup
           target.activities.enrichment[dept][metric] = value;
-          console.log(`Added enrichment activity metric "${metric}" for department: ${dept}`);
-        } else if (isGenericActivity) {
-          // For generic activities (no specific type detected), add as regular metrics with Activity label
-          const activityMetric = `${metric} (Activity)`;
+          console.log(`Added enrichment activity metric "${metric}" (and "${activityMetricWithLabel}") for department: ${dept}`);
+          // Map headers so the UI can resolve file labels for (Enrichment) columns
+          try {
+            target.headerFileMap[activityMetricWithLabel] = fileIndex;      // Most specific (with label)
+            target.headerFileMap[metric] = fileIndex;                       // Base header
+            target.headerFileMap[`${metric} (enrichment)`] = fileIndex;     // Typed variant used internally
+            target.headerFileMap[`${metric} (Enrichment)`] = fileIndex;     // Capitalised variant used in tables
+            target.headerFileMap[`${metric} (enrichment activity)`] = fileIndex; // Alternative UI variant
+            target.headerFileMap[`${metric} (Enrichment Activity)`] = fileIndex; // Capitalised alternative
+          } catch (_) {}
+        } else if (isGenericActivity || isKCCombined) {
+          // For generic activities (no specific type detected), store as regular metrics using the canonical
+          // content type name 'activities' so the front-end resolver can find them by type mapping.
+          const typeLabel = isKCCombined ? 'activities-combined' : 'activities';
+          const activityMetric = `${metric} (${typeLabel}) [${fileLabel}]`;
           target.metrics[dept][activityMetric] = value;
+          // Map headerFileMap variants to aid lookups and per-file colouring
+          try {
+            target.headerFileMap[activityMetric] = fileIndex;              // typed + label
+            target.headerFileMap[metric] = fileIndex;                       // base
+            target.headerFileMap[`${metric} (${typeLabel})`] = fileIndex;   // typed (no label)
+          } catch (_) {}
           console.log(`Added generic activity metric "${activityMetric}" for department: ${dept}`);
         } else {
           // Store in regular metrics with content type
-          const uniqueMetric = `${metric} (${contentType})`;
+          const uniqueMetric = `${metric} (${contentType}) [${fileLabel}]`;
           target.metrics[dept][uniqueMetric] = value;
           console.log(`Added regular metric "${uniqueMetric}" for department: ${dept}`);
         }

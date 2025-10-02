@@ -12,14 +12,7 @@
     /* Thicker horizontal scrollbar for report preview */
     .custom-scrollbar-thick::-webkit-scrollbar:horizontal { height: 14px; }
     .custom-scrollbar-thick::-webkit-scrollbar-thumb { border-radius: 7px; }
-    /* Firefox */
-    #reportsTableWrap { scrollbar-width: auto; scrollbar-color: #c1c1c1 #f1f1f1; }
-
-    /* Toggleable table cell borders for report preview */
-    .borders-on { border-collapse: collapse; border: 1px solid #e5e7eb; }
-    .borders-on th,
-    .borders-on td { border: 1px solid #e5e7eb !important; }
-    .borders-on thead th { border: 1px solid #e5e7eb !important; }
+    /* Removed legacy in-page reports styles */
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -50,9 +43,9 @@
         <button onclick="showTab('colleges', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
           Colleges
         </button>
-        <button onclick="showTab('reports', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+        <a href="/generate-report.html" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
           Reports
-        </button>
+        </a>
         <button onclick="showTab('templates', event)" class="tab-btn py-2 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
           Templates
         </button>
@@ -136,11 +129,8 @@
       <div class="bg-white rounded-lg shadow p-6 mb-8">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <button onclick="showTab('reports', event)" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
-            Generate New Report (in-page)
-          </button>
-          <a href="/generate-report.html?v=2025-09-16-09-14" class="text-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" target="_blank" rel="noopener">
-            Open Generate Report Page
+          <a href="/generate-report.html" class="text-center bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" target="_blank" rel="noopener">
+            Generate Report
           </a>
           <button onclick="showAddCollegeModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm" onblur="this.blur()">
             Add College
@@ -352,200 +342,9 @@
       </div>
     </div>
 
-    <!-- Reports Tab -->
-    <div id="reports" class="tab-content hidden">
-      <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Report Generation</h2>
-        <div class="mb-6 p-3 rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-900 flex items-center justify-between">
-          <div>
-            Prefer the new generator with strict file order and per-file colors when creating templates.
-          </div>
-          <a href="/generate-report.html?v=2025-09-16-09-14" class="ml-3 bg-indigo-600 text-white px-3 py-1.5 rounded hover:bg-indigo-700 transition-colors" target="_blank" rel="noopener">Open Generate Report Page</a>
-        </div>
-        
-        <!-- File Upload Section -->
-        <div class="mb-6">
-          <label class="block text-sm font-medium text-gray-700 mb-2">Upload PowerBI Excel/CSV Files</label>
-          <input id="fileInput" type="file" multiple class="mb-4" accept=".xlsx,.xls,.csv">
-          <div id="fileReorderContainer" class="mb-4"></div>
-          <button id="processBtn" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
-            Process Files
-          </button>
-          <button id="openExcelEditorBtn" class="ml-2 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 focus:bg-purple-700 active:bg-purple-800 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
-            Open Excel Editor
-          </button>
-          <span id="excelEditorHint" class="ml-2 text-gray-600 text-sm hidden">Ready: click to open Excel editor</span>
-        </div>
-        
-        <!-- Template Selection Section -->
-        <div class="mb-6 p-4 bg-gray-50 rounded-lg">
-          <h3 class="text-lg font-medium text-gray-900 mb-3">Template Options</h3>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Apply Template (Optional)</label>
-              <select id="templateSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full">
-                <option value="">No template - Use new data structure</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Template Mode</label>
-              <select id="templateMode" class="border border-gray-300 rounded-md px-3 py-2 w-full">
-                <option value="strict">Strict - Only extract template columns</option>
-                <option value="flexible">Flexible - Add new columns if available</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <!-- Template Upload Section -->
-        <div class="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-          <h3 class="text-lg font-medium text-yellow-900 mb-3">Create Template from Spreadsheet</h3>
-          <p class="text-sm text-yellow-700 mb-4">Upload a pre-formatted spreadsheet to create a reusable template with the same headers and structure.</p>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label class="block text-sm font-medium text-yellow-800 mb-2">Template Name *</label>
-              <input id="templateName" type="text" placeholder="e.g., Monthly Report Template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-yellow-800 mb-2">Description (Optional)</label>
-              <input id="templateDescription" type="text" placeholder="Brief description of the template" class="border border-yellow-300 rounded-md px-3 py-2 w-full text-sm focus:ring-2 focus:ring-yellow-500 focus:border-transparent">
-            </div>
-          </div>
-          
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-yellow-800 mb-2">Upload Spreadsheet Files</label>
-            <input id="templateFileInput" type="file" multiple class="mb-2 w-full" accept=".xlsx,.xls,.csv">
-            <p class="text-xs text-yellow-600">Upload one or more Excel/CSV files with your desired template structure. The system will extract headers and sample data to create the template.</p>
-          </div>
-          
-          <button id="uploadTemplateBtn" class="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 transition-colors duration-200 font-medium shadow-sm">
-            Create Template from Upload
-          </button>
-          <button id="cancelTemplateUploadBtn" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 transition-colors duration-200 font-medium shadow-sm ml-2 hidden">
-            Cancel
-          </button>
-        </div>
-
-        <!-- Filters -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Account Manager</label>
-            <select id="accountManagerFilter" class="border border-gray-300 rounded-md px-3 py-2 w-full">
-              <option value="">All Account Managers</option>
-              </select>
-            </div>
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-2">Select College</label>
-            <select id="collegeSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full">
-              <option value="">Select a college...</option>
-            </select>
-            </div>
-          </div>
-
-        <!-- Quick Actions -->
-        <div class="flex space-x-4 mb-6">
-          <button onclick="showAssignAccountManagerModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hover:text-white focus:bg-green-600 focus:text-white active:bg-green-700 active:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
-            Assign AM
-          </button>
-          <button onclick="showBulkAssignModal()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 hover:text-white focus:bg-blue-600 focus:text-white active:bg-blue-700 active:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 font-medium shadow-sm">
-            Bulk Assign
-          </button>
-        </div>
-
-        <!-- Data Table Section -->
-        <div class="bg-white rounded-lg shadow">
-          <div class="px-6 py-4 border-b border-gray-200">
-            <div class="flex justify-between items-center">
-              <h3 class="text-lg font-semibold text-gray-900">Data Table</h3>
-              <div class="flex space-x-2">
-                <button id="addRowBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200">
-                  + Row
-                </button>
-                <button id="addColumnBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600 transition-colors duration-200">
-                  + Column
-                </button>
-                <button id="deleteBtn" class="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600 transition-colors duration-200">
-                  Delete
-                </button>
-                <button id="cancelSelectionBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-sm hover:bg-gray-600 transition-colors duration-200 hidden">
-                  Cancel
-                </button>
-                <button id="saveAsTemplateBtn" class="bg-purple-500 text-white px-3 py-1 rounded text-sm hover:bg-purple-600 transition-colors duration-200">
-                  Save as Template
-                </button>
-                <button id="rowReorderToggleBtn" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors duration-200">Reorder Rows</button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Preview controls -->
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-xs text-gray-500">Preview zoom</div>
-            <div class="flex items-center gap-2">
-              <button type="button" onclick="zoomOutReports()" class="px-2 py-1 bg-gray-200 rounded">-</button>
-              <button type="button" onclick="resetReportsZoom()" class="px-2 py-1 bg-gray-200 rounded">Reset</button>
-              <button type="button" onclick="zoomInReports()" class="px-2 py-1 bg-gray-200 rounded">+</button>
-              <label class="ml-4 inline-flex items-center text-sm text-gray-700">
-                <input type="checkbox" id="toggleCellBordersReports" class="mr-2">
-                Show cell borders
-              </label>
-            </div>
-          </div>
-          <!-- Top horizontal scrollbar synced with the table below -->
-          <div id="reportsTopScroll" class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" style="height:16px;border-top:1px solid #e5e7eb;border-bottom:1px solid #e5e7eb;">
-            <div id="reportsTopScrollInner" style="height:1px;"></div>
-          </div>
-          <div class="overflow-x-auto custom-scrollbar custom-scrollbar-thick" id="reportsTableWrap" style="transform-origin: top left;">
-            <table id="reportsTable" class="min-w-full divide-y divide-gray-200">
-              <thead id="tableHeader" class="bg-gray-50">
-                <!-- Headers will be populated here -->
-              </thead>
-              <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
-                <!-- Data will be populated here -->
-              </tbody>
-            </table>
-          </div>
-
-          <div class="px-6 py-4 border-t border-gray-200">
-            <div class="flex space-x-4">
-              <button id="exportBtn" class="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm">
-                Generate Report
-              </button>
-              <button id="saveTemplateBtn" class="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 transition-colors duration-200 font-medium shadow-sm">
-                Save as Template
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Analysis Section -->
-        <div id="aiAnalysisSection" class="bg-white rounded-lg shadow p-6 hidden">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Analysis</h3>
-          <div id="aiAnalysisContent" class="space-y-4">
-            <!-- Analysis content will be populated here -->
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Reports tab removed; use /generate-report.html instead -->
 
     <!-- Templates Tab -->
-    <script>
-      (function initReportsBordersToggle(){
-        try {
-          const cb = document.getElementById('toggleCellBordersReports');
-          const tbl = document.getElementById('reportsTable');
-          if (!cb || !tbl) return;
-          const saved = localStorage.getItem('reportsTableBordersOn') === 'true';
-          cb.checked = saved;
-          if (saved) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on');
-          cb.addEventListener('change', () => {
-            if (cb.checked) tbl.classList.add('borders-on'); else tbl.classList.remove('borders-on');
-            localStorage.setItem('reportsTableBordersOn', cb.checked ? 'true' : 'false');
-          });
-        } catch (_) {}
-      })();
-    </script>
     <div id="templates" class="tab-content hidden">
       <div class="bg-white rounded-lg shadow p-6">
         <div class="mb-6">
@@ -821,35 +620,7 @@
     </div>
   </div>
 
-  <!-- Save Template Modal -->
-  <div id="saveTemplateModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
-    <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
-      <h3 class="text-lg font-bold mb-4">Save Template</h3>
-      <div id="templateSaveInfo" class="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-        <p class="text-sm text-blue-800">
-          <strong>Current table:</strong> <span id="templateTableInfo">No data loaded</span>
-        </p>
-      </div>
-      <form id="saveTemplateForm" class="space-y-4" onsubmit="event.preventDefault(); saveTemplate();">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Template Name *</label>
-          <input type="text" id="saveTemplateModalName" required class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Enter a unique template name">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea id="saveTemplateModalDescription" rows="3" class="border border-gray-300 rounded-md px-3 py-2 w-full" placeholder="Optional description of this template"></textarea>
-        </div>
-        <div class="flex justify-end space-x-3">
-          <button type="button" onclick="hideSaveTemplateModal()" class="bg-gray-300 text-gray-700 px-4 py-2 rounded hover:bg-gray-400">
-            Cancel
-          </button>
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-            Save Template
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
+  
 
   <!-- Add Account Manager Modal -->
   <div id="addAccountManagerModal" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center hidden z-50">
@@ -1141,11 +912,26 @@
 
     // Initialize the application with authentication
     document.addEventListener('DOMContentLoaded', function() {
+      // If legacy links use index.html?tab=reports, redirect to the new generator page
+      try {
+        const params = new URLSearchParams(window.location.search || '');
+        if (params.get('tab') === 'reports') {
+          params.delete('tab');
+          const qs = params.toString();
+          window.location.replace('/generate-report.html' + (qs ? ('?' + qs) : ''));
+          return;
+        }
+      } catch(_) {}
       checkAuthStatus();
     });
 
     // Tab management
     function showTab(tabName, event = null) {
+      // Redirect any attempts to open the legacy in-page Reports tab to the new generator page
+      if (tabName === 'reports') {
+        window.location.href = '/generate-report.html';
+        return;
+      }
       // Hide all tab contents
       document.querySelectorAll('.tab-content').forEach(tab => {
         tab.classList.add('hidden');
@@ -2140,25 +1926,9 @@
       `).join('');
     }
 
-    function showSaveTemplateModal() {
-      // Update the template info display
-      const templateTableInfo = document.getElementById('templateTableInfo');
-      if (templateTableInfo) {
-        if (tableHeaders && tableHeaders.length > 0 && tableData && tableData.length > 0) {
-          templateTableInfo.textContent = `${tableHeaders.length} columns, ${tableData.length} rows`;
-        } else {
-          templateTableInfo.textContent = 'No data loaded - please upload and process files first';
-        }
-      }
-      
-      document.getElementById('saveTemplateModal').classList.remove('hidden');
-    }
+    function showSaveTemplateModal() { /* legacy in-page generator removed */ }
 
-    function hideSaveTemplateModal() {
-      console.log('Hiding save template modal');
-      document.getElementById('saveTemplateModal').classList.add('hidden');
-      document.getElementById('saveTemplateForm').reset();
-    }
+    function hideSaveTemplateModal() { /* legacy in-page generator removed */ }
 
     // Template upload functions
     async function uploadTemplate() {
@@ -2266,12 +2036,17 @@
       try {
         console.log('Loading templates...');
         const response = await axios.get('/api/templates');
-        console.log('Templates response:', response.data);
+        const data = (response && typeof response === 'object') ? response.data : null;
+        console.log('Templates response:', data);
         
-        if (response.data && response.data.templates) {
-          templates = response.data.templates;
-        } else if (Array.isArray(response.data)) {
-          templates = response.data;
+        if (data && Array.isArray(data.templates)) {
+          templates = data.templates;
+        } else if (Array.isArray(data)) {
+          // Some backends return the array directly
+          templates = data;
+        } else if (data && data.success && Array.isArray(data.data)) {
+          // Fallback shape: { success: true, data: [...] }
+          templates = data.data;
         } else {
           templates = [];
         }
@@ -2279,8 +2054,8 @@
         
         console.log('Templates loaded:', templates.length);
         console.log('Template data structure:', templates);
-        displayTemplates();
-        populateTemplateSelect();
+        try { displayTemplates(); } catch(e) { console.warn('displayTemplates failed:', e); }
+        try { populateTemplateSelect(); } catch(e) { console.warn('populateTemplateSelect failed:', e); }
       } catch (error) {
         console.error('Error loading templates:', error.response?.status, error.response?.data, error.message);
         templates = [];
@@ -2296,8 +2071,10 @@
       
       if (templates && Array.isArray(templates)) {
         templates.forEach(template => {
-          const hasData = template.tableData ? 'with data' : 'structure only';
-          select.innerHTML += `<option value="${template.id}">${template.name} (${template.headers.length} columns, ${hasData})</option>`;
+          const hasData = Array.isArray(template.tableData) && template.tableData.length > 0 ? 'with data' : 'structure only';
+          const headersCount = Array.isArray(template.headers) ? template.headers.length : 0;
+          const safeName = (template.name || 'Untitled Template');
+          select.innerHTML += `<option value="${template.id}">${safeName} (${headersCount} columns, ${hasData})</option>`;
         });
       } else {
         console.log('Templates not loaded yet or not an array:', templates);
@@ -2411,15 +2188,18 @@
           .replace(/\t/g, '\\t');
         
         console.log('Template:', template.name, 'ID:', template.id, 'Type:', typeof template.id);
+        const headersCount = Array.isArray(template.headers) ? template.headers.length : 0;
+        const rowCount = Array.isArray(template.tableData) ? template.tableData.length : (template.rowCount || 0);
+        const createdAtText = template.createdAt ? new Date(template.createdAt).toLocaleDateString() : '';
         
         return `
         <div class="border border-gray-200 rounded-lg p-4">
           <h4 class="font-semibold text-gray-900">${template.name}</h4>
           <p class="text-sm text-gray-600 mt-1">${template.description || 'No description'}</p>
           <p class="text-xs text-gray-500 mt-2">
-            Created: ${new Date(template.createdAt).toLocaleDateString()}<br>
-            Columns: ${template.headers.length} | Rows: ${template.rowCount || 0}<br>
-            <span class="text-green-600 font-medium">${template.tableData ? '✓ Includes row data' : 'Structure only'}</span>
+            ${createdAtText ? `Created: ${createdAtText}<br>` : ''}
+            Columns: ${headersCount} | Rows: ${rowCount}<br>
+            <span class="text-green-600 font-medium">${(Array.isArray(template.tableData) && template.tableData.length > 0) ? '✓ Includes row data' : 'Structure only'}</span>
           </p>
           <div class="mt-3 space-x-2">
             <button onclick="useTemplateById('${template.id}')" class="text-blue-600 hover:text-blue-800 text-sm">Use</button>
@@ -2727,66 +2507,7 @@
     // Simple table zoom controls for reports preview
     if (typeof window.reportsZoom === 'undefined') window.reportsZoom = 1;
 
-    // Top/bottom horizontal scroll synchronization for reports preview table
-    let __reportsScrollSyncInitialized = false;
-    function setupReportsScrollSync() {
-      try {
-        const top = document.getElementById('reportsTopScroll');
-        const bottom = document.getElementById('reportsTableWrap');
-        const inner = document.getElementById('reportsTopScrollInner');
-        const table = document.getElementById('reportsTable');
-        if (!top || !bottom || !inner || !table) return;
-
-        const update = () => {
-          try { inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px'; } catch (_) {}
-        };
-        update();
-
-        let syncing = false;
-        if (!__reportsScrollSyncInitialized) {
-          top.addEventListener('scroll', () => {
-            if (syncing) return;
-            syncing = true;
-            bottom.scrollLeft = top.scrollLeft;
-            syncing = false;
-          });
-          bottom.addEventListener('scroll', () => {
-            if (syncing) return;
-            syncing = true;
-            top.scrollLeft = bottom.scrollLeft;
-            syncing = false;
-          });
-          window.addEventListener('resize', update);
-          __reportsScrollSyncInitialized = true;
-        }
-
-        setTimeout(update, 0);
-      } catch (_) {}
-    }
-    function updateReportsScrollSync() {
-      try {
-        const inner = document.getElementById('reportsTopScrollInner');
-        const bottom = document.getElementById('reportsTableWrap');
-        const table = document.getElementById('reportsTable');
-        if (inner && bottom && table) {
-          inner.style.width = Math.max(bottom.scrollWidth, table.scrollWidth) + 'px';
-        }
-      } catch (_) {}
-    }
-
-    function applyReportsZoom() {
-      const wrap = document.getElementById('reportsTableWrap');
-      const z = Math.max(0.6, Math.min(2, window.reportsZoom));
-      if (wrap) {
-        wrap.style.transform = `scale(${z})`;
-        // Expand width to keep horizontal scroll sensible when zoomed in
-        wrap.style.width = z > 1 ? `${(100 / z).toFixed(2)}%` : '100%';
-      }
-      updateReportsScrollSync();
-    }
-    function zoomInReports() { window.reportsZoom = (window.reportsZoom || 1) + 0.1; applyReportsZoom(); }
-    function zoomOutReports() { window.reportsZoom = (window.reportsZoom || 1) - 0.1; applyReportsZoom(); }
-    function resetReportsZoom() { window.reportsZoom = 1; applyReportsZoom(); }
+    // Removed legacy in-page reports scroll/zoom helpers
 
     // Table management
     function renderTable() {
@@ -2958,8 +2679,9 @@
 
     // Event listeners
     function setupEventListeners() {
-      // File processing
-      document.getElementById('processBtn').addEventListener('click', processFiles);
+      // File processing (legacy in-page generator removed; guard elements)
+      const processBtn = document.getElementById('processBtn');
+      if (processBtn) processBtn.addEventListener('click', processFiles);
       const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
       if (openExcelEditorBtn) {
         openExcelEditorBtn.addEventListener('click', () => {
@@ -2992,16 +2714,16 @@
         });
       }
       
-      // Table editing
-      document.getElementById('addRowBtn').addEventListener('click', addRow);
-      document.getElementById('addColumnBtn').addEventListener('click', addColumn);
-      document.getElementById('deleteBtn').addEventListener('click', smartDelete);
-      document.getElementById('cancelSelectionBtn').addEventListener('click', toggleSelectionMode);
-      document.getElementById('saveAsTemplateBtn').addEventListener('click', showSaveTemplateModal);
+      // Table editing (guarded)
+      const addRowBtn = document.getElementById('addRowBtn'); if (addRowBtn) addRowBtn.addEventListener('click', addRow);
+      const addColumnBtn = document.getElementById('addColumnBtn'); if (addColumnBtn) addColumnBtn.addEventListener('click', addColumn);
+      const deleteBtn = document.getElementById('deleteBtn'); if (deleteBtn) deleteBtn.addEventListener('click', smartDelete);
+      const cancelSelectionBtn = document.getElementById('cancelSelectionBtn'); if (cancelSelectionBtn) cancelSelectionBtn.addEventListener('click', toggleSelectionMode);
+      const saveAsTemplateBtn = document.getElementById('saveAsTemplateBtn'); if (saveAsTemplateBtn) saveAsTemplateBtn.addEventListener('click', showSaveTemplateModal);
       
-      // Report generation
-      document.getElementById('exportBtn').addEventListener('click', generateReport);
-      document.getElementById('saveTemplateBtn').addEventListener('click', showSaveTemplateModal);
+      // Report generation (guarded)
+      const exportBtn = document.getElementById('exportBtn'); if (exportBtn) exportBtn.addEventListener('click', generateReport);
+      const saveTemplateBtn = document.getElementById('saveTemplateBtn'); if (saveTemplateBtn) saveTemplateBtn.addEventListener('click', showSaveTemplateModal);
       
       // Account manager filtering
       const accountManagerFilter = document.getElementById('accountManagerFilter');

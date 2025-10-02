@@ -9,6 +9,16 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 app.use(cookieParser());
 
+// Legacy path redirects to the new generator page
+app.get(['/reports', '/report', '/new-report'], (req, res) => {
+  try {
+    const qs = req.originalUrl.includes('?') ? req.originalUrl.split('?')[1] : '';
+    res.redirect('/generate-report.html' + (qs ? ('?' + qs) : ''));
+  } catch (_) {
+    res.redirect('/generate-report.html');
+  }
+});
+
 // Minimal healthcheck endpoint - responds immediately
 app.get('/', (req, res) => {
   res.status(200).send('OK');

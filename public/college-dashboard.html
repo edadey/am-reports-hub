@@ -1850,8 +1850,8 @@
     function updateDashboardData() {
       if (!collegeData) return;
 
-      // Update page title to indicate master data
-      document.querySelector('h1').textContent = `${collegeData.name} Dashboard (Master Data)`;
+      // Update page title using just the college name
+      document.querySelector('h1').textContent = `${collegeData.name}`;
 
       // Update general information in Details tab
       document.getElementById('collegeName').value = collegeData.name || '';
@@ -4613,11 +4613,11 @@
       const collegeId = urlParams.get('id') || localStorage.getItem('currentCollegeId');
       
       if (collegeId) {
-        // Redirect to main dashboard with college pre-selected and reports tab active
-        window.location.href = `index.html?college=${collegeId}&tab=reports`;
+        // Redirect to new generator page with college pre-selected
+        window.location.href = `/generate-report.html?collegeId=${encodeURIComponent(collegeId)}`;
       } else {
-        // Fallback to main dashboard reports tab
-        window.location.href = 'index.html?tab=reports';
+        // Fallback to new generator page
+        window.location.href = '/generate-report.html';
       }
     }
     // Chart instances
@@ -6450,8 +6450,8 @@
       const urlParams = new URLSearchParams(window.location.search);
       const collegeId = urlParams.get('id');
       if (!collegeId || !reportId) return;
-      // Use the Reports tab generator on index.html, pass update target parameters
-      const url = `/index.html?tab=reports&collegeId=${encodeURIComponent(collegeId)}&updateTargetReportId=${encodeURIComponent(reportId)}&updateTargetCollegeId=${encodeURIComponent(collegeId)}`;
+      // Use the new generator page and pass update target parameters
+      const url = `/generate-report.html?collegeId=${encodeURIComponent(collegeId)}&updateTargetReportId=${encodeURIComponent(reportId)}&updateTargetCollegeId=${encodeURIComponent(collegeId)}`;
       window.open(url, '_blank');
     }
 

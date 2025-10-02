@@ -497,7 +497,7 @@
         const { headers, rows } = fromUniver();
         localStorage.setItem('excelEditorData', JSON.stringify({ headers, rows }));
       } catch (_) { /* ignore */ }
-      window.location.href = 'index.html?tab=reports';
+      window.location.href = '/generate-report.html';
     }
 
     async function populateCollegePicker() {
@@ -661,7 +661,7 @@
         </div>`;
       document.body.appendChild(modal);
       modal.querySelector('#closePostSave').onclick = () => modal.remove();
-      modal.querySelector('#goReports').onclick = () => { window.location.href = 'index.html?tab=reports'; };
+      modal.querySelector('#goReports').onclick = () => { window.location.href = '/generate-report.html'; };
       if (collegeId) {
         const btn = modal.querySelector('#goCollege');
         if (btn) btn.onclick = () => { window.location.href = `college-dashboard.html?id=${collegeId}&tab=reports`; };

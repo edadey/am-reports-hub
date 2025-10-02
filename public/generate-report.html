@@ -222,21 +222,21 @@
           <h3 class="text-lg font-medium text-gray-900">Template Options</h3>
           <span class="ml-2 text-sm text-gray-500">(Optional)</span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
+        <div class="grid grid-cols-1 gap-4">
+          <div class="relative">
             <label class="block text-sm font-medium text-gray-700 mb-2">Apply Template (Optional)</label>
+            <input id="templateSearchInput" type="text" placeholder="Search templates..." class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" autocomplete="off">
+            <div id="templateSearchResults" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow max-h-64 overflow-auto z-50"></div>
             <select id="templateSelect" class="border border-gray-300 rounded-md px-3 py-2 w-full text-sm">
               <option value="">-- No template --</option>
             </select>
           </div>
-          <div class="flex items-end">
-            <button id="applyTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors font-medium w-full md:w-auto">Apply</button>
-          </div>
         </div>
         <!-- Template management actions -->
-        <div class="mt-3 flex flex-wrap gap-2">
+        <div class="mt-3 flex flex-wrap gap-2 items-stretch">
           <button id="renameTemplateBtn" type="button" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors font-medium">Rename Template</button>
           <button id="updateTemplateBtn" type="button" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors font-medium">Update Template From Table</button>
+          <button id="applyTemplateBtn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors font-medium">Apply</button>
         </div>
         <!-- Template File Type Selection (shown when using templates) -->
         <div id="templateFileTypeSelection" class="mt-4 hidden">
@@ -315,11 +315,18 @@
         </div>
         
         <div class="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200">
-          <div class="mobile-actions flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-            <!-- Editing Controls -->
-            <div class="flex flex-wrap gap-2 mb-4 items-center">
-              <button id="editToggleBtn" class="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button">✏️ Add & Edit</button>
-              <div id="editControls" class="flex flex-wrap gap-2 items-center hidden">
+          <div class="flex flex-col gap-3">
+            <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full">
+              <button id="editToggleBtn" class="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">✏️ Add & Edit</button>
+              <button id="exportBtn" type="button" class="bg-blue-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">
+                Generate Report
+              </button>
+              <button id="saveTemplateBtn" class="bg-yellow-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-yellow-600 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">
+                Save as Template
+              </button>
+            </div>
+
+            <div id="editControls" class="flex flex-wrap gap-2 items-center hidden">
               <button id="addColumnBtn" class="bg-green-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-green-600 transition-colors duration-200 font-medium shadow-sm touch-button">
                 + Add Column
               </button>
@@ -337,16 +344,7 @@
               <button id="moveColRightBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">Move Col ▶︎</button>
               <button id="moveRowUpBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">▲ Move Row</button>
               <button id="moveRowDownBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">Move Row ▼</button>
-              </div>
             </div>
-            
-            <!-- Report Generation Controls -->
-            <button id="exportBtn" type="button" class="bg-blue-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button">
-              Generate Report
-            </button>
-            <button id="saveTemplateBtn" class="bg-yellow-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-yellow-600 transition-colors duration-200 font-medium shadow-sm touch-button">
-              Save as Template
-            </button>
           </div>
         </div>
       </div>
@@ -989,16 +987,36 @@
               (isEmployerDomain && /(employment|employer|employer-activity)/.test(type2)) ||
               (!isEmployerDomain && /(enrichment|enrichment-activity)/.test(type2));
 
-            // Case A: metrics belonging to the same explicit domain (not activities-combined)
-            if (ok && type2 && type2 !== 'activities-combined') {
-              const base2 = base;
-              const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
+            const base2 = base;
+            const wantSuffix = isEmployerDomain ? suffixEmp : suffixEnr;
+            // Always try explicit domain suffix candidates derived from the header itself
+            {
               const candidates = [];
               if (label) candidates.push(`${base2}${wantSuffix} [${label}]`);
               candidates.push(`${base2}${wantSuffix}`);
+              for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+            }
+
+            // Case A: metrics belonging to the same explicit domain (not activities-combined)
+            if (ok && type2 && type2 !== 'activities-combined') {
+              const candidates = [];
               if (label) candidates.push(`${base2} (${type2}) [${label}]`);
               candidates.push(`${base2} (${type2})`);
               for (const k of candidates) { if (metrics[k] !== undefined) return metrics[k]; }
+              // Domain-constrained fuzzy across metrics keys
+              const mkDomain = Object.keys(metrics).find(k => {
+                const kl = String(k).toLowerCase();
+                const stripped = kl
+                  .replace(/\s*\[[^\]]+\]\s*$/, '')
+                  .replace(/\s*\([^)]*\)\s*$/, '')
+                  .trim();
+                const sameBase = stripped === base2.toLowerCase();
+                const hasDomain = isEmployerDomain
+                  ? /\(employer\s*engagement\)|\(employer\s*activity\)|\(employment\)|\bemployer\b/.test(kl)
+                  : /\(enrichment\)|\benrichment\b/.test(kl);
+                return sameBase && hasDomain;
+              });
+              if (mkDomain) return metrics[mkDomain];
             }
 
             // Case B: Activities Combined files often store domain in the text ("Enrichment"/"Employer Engagement") without parentheses.
@@ -1339,6 +1357,46 @@
         });
       }
 
+      const templateSearchInput = document.getElementById('templateSearchInput');
+      if (templateSearchInput) {
+        const onInput = () => filterTemplatesBySearchTerm(templateSearchInput.value);
+        templateSearchInput.addEventListener('input', onInput);
+        templateSearchInput.addEventListener('change', onInput);
+        templateSearchInput.addEventListener('keyup', (e) => {
+          // For Safari/older browsers where 'input' may be flaky, also handle generic keyups
+          const code = e.key || '';
+          if (!['Enter','Escape','Tab','Shift','Control','Alt','Meta','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(code)) {
+            onInput();
+          }
+          if (e.key === 'Enter') {
+            const box = document.getElementById('templateSearchResults');
+            const firstBtn = box ? box.querySelector('button[data-id]') : null;
+            if (firstBtn) {
+              console.log('[TemplateSearch] Enter pressed, selecting first result');
+              firstBtn.click();
+            } else {
+              const sel = document.getElementById('templateSelect');
+              if (sel) sel.focus();
+            }
+          } else if (e.key === 'Escape') {
+            templateSearchInput.value = '';
+            onInput();
+          }
+        });
+        templateSearchInput.addEventListener('focus', onInput);
+        // Close results when clicking outside
+        document.addEventListener('click', (e) => {
+          const box = document.getElementById('templateSearchResults');
+          if (!box) return;
+          const within = box.contains(e.target) || templateSearchInput.contains(e.target);
+          if (!within) box.classList.add('hidden');
+        });
+        // If user typed before templates loaded, apply immediately after DOM ready
+        if (templateSearchInput.value && templateSearchInput.value.trim().length > 0) {
+          onInput();
+        }
+      }
+
       // Apply button wiring
       const applyTemplateBtn = document.getElementById('applyTemplateBtn');
       if (applyTemplateBtn) {
@@ -1394,6 +1452,95 @@
       }
     }
 
+    function renderTemplateOptions(templateList, preserveSelection = true) {
+      const sel = document.getElementById('templateSelect');
+      if (!sel) return;
+      const previousValue = preserveSelection ? sel.value : '';
+      // Clear existing options safely
+      while (sel.firstChild) sel.removeChild(sel.firstChild);
+      // Placeholder option
+      sel.appendChild(new Option('-- No template --', ''));
+      // Build options via DOM API (better Safari compatibility)
+      const list = Array.isArray(templateList) ? templateList : [];
+      if (list.length) {
+        list.forEach(t => {
+          const name = (t && t.name) ? String(t.name) : 'Untitled Template';
+          const opt = new Option(name, t.id);
+          sel.appendChild(opt);
+        });
+      } else {
+        const opt = new Option('No templates found', '');
+        opt.disabled = true;
+        sel.appendChild(opt);
+      }
+      if (!preserveSelection) {
+        sel.selectedIndex = 0;
+        sel.dispatchEvent(new Event('change'));
+        console.log('[TemplateSearch] Rendered', list.length, 'options (no preserve).');
+        return;
+      }
+      const stillExists = list.some(t => String(t.id) === String(previousValue));
+      const newValue = stillExists ? previousValue : '';
+      const valueChanged = sel.value !== newValue;
+      sel.value = newValue;
+      if (valueChanged) sel.dispatchEvent(new Event('change'));
+      console.log('[TemplateSearch] Rendered', list.length, 'options. preserveSelection=', preserveSelection, 'selected=', sel.value);
+    }
+
+    function renderTemplateSearchResults(list, term) {
+      const box = document.getElementById('templateSearchResults');
+      if (!box) return;
+      const q = (term || '').trim().toLowerCase();
+      // Only show dropdown results if user has typed something
+      if (!q) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+      const items = (Array.isArray(list) ? list : []).slice(0, 50);
+      if (items.length === 0) {
+        box.innerHTML = '<div class="px-3 py-2 text-sm text-gray-500">No matches</div>';
+        box.classList.remove('hidden');
+        return;
+      }
+      const escape = (s) => String(s ?? '').replace(/[&<>"]+/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      box.innerHTML = items.map(t => {
+        const name = escape(t.name || 'Untitled Template');
+        const desc = escape(t.description || '');
+        return `<button type="button" data-id="${t.id}" class="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 focus:bg-gray-100">
+                  <div class="font-medium text-gray-900">${name}</div>
+                  ${desc ? `<div class="text-xs text-gray-500 truncate">${desc}</div>` : ''}
+                </button>`;
+      }).join('');
+      box.classList.remove('hidden');
+      // Delegate clicks
+      box.querySelectorAll('button[data-id]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-id');
+          const sel = document.getElementById('templateSelect');
+          if (sel) {
+            sel.value = id || '';
+            sel.dispatchEvent(new Event('change'));
+          }
+          // Hide results and keep term
+          box.classList.add('hidden');
+        }, { once: true });
+      });
+    }
+
+    function filterTemplatesBySearchTerm(term) {
+      const normalizedTerm = (term || '').trim().toLowerCase();
+      const masterList = Array.isArray(window.__templates) ? window.__templates : [];
+      const filtered = normalizedTerm
+        ? masterList.filter(template => {
+            const name = (template?.name || '').toLowerCase();
+            const description = (template?.description || '').toLowerCase();
+            const idStr = String(template?.id ?? '').toLowerCase();
+            return name.includes(normalizedTerm) || description.includes(normalizedTerm) || idStr.includes(normalizedTerm);
+          })
+        : masterList;
+      window.__filteredTemplates = filtered;
+      console.log('[TemplateSearch] term="' + normalizedTerm + '" ->', filtered.length, 'matches');
+      renderTemplateOptions(filtered, true);
+      renderTemplateSearchResults(filtered, term);
+    }
+
     async function loadTemplates() {
       try {
         console.log('Loading templates...');
@@ -1406,17 +1553,17 @@
         
         // Store templates globally so they can be accessed by other functions
         window.__templates = list;
-        
-        const templateSelect = document.getElementById('templateSelect');
-        if (templateSelect) {
-          const options = '<option value="">No template - Use new data structure</option>' +
-            list.map(template => `<option value="${template.id}">${template.name}</option>`).join('');
-          console.log('Template options HTML:', options);
-          templateSelect.innerHTML = options;
-          console.log('Templates loaded successfully, dropdown populated with', list.length, 'templates');
+        window.__filteredTemplates = list;
+
+        const searchInput = document.getElementById('templateSearchInput');
+        const currentTerm = searchInput ? searchInput.value : '';
+        const hasSearch = currentTerm && currentTerm.trim().length > 0;
+        if (hasSearch) {
+          filterTemplatesBySearchTerm(currentTerm);
         } else {
-          console.error('Template select element not found');
+          renderTemplateOptions(list, false);
         }
+        console.log('Templates loaded successfully, dropdown populated with', list.length, 'templates');
       } catch (error) {
         console.error('Error loading templates:', error);
         console.error('Error details:', error.response?.data || error.message);
