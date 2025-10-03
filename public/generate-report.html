@@ -95,7 +95,17 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="max-w-7xl mx-auto py-4 sm:py-8 px-2 sm:px-4">
-    <!-- Header -->
+        <div id="templateEditToolbar" class="hidden bg-yellow-50 border border-yellow-200 text-yellow-900 px-4 py-3 rounded-lg mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <p class="font-semibold">Template edit mode</p>
+        <p class="text-sm">You're editing an existing template. When finished, click <span class="font-medium">Update Template From Table</span> to save changes.</p>
+      </div>
+      <div class="flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
+        <span id="templateEditName" class="font-medium text-gray-900"></span>
+        <button id="templateEditOpenEditor" type="button" class="px-3 py-1.5 rounded bg-blue-600 text-white hover:bg-blue-700 text-xs sm:text-sm">Edit Template Structure</button>
+      </div>
+    </div>
+<!-- Header -->
     <div class="flex justify-between items-center mb-4 sm:mb-8">
       <div class="flex items-center space-x-3">
         <a href="/" class="text-gray-500 hover:text-gray-700">
@@ -121,9 +131,9 @@
     <!-- Simplified Report Generation -->
     <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
       <h2 class="text-xl sm:text-2xl font-semibold text-gray-900 mb-4 sm:mb-6">Report Generation</h2>
-      
-      <!-- Step 1: File Upload -->
-      <div class="mb-6">
+      <div class="space-y-6">
+        <!-- Step 1: File Upload -->
+        <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-5">
         <div class="flex items-center mb-3">
           <span class="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3">1</span>
           <h3 class="text-lg font-medium text-gray-900">Upload Your Files</h3>
@@ -132,12 +142,12 @@
         <input id="fileInput" type="file" multiple class="mb-4 w-full" accept=".xlsx,.xls,.csv">
         <div id="selectedFilesList" class="mb-4"></div>
         <button id="processBtn" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm w-full sm:w-auto">
-          📤 Upload & Process Files
+          Upload & Process Files
         </button>
       </div>
-        
-      <!-- Step 2: Configure Report (shown after upload) -->
-      <div id="headerAssignmentSection" class="mb-6 hidden">
+
+        <!-- Step 2: Configure Report (shown after upload) -->
+        <div id="headerAssignmentSection" class="hidden rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <div class="flex items-center mb-3">
           <span class="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3">2</span>
           <h3 class="text-lg font-medium text-gray-900">Configure Your Report</h3>
@@ -147,7 +157,7 @@
 
             <!-- File-level Assignment (preferred for template creation) -->
             <div class="mb-4" id="fileAssignmentSection">
-              <h5 class="font-medium text-gray-800 mb-3">📁 Assign Headers by File (Recommended)</h5>
+              <h5 class="font-medium text-gray-800 mb-3">Assign Headers by File (Recommended)</h5>
               <p class="text-xs text-gray-600 mb-2">Set a section and colour for each uploaded file. All headers from that file will use the selected section.</p>
               <div id="fileAssignments" class="space-y-2">
                 <!-- File assignment rows injected here -->
@@ -157,7 +167,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
               <!-- Section Color Legend -->
               <div class="bg-white rounded-lg border border-gray-200 p-3">
-                <h5 class="font-medium text-gray-800 mb-2">📊 Available Sections</h5>
+                <h5 class="font-medium text-gray-800 mb-2">Available Sections</h5>
                 <div class="space-y-2 text-sm">
                   <div class="flex items-center gap-2">
                     <div class="w-4 h-4 bg-blue-200 rounded"></div>
@@ -196,7 +206,7 @@
             </div>
             
             <div class="mb-4">
-              <h5 class="font-medium text-gray-800 mb-3">📋 Headers from Uploaded Files</h5>
+              <h5 class="font-medium text-gray-800 mb-3">Headers from Uploaded Files</h5>
               <p class="text-sm text-gray-600 mb-3">Optional: assign individually. For speed, use the file-level assignment above.</p>
               <div id="headersList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <!-- Headers will be populated here -->
@@ -205,10 +215,10 @@
             
             <div class="flex flex-col sm:flex-row gap-3 mt-4">
               <button id="applyHeaderAssignments" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex-1">
-                ✅ Generate Report
+                Apply Assignments
               </button>
               <button id="resetHeaderAssignments" class="bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors font-medium">
-                🔄 Reset
+                Reset
               </button>
             </div>
           </div>
@@ -216,7 +226,7 @@
       </div>
 
       <!-- Step 3: Template Options (Optional) -->
-      <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <div class="flex items-center mb-3">
           <span class="bg-purple-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3">3</span>
           <h3 class="text-lg font-medium text-gray-900">Template Options</h3>
@@ -249,7 +259,7 @@
 
 
       <!-- Step 4: Select College & Filters -->
-      <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <div class="flex items-center mb-3">
           <span class="bg-orange-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3">4</span>
           <h3 class="text-lg font-medium text-gray-900">Select College</h3>
@@ -271,19 +281,19 @@
       </div>
 
       <!-- Step 5: Generate Final Report -->
-      <div class="bg-white rounded-lg shadow p-4 sm:p-6 mb-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <div class="flex items-center mb-3">
           <span class="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium mr-3">5</span>
           <h3 class="text-lg font-medium text-gray-900">Generate Report</h3>
         </div>
         <p class="text-gray-600 mb-4">Once you've completed the steps above, generate your final report.</p>
         <button id="finalGenerateBtn" type="button" class="bg-green-600 text-white px-8 py-4 rounded-lg hover:bg-green-700 transition-colors font-medium text-lg w-full sm:w-auto">
-          🚀 Generate Final Report
+          Generate Final Report
         </button>
       </div>
 
       <!-- Data Table Section -->
-      <div class="bg-white rounded-lg shadow">
+        <div class="rounded-lg border border-gray-200 bg-white">
         <div class="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
           <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0">
             <h3 class="text-base sm:text-lg font-semibold text-gray-900">Data Table</h3>
@@ -317,7 +327,7 @@
         <div class="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200">
           <div class="flex flex-col gap-3">
             <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full">
-              <button id="editToggleBtn" class="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">✏️ Add & Edit</button>
+              <button id="editToggleBtn" class="bg-blue-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-700 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">Add & Edit</button>
               <button id="exportBtn" type="button" class="bg-blue-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-blue-600 transition-colors duration-200 font-medium shadow-sm touch-button flex-1">
                 Generate Report
               </button>
@@ -339,7 +349,7 @@
               <button id="deleteRowBtn" class="bg-red-500 text-white px-4 sm:px-6 py-2 rounded hover:bg-red-600 transition-colors duration-200 font-medium shadow-sm touch-button">
                 - Delete Row
               </button>
-              <button id="deleteSelectedBtn" type="button" class="bg-red-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-red-700 transition-colors duration-200 font-medium shadow-sm touch-button">🗑 Delete Selected</button>
+              <button id="deleteSelectedBtn" type="button" class="bg-red-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-red-700 transition-colors duration-200 font-medium shadow-sm touch-button">Delete Selected</button>
               <button id="moveColLeftBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">◀︎ Move Col</button>
               <button id="moveColRightBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">Move Col ▶︎</button>
               <button id="moveRowUpBtn" class="bg-gray-600 text-white px-4 sm:px-6 py-2 rounded hover:bg-gray-700 transition-colors duration-200 font-medium shadow-sm touch-button">▲ Move Row</button>
@@ -350,7 +360,7 @@
       </div>
 
       <!-- Analysis Section -->
-      <div id="aiAnalysisSection" class="bg-white rounded-lg shadow p-4 sm:p-6 hidden">
+      <div id="aiAnalysisSection" class="hidden rounded-lg border border-gray-200 bg-white p-4 sm:p-6">
         <h3 class="text-base sm:text-lg font-semibold text-gray-900 mb-4">Analysis</h3>
         <div id="aiAnalysisContent" class="space-y-4">
           <!-- Analysis content will be populated here -->
@@ -380,7 +390,33 @@
     let selectedAccountManagerId = null;
     let currentCollegeId = null;
     let previousReportData = null;
+    let pendingTemplateCollegeId = null;
     
+    function applyPendingTemplateCollege() {
+      try {
+        if (!pendingTemplateCollegeId) return false;
+        const select = document.getElementById('collegeSelect');
+        if (!select) return false;
+
+        const targetValue = String(pendingTemplateCollegeId);
+        const optionExists = Array.from(select.options || []).some(opt => String(opt.value) === targetValue);
+        if (!optionExists) return false;
+
+        select.value = targetValue;
+        select.dispatchEvent(new Event('change'));
+        try {
+          currentCollegeId = targetValue ? parseInt(targetValue, 10) : null;
+        } catch (_) {
+          currentCollegeId = targetValue;
+        }
+        pendingTemplateCollegeId = null;
+        return true;
+      } catch (e) {
+        console.warn('applyPendingTemplateCollege failed:', e?.message || e);
+        return false;
+      }
+    }
+
     // Clear any stale data when page loads
     console.log('🧹 Clearing stale data on page load...');
     try { 
@@ -430,6 +466,8 @@
         window.__fileLevelSelections = JSON.parse(savedSelections);
         console.log('Restored file-level selections from localStorage:', window.__fileLevelSelections);
       }
+
+      // Template edit entry from dashboard
     } catch (e) {
       console.warn('Could not restore file-level selections:', e?.message || e);
     }
@@ -681,7 +719,14 @@
       console.log('=== DOMContentLoaded event fired ===');
       checkAuthStatus();
       setupEventListeners();
-      loadInitialData();
+      loadInitialData().then(() => {
+        initializeTemplateEditWorkflow();
+        initializeTemplateUseWorkflow();
+      }).catch((err) => {
+        console.warn('Initial data load failed:', err?.message || err);
+        initializeTemplateEditWorkflow();
+        initializeTemplateUseWorkflow();
+      });
 
       // Restore border toggle state and bind listener
       try {
@@ -795,6 +840,57 @@
       } catch (error) {
         console.error('Auth check failed:', error);
         window.location.href = '/login';
+      }
+    }
+
+    async function initializeTemplateUseWorkflow() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        let targetTemplateId = params.get('useTemplateId');
+        const targetCollegeId = params.get('collegeId');
+
+        let cachedMeta = null;
+        try {
+          const raw = sessionStorage.getItem('templateUseMeta');
+          if (raw) cachedMeta = JSON.parse(raw);
+        } catch (_) {}
+
+        if (!targetTemplateId && cachedMeta?.id) {
+          targetTemplateId = cachedMeta.id;
+        }
+
+        if (!targetTemplateId) return;
+
+        if (targetCollegeId) {
+          pendingTemplateCollegeId = targetCollegeId;
+        } else if (cachedMeta?.collegeId) {
+          pendingTemplateCollegeId = cachedMeta.collegeId;
+        }
+
+        await ensureTemplatesLoaded();
+
+        const select = document.getElementById('templateSelect');
+        if (select) {
+          select.value = String(targetTemplateId);
+          select.dispatchEvent(new Event('change'));
+        }
+
+        applyPendingTemplateCollege();
+
+        const tpl = Array.isArray(window.__templates)
+          ? window.__templates.find(t => String(t.id) === String(targetTemplateId))
+          : null;
+
+        if (tpl) {
+          showStatus(`Template "${tpl.name}" loaded.`, 'success');
+          await applySelectedTemplate();
+        } else {
+          showStatus('Template not found. Please select another template.', 'error');
+        }
+
+        try { sessionStorage.removeItem('templateUseMeta'); } catch (_) {}
+      } catch (e) {
+        console.warn('initializeTemplateUseWorkflow failed:', e?.message || e);
       }
     }
 
@@ -1157,6 +1253,130 @@
       }
     }
 
+    function launchExcelEditorWithCurrentState(forceTemplateMode = false) {
+      const sel = document.getElementById('templateSelect');
+      const selId = sel && sel.value ? sel.value : '';
+      let tpl = null;
+      if (selId && Array.isArray(window.__templates)) {
+        tpl = window.__templates.find(t => String(t.id) === String(selId));
+      }
+
+      let editorData = null;
+      if (tpl && Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
+        editorData = {
+          headers: tpl.headers,
+          rows: tpl.tableData,
+          templateId: tpl.id,
+          templateName: tpl.name,
+          templateDescription: tpl.description,
+          isTemplate: true
+        };
+      } else if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
+        const rows = tableData.map(r => [...r]);
+        editorData = { headers: tableHeaders, rows, isTemplate: forceTemplateMode };
+      }
+
+      if (!editorData) {
+        showStatus('Nothing to edit. Upload data or select a template first.', 'error');
+        return;
+      }
+
+      const hint = document.getElementById('excelEditorHint');
+      if (hint) hint.classList.remove('hidden');
+
+      try { localStorage.removeItem('excelEditorData'); } catch(_) {}
+      try { localStorage.setItem('excelEditorData', JSON.stringify(editorData)); } catch (_) {
+        showStatus('Unable to prepare editor data', 'error');
+        return;
+      }
+
+      const editorUrl = new URL('report-editor-xs.html', window.location.origin);
+      editorUrl.searchParams.set('t', String(Date.now()));
+      if (window.currentCollegeId) editorUrl.searchParams.set('collegeId', String(window.currentCollegeId));
+      window.open(editorUrl.toString(), '_blank');
+    }
+
+    async function initializeTemplateEditWorkflow() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const targetTemplateId = params.get('editTemplateId');
+        const cachedMeta = sessionStorage.getItem('templateEditMeta');
+        if (!targetTemplateId) return;
+
+        let templateMeta = null;
+        if (cachedMeta) {
+          try {
+            templateMeta = JSON.parse(cachedMeta);
+          } catch (_) {}
+        }
+
+        if (templateMeta?.collegeId) {
+          pendingTemplateCollegeId = templateMeta.collegeId;
+        }
+
+        const toolbar = document.getElementById('templateEditToolbar');
+        if (toolbar) toolbar.classList.remove('hidden');
+
+        if (templateMeta) {
+          try {
+            const nameField = document.getElementById('templateName');
+            const descField = document.getElementById('templateDescription');
+            if (templateMeta.name && nameField) nameField.value = templateMeta.name;
+            if (typeof templateMeta.description === 'string' && descField) descField.value = templateMeta.description;
+          } catch (_) {}
+        }
+
+        await ensureTemplatesLoaded();
+
+        const select = document.getElementById('templateSelect');
+        if (select) {
+          select.value = String(targetTemplateId);
+          select.dispatchEvent(new Event('change'));
+        }
+
+        applyPendingTemplateCollege();
+
+        const tpl = Array.isArray(window.__templates)
+          ? window.__templates.find(t => String(t.id) === String(targetTemplateId))
+          : null;
+
+        if (tpl) {
+          tableHeaders = Array.isArray(tpl.headers) ? [...tpl.headers] : [];
+          tableData = Array.isArray(tpl.tableData) ? tpl.tableData.map(row => [...row]) : [];
+          try { window.headerFileMap = tpl.headerFileMap || {}; headerFileMap = window.headerFileMap; } catch(_) {}
+          try { window.fileInfo = Array.isArray(tpl.fileInfo) ? [...tpl.fileInfo] : []; } catch(_) {}
+          window.strictTemplateMode = true;
+          window.previewingTemplateRows = true;
+          renderTable();
+
+          const templateCollegeId = tpl.collegeId ?? tpl.data?.collegeId ?? templateMeta?.collegeId ?? pendingTemplateCollegeId;
+          if (templateCollegeId) {
+            pendingTemplateCollegeId = templateCollegeId;
+          }
+        } else {
+          if (!templateMeta?.collegeId) {
+            showStatus('Template selected for editing could not be loaded.', 'error');
+          }
+        }
+
+        applyPendingTemplateCollege();
+
+        const updateBtn = document.getElementById('updateTemplateBtn');
+        if (updateBtn) updateBtn.disabled = false;
+      } catch (e) {
+        console.warn('initializeTemplateEditWorkflow failed:', e?.message || e);
+      }
+    }
+
+    async function ensureTemplatesLoaded() {
+      if (Array.isArray(window.__templates) && window.__templates.length) return;
+      try {
+        await loadTemplates();
+      } catch (e) {
+        console.warn('ensureTemplatesLoaded loadTemplates failed:', e?.message || e);
+      }
+    }
+
     // Event listeners
     function setupEventListeners() {
       // File processing
@@ -1187,43 +1407,12 @@
       if (testActivityBtn) {
         testActivityBtn.addEventListener('click', testActivityProcessing);
       }
-        const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
-        if (openExcelEditorBtn) {
-          openExcelEditorBtn.addEventListener('click', () => {
-            // If a template is selected, prefer that
-            const sel = document.getElementById('templateSelect');
-            const selId = sel && sel.value ? sel.value : '';
-            if (selId && Array.isArray(window.__templates)) {
-              const tpl = window.__templates.find(t => String(t.id) === String(selId));
-              if (tpl && Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
-                localStorage.setItem('excelEditorData', JSON.stringify({ 
-                  headers: tpl.headers, 
-                  rows: tpl.tableData,
-                  templateId: tpl.id,
-                  templateName: tpl.name,
-                  templateDescription: tpl.description,
-                  isTemplate: true
-                }));
-              }
-            } else if (Array.isArray(tableHeaders) && Array.isArray(tableData) && tableHeaders.length) {
-              const rows = tableData.map(r => r);
-              localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows }));
-            }
-            const hint = document.getElementById('excelEditorHint');
-            if (hint) hint.classList.remove('hidden');
-            // Prefer Luckysheet editor for richer formatting/formulas
-            const editorUrl = new URL('report-editor-xs.html', window.location.origin);
-            // Ensure newest data is used: clear stale cache, then set fresh
-            try { localStorage.removeItem('excelEditorData'); } catch(_) {}
-            try { localStorage.setItem('excelEditorData', JSON.stringify({ headers: tableHeaders, rows, isTemplate: false })); } catch(_) {}
-            // Add cache-bust param in case the editor tab gets reused
-            editorUrl.searchParams.set('t', String(Date.now()));
-            if (window.currentCollegeId) {
-              editorUrl.searchParams.set('collegeId', String(window.currentCollegeId));
-            }
-            window.open(editorUrl.toString(), '_blank');
-          });
-        }
+      const openExcelEditorBtn = document.getElementById('openExcelEditorBtn');
+      if (openExcelEditorBtn) {
+        openExcelEditorBtn.addEventListener('click', () => {
+          launchExcelEditorWithCurrentState();
+        });
+      }
 
       // Auto-load data carried back from the Excel editor so users don't need to reupload
       (function restoreFromExcelIfAvailable(){
@@ -1593,9 +1782,14 @@
       
       select.innerHTML = '<option value="">Select a college...</option>' +
         filteredColleges.map(college => `<option value="${college.id}">${college.name}</option>`).join('');
-    }
 
-    function updateAccountManagerSelects() {
+      if (currentCollegeId) {
+        select.value = currentCollegeId;
+        console.log('Set college select to:', currentCollegeId);
+      } else if (pendingTemplateCollegeId) {
+        applyPendingTemplateCollege();
+      }
+
       if (!accountManagers || !Array.isArray(accountManagers)) {
         accountManagers = [];
       }
@@ -4948,7 +5142,7 @@
           // Fallback to inline style to guarantee visibility
           editControls.style.display = editMode ? 'flex' : 'none';
         }
-        if (editToggleBtn) editToggleBtn.textContent = editMode ? '✅ Editing On' : '✏️ Add & Edit';
+        if (editToggleBtn) editToggleBtn.textContent = editMode ? 'Editing On' : 'Add & Edit';
         renderTable();
       } catch (e) {
         console.warn('toggleEditMode failed:', e?.message || e);

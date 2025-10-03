@@ -8,6 +8,7 @@
     "dev": "nodemon app.js",
     "build": "echo 'No build step required for Node.js app'",
     "postinstall": "echo 'AM Reports Hub installed successfully'",
+    "lint": "node ./node_modules/eslint/bin/eslint.js .",
     "db:migrate": "node src/database/migrate-data.js",
     "db:setup": "node -e \"require('./src/services/DatabaseService').initialize().then(() => console.log('Database setup complete')).catch(console.error)\"",
     "db:test": "node test-db-connection.js",
@@ -48,6 +49,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "eslint": "^9.36.0",
     "nodemon": "^3.0.1"
   },
   "keywords": [

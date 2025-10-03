@@ -2211,30 +2211,27 @@
       }).join('');
     }
 
-    // Open a template in the spreadsheet editor for structural edits
+    // Launch the report generator with a template preloaded for editing
     function openTemplateInEditor(templateId) {
       try {
         const tpl = (templates || []).find(t => String(t.id) === String(templateId));
         if (!tpl) { showStatus('Template not found', 'error'); return; }
-        if (Array.isArray(tpl.headers) && Array.isArray(tpl.tableData)) {
-          try {
-            localStorage.setItem('excelEditorData', JSON.stringify({ 
-              headers: tpl.headers, 
-              rows: tpl.tableData,
-              templateId: tpl.id,
-              templateName: tpl.name,
-              templateDescription: tpl.description,
-              isTemplate: true
-            }));
-          } catch(_) {}
-        }
-        const editorUrl = new URL('report-editor-xs.html', window.location.origin);
-        editorUrl.searchParams.set('t', String(Date.now()));
-        editorUrl.searchParams.set('templateId', String(templateId));
-        window.open(editorUrl.toString(), '_blank');
+
+        try {
+          sessionStorage.setItem('templateEditMeta', JSON.stringify({
+            id: tpl.id,
+            name: tpl.name || '',
+            description: tpl.description || '',
+            collegeId: tpl.collegeId || tpl.data?.collegeId || null
+          }));
+        } catch (_) {}
+
+        const generatorUrl = new URL('generate-report.html', window.location.origin);
+        generatorUrl.searchParams.set('editTemplateId', String(tpl.id));
+        window.location.href = generatorUrl.toString();
       } catch (e) {
         console.error('openTemplateInEditor error:', e);
-        showStatus('Failed to open editor: ' + (e?.message || e), 'error');
+        showStatus('Failed to open template editor: ' + (e?.message || e), 'error');
       }
     }
 
@@ -2257,7 +2254,7 @@
               <input id="editTemplateDescription" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="${(tpl.description || '').replace(/"/g, '&quot;')}">
             </div>
             <div class="flex flex-wrap justify-end gap-2 pt-2">
-              <button id="editTplOpenEditor" type="button" class="px-4 py-2 rounded bg-gray-100 text-gray-800 hover:bg-gray-200">Open in Editor</button>
+              <button id="editTplBeginEdit" type="button" class="px-4 py-2 rounded bg-gray-100 text-gray-800 hover:bg-gray-200">Edit Template</button>
               <button id="editTplCancel" type="button" class="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">Cancel</button>
               <button id="editTplSave" type="submit" class="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Save</button>
             </div>
@@ -2272,7 +2269,7 @@
       const nameInput = overlay.querySelector('#editTemplateName');
       const descInput = overlay.querySelector('#editTemplateDescription');
       const cancelBtn = overlay.querySelector('#editTplCancel');
-      const openBtn = overlay.querySelector('#editTplOpenEditor');
+      const openBtn = overlay.querySelector('#editTplBeginEdit');
       if (cancelBtn) cancelBtn.addEventListener('click', cleanup);
       if (openBtn) openBtn.addEventListener('click', () => { cleanup(); openTemplateInEditor(templateId); });
       if (nameInput) nameInput.focus();
@@ -3793,16 +3790,25 @@ let deletedAccountManagers = [];
         showStatus('Template not found', 'error');
         return;
       }
-      
-      // Set the template in the dropdown
-      const select = document.getElementById('templateSelect');
-      if (select) {
-        select.value = template.id;
+
+      const generatorUrl = new URL('generate-report.html', window.location.origin);
+      generatorUrl.searchParams.set('useTemplateId', String(template.id));
+
+      const collegeId = template.collegeId || template.data?.collegeId || template.data?.meta?.collegeId || null;
+      if (collegeId) {
+        generatorUrl.searchParams.set('collegeId', String(collegeId));
       }
-      
-      // Switch to reports tab
-      showTab('reports');
-      showStatus(`Template "${template.name}" selected. Upload files to apply it.`, 'success');
+
+      try {
+        sessionStorage.setItem('templateUseMeta', JSON.stringify({
+          id: template.id,
+          name: template.name || '',
+          description: template.description || '',
+          collegeId: collegeId || null
+        }));
+      } catch (_) {}
+
+      window.location.href = generatorUrl.toString();
     }
 
 
