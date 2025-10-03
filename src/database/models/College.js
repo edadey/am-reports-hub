@@ -113,6 +113,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'marketingposition',
     },
+    tutorname: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'tutorname',
+    },
+    tutoremail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'tutoremail',
+    },
     // removed legacy marketingphone and marketingnotes fields
     renewaldate: {
       type: DataTypes.STRING,

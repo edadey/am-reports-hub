@@ -65,7 +65,13 @@
     "swotWeaknesses": "Limited budget\nStaff shortages\nOutdated systems",
     "swotOpportunities": "New funding available\nPartnership opportunities\nTechnology upgrades",
     "swotThreats": "Competition from other colleges\nRegulatory changes\nEconomic uncertainty",
-    "lastreportdate": "2025-10-02T20:41:12.986Z"
+    "lastreportdate": "2025-10-02T20:41:12.986Z",
+    "collegeSystem": "Pro Monitor",
+    "marketingName": "John test",
+    "marketingPosition": "marketing",
+    "marketingEmail": "johntest@john.com",
+    "tutorContactName": "Test",
+    "tutorContactEmail": "test@test.com"
   },
   {
     "id": 1753277876592,

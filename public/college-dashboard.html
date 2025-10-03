@@ -1335,6 +1335,20 @@
             </div>
           </div>
         </div>
+        <!-- Tutor contact -->
+        <div class="mt-6 pt-4 border-t border-gray-200">
+          <h4 class="text-md font-semibold text-gray-900 mb-3">Tutor contact</h4>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input type="text" id="tutorContactName" placeholder="Enter tutor contact name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" id="tutorContactEmail" placeholder="Enter tutor contact email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Notes & Concerns -->
@@ -2027,6 +2041,8 @@
       const mkName = document.getElementById('marketingName'); if (mkName) mkName.value = collegeData.marketingName || '';
       const mkEmail = document.getElementById('marketingEmail'); if (mkEmail) mkEmail.value = collegeData.marketingEmail || '';
       const mkPosition = document.getElementById('marketingPosition'); if (mkPosition) mkPosition.value = collegeData.marketingPosition || '';
+      const tutorName = document.getElementById('tutorContactName'); if (tutorName) tutorName.value = collegeData.tutorContactName || '';
+      const tutorEmail = document.getElementById('tutorContactEmail'); if (tutorEmail) tutorEmail.value = collegeData.tutorContactEmail || '';
     }
 
     // Function to update performance indicators display
@@ -6153,7 +6169,9 @@
           // Marketing Staff Member
           marketingName: (document.getElementById('marketingName') || {}).value || '',
           marketingPosition: (document.getElementById('marketingPosition') || {}).value || '',
-          marketingEmail: (document.getElementById('marketingEmail') || {}).value || ''
+          marketingEmail: (document.getElementById('marketingEmail') || {}).value || '',
+          tutorContactName: (document.getElementById('tutorContactName') || {}).value || '',
+          tutorContactEmail: (document.getElementById('tutorContactEmail') || {}).value || ''
         };
 
         // Collect modules data

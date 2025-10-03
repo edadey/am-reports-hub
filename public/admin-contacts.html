@@ -32,6 +32,7 @@
                         <option value="Super Users">Super Users</option>
                         <option value="MIS Contact">MIS Contact</option>
                         <option value="Marketing/Communications">Marketing/Communications</option>
+                        <option value="Tutor Contact">Tutor Contact</option>
                     </select>
                 </div>
                 <div>
@@ -137,6 +138,12 @@
                         const mktPosition = college.marketingPosition || college.marketingposition || 'Marketing/Comms';
                         if (mktName || mktEmail || mktPosition) {
                             contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Marketing/Communications', name: mktName, position: mktPosition, email: mktEmail });
+                        }
+                        // Tutor contact (handle both camelCase and lowercase variants)
+                        const tutorName = college.tutorContactName || college.tutorname || '';
+                        const tutorEmail = college.tutorContactEmail || college.tutoremail || '';
+                        if (tutorName || tutorEmail) {
+                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Tutor Contact', name: tutorName, position: 'Tutor Contact', email: tutorEmail });
                         }
                     });
                     if (category) contacts = contacts.filter(c => (c.category || '').toLowerCase() === String(category).toLowerCase());
