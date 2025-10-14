@@ -3906,11 +3906,43 @@
             
             // Calculate change from previous report
             if (previousReportData) {
-              const previousRow = previousReportData.rows ? previousReportData.rows.find(r => r[0] === row[0]) : null;
-              if (previousRow && previousRow[originalColIdx] !== undefined) {
+              const prevHeaders = Array.isArray(previousReportData.headers)
+                ? previousReportData.headers
+                : (Array.isArray(previousReportData.data?.headers) ? previousReportData.data.headers : null);
+              const prevRowsArr = Array.isArray(previousReportData.rows)
+                ? previousReportData.rows
+                : (Array.isArray(previousReportData.data?.rows) ? previousReportData.data.rows : null);
+              const previousRow = prevRowsArr ? prevRowsArr.find(r => String(r[0]) === String(row[0])) : null;
+              let prevColIdx = null;
+              if (prevHeaders) {
+                const normalize = (h) => {
+                  const s = String(h || '').toLowerCase();
+                  let out = s.replace(/\s*\+\/-?\s*$/, '');
+                  out = out.replace(/\s*\[[^\]]+\]\s*$/g, '');
+                  out = out.replace(/\(([^)]+)\)/g, (_, inner) => {
+                    const v = String(inner || '').toLowerCase();
+                    if (/activities\s*combined/.test(v)) return ' activities combined ';
+                    if (/employer\s*(engagement|activity)/.test(v)) return ' employer activity ';
+                    if (/enrichment/.test(v)) return ' enrichment ';
+                    if (/placements?/.test(v)) return ' placements ';
+                    if (/assessments?/.test(v)) return ' assessments ';
+                    if (/careers?/.test(v)) return ' careers ';
+                    return ' ';
+                  });
+                  return out.replace(/\s+/g, ' ').trim();
+                };
+                prevColIdx = prevHeaders.indexOf(header);
+                if (prevColIdx === -1) {
+                  const normMap = new Map();
+                  prevHeaders.forEach((h, i) => { const k = normalize(h); if (k && !normMap.has(k)) normMap.set(k, i); });
+                  const nk = normalize(header);
+                  prevColIdx = normMap.has(nk) ? normMap.get(nk) : originalColIdx;
+                }
+              }
+              if (previousRow && prevColIdx != null && previousRow[prevColIdx] !== undefined) {
                 const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
                 const rawCurrent = cell;
-                const rawPrevious = previousRow[originalColIdx];
+                const rawPrevious = previousRow[prevColIdx];
                 const toPercent = (v) => {
                   const s = String(v ?? '').trim();
                   if (!s) return 0;

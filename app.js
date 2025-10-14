@@ -2371,27 +2371,39 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
       ? previousData.rows
       : (Array.isArray(previousData?.data?.rows) ? previousData.data.rows : null);
 
-    // Normalisation to match headers across template updates
+    // Normalisation to match headers across template updates (base text + category)
     const normalizeHeader = (h) => {
-      const s = String(h || '').toLowerCase();
-      // remove trailing +/- marker if present
-      let out = s.replace(/\s*\+\/-?\s*$/, '');
-      // strip trailing [File Label]
-      out = out.replace(/\s*\[[^\]]+\]\s*$/g, '');
-      // normalise common parenthetical suffixes and synonyms
-      out = out.replace(/\(([^)]+)\)/g, (_, inner) => {
-        const val = String(inner || '').toLowerCase();
-        if (/activities\s*combined/.test(val)) return ' activities combined ';
-        if (/employer\s*(engagement|activity)/.test(val)) return ' employer activity ';
-        if (/enrichment/.test(val)) return ' enrichment ';
-        if (/placements?/.test(val)) return ' placements ';
-        if (/assessments?/.test(val)) return ' assessments ';
-        if (/careers?/.test(val)) return ' careers ';
-        return ' ';
-      });
-      // unify multiple spaces
-      out = out.replace(/\s+/g, ' ').trim();
-      return out;
+      let s = String(h || '').toLowerCase();
+      // remove trailing +/- marker and trailing [File Label]
+      s = s.replace(/\s*\+\/-?\s*$/, '').replace(/\s*\[[^\]]+\]\s*$/g, '');
+      // detect category from parentheses
+      let category = null;
+      const parens = s.match(/\(([^)]+)\)/g) || [];
+      const toCat = (txt) => {
+        const v = String(txt || '').toLowerCase();
+        if (/activities\s*combined/.test(v)) return 'activities-combined';
+        if (/employer\s*(engagement|activity)/.test(v)) return 'employment';
+        if (/enrichment/.test(v)) return 'enrichment';
+        if (/placements?/.test(v)) return 'placements';
+        if (/assessments?/.test(v)) return 'assessments';
+        if (/careers?/.test(v)) return 'careers';
+        if (/targets?/.test(v)) return 'targets';
+        if (/login|access/.test(v)) return 'login';
+        return null;
+      };
+      for (const p of parens) {
+        const m = /\(([^)]+)\)/.exec(p);
+        const cat = m ? toCat(m[1]) : null;
+        if (cat) { category = cat; break; }
+      }
+      // remove all parentheses content from base text
+      s = s.replace(/\([^)]*\)/g, ' ');
+      // infer category if none found from plain text
+      if (!category) category = toCat(s);
+      if (!category) category = 'default';
+      // collapse whitespace for base
+      const base = s.replace(/\s+/g, ' ').trim();
+      return `${base}::${category}`;
     };
 
     const prevHeaderIndex = new Map();
