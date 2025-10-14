@@ -385,7 +385,18 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static('public'));
+// Serve static assets with no-cache to ensure latest frontend is always loaded
+app.use(express.static('public', { etag: false, lastModified: false, maxAge: 0, cacheControl: true }));
+// Extra safety for HTML responses
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/' || req.path === '/index.html') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+  }
+  next();
+});
 
 // Protected internal docs for admins
 app.use('/internal-docs', authService.requireAuth(), authService.requireRole(['admin']), express.static('docs'));
