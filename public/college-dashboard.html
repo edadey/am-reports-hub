@@ -1151,10 +1151,7 @@
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-900">All Reports</h3>
           <div class="flex items-center gap-2">
-            <div class="flex items-center gap-2 border rounded-md px-2 py-1">
-              <label for="shareLiveToggle" class="text-sm text-gray-600">Live</label>
-              <input id="shareLiveToggle" type="checkbox" class="h-4 w-4">
-            </div>
+            
             <button id="createShareLinkBtn" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors duration-200 font-medium shadow-sm touch-button">
               Create Share Link
             </button>
@@ -3309,7 +3306,6 @@
 
     // Share link controls
     function initShareControls() {
-      const toggle = document.getElementById('shareLiveToggle');
       const btn = document.getElementById('createShareLinkBtn');
       const collegeId = getCollegeId();
 
@@ -3319,65 +3315,9 @@
         if (saved) {
           const state = JSON.parse(saved);
           activeShare = state;
-          toggle.checked = !!state.live;
           if (state.url) btn.dataset.url = state.url;
         }
       } catch (_) {}
-
-      toggle.addEventListener('change', async () => {
-        try {
-          if (!activeShare || !activeShare.shareId) {
-            // If no share exists yet and toggled on, create one as live (no expiry)
-            if (toggle.checked) {
-              btn.disabled = true; btn.textContent = 'Creating...';
-              const res = await fetch(`/api/colleges/${collegeId}/reports/share`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ expiresInHours: 24 * 365 * 5, allowDownload: true, live: true })
-              });
-              const json = await res.json();
-              if (!json.success) throw new Error(json.error || 'Failed to create share link');
-              activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: true };
-              sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
-              btn.dataset.url = json.url;
-              showNotification('Live share link created and enabled', 'success');
-            }
-            return;
-          }
-
-          if (toggle.checked) {
-            // Re-enable an existing share by un-revoking is not supported; create fresh
-            btn.disabled = true; btn.textContent = 'Creating...';
-            const res = await fetch(`/api/colleges/${collegeId}/reports/share`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ expiresInHours: 24 * 365 * 5, allowDownload: true, live: true })
-            });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.error || 'Failed to create share link');
-            activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: true };
-            sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
-            btn.dataset.url = json.url;
-            showNotification('Live share link enabled', 'success');
-          } else {
-            // Disable by revoking
-            const shareId = activeShare.shareId;
-            const res = await fetch(`/api/shared/${shareId}/revoke`, { method: 'POST', credentials: 'include' });
-            const json = await res.json();
-            if (!json.success) throw new Error(json.error || 'Failed to disable link');
-            activeShare.live = false;
-            sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
-            showNotification('Share link disabled', 'success');
-          }
-        } catch (err) {
-          showNotification(err.message || 'Failed to update share link state', 'error');
-          toggle.checked = !toggle.checked;
-        } finally {
-          btn.disabled = false; btn.textContent = 'Create Share Link';
-        }
-      });
 
       btn.addEventListener('click', async () => {
         try {
@@ -3386,15 +3326,15 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ expiresInHours: 168, allowDownload: true })
+            body: JSON.stringify({ allowDownload: true, live: true })
           });
           const json = await res.json();
           if (!json.success) throw new Error(json.error || 'Failed to create share link');
-          activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: toggle.checked };
+          activeShare = { shareId: json.shareId, url: json.url, permissions: json.permissions, live: true };
           sessionStorage.setItem(`share:${collegeId}`, JSON.stringify(activeShare));
           btn.dataset.url = json.url;
           await navigator.clipboard.writeText(json.url).catch(() => {});
-          showNotification('Share link created and copied to clipboard', 'success');
+          showNotification('Live share link created and copied to clipboard', 'success');
         } catch (err) {
           showNotification(err.message || 'Failed to create share link', 'error');
         } finally {

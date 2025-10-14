@@ -1698,7 +1698,7 @@ app.post('/api/colleges/:collegeId/reports/:reportId/replace-from', authService.
 app.post('/api/colleges/:collegeId/reports/share', authService.requireAuth(), async (req, res) => {
   try {
     const { collegeId } = req.params;
-    const { expiresInHours = 168, allowDownload = true, live = false } = req.body || {};
+    const { expiresInHours = 168, allowDownload = true, live = true } = req.body || {};
     const result = await shareLinkService.createShareLink({
       collegeId: parseInt(collegeId),
       expiresInHours: parseInt(expiresInHours),
@@ -1721,7 +1721,6 @@ app.get('/api/shared/validate', async (req, res) => {
     if (!token) return res.status(400).json({ success: false, error: 'Missing token' });
     // Dev bypass: allow ?token=local in non-production
     if (process.env.NODE_ENV !== 'production' && token === 'local') {
-      console.log('✅ Using local bypass for token validation');
       return res.json({ success: true, payload: { shareId: 'local', collegeId: Number(req.query.collegeId) || 0 } });
     }
     const verification = shareLinkService.verifyShareToken(token);
