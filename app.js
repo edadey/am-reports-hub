@@ -2364,10 +2364,47 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
     }
     
     // Prepare previous-report lookup maps for accurate +/- calculation by Department and header name
-    const prevHeaders = previousData && Array.isArray(previousData.headers) ? previousData.headers : null;
-    const prevRows = previousData && Array.isArray(previousData.rows) ? previousData.rows : null;
+    // Support both { headers, rows } and { data: { headers, rows } } shapes
+    const prevHeaders = Array.isArray(previousData?.headers)
+      ? previousData.headers
+      : (Array.isArray(previousData?.data?.headers) ? previousData.data.headers : null);
+    const prevRows = Array.isArray(previousData?.rows)
+      ? previousData.rows
+      : (Array.isArray(previousData?.data?.rows) ? previousData.data.rows : null);
+
+    // Normalisation to match headers across template updates
+    const normalizeHeader = (h) => {
+      const s = String(h || '').toLowerCase();
+      // remove trailing +/- marker if present
+      let out = s.replace(/\s*\+\/-?\s*$/, '');
+      // strip trailing [File Label]
+      out = out.replace(/\s*\[[^\]]+\]\s*$/g, '');
+      // normalise common parenthetical suffixes and synonyms
+      out = out.replace(/\(([^)]+)\)/g, (_, inner) => {
+        const val = String(inner || '').toLowerCase();
+        if (/activities\s*combined/.test(val)) return ' activities combined ';
+        if (/employer\s*(engagement|activity)/.test(val)) return ' employer activity ';
+        if (/enrichment/.test(val)) return ' enrichment ';
+        if (/placements?/.test(val)) return ' placements ';
+        if (/assessments?/.test(val)) return ' assessments ';
+        if (/careers?/.test(val)) return ' careers ';
+        return ' ';
+      });
+      // unify multiple spaces
+      out = out.replace(/\s+/g, ' ').trim();
+      return out;
+    };
+
     const prevHeaderIndex = new Map();
-    if (prevHeaders) prevHeaders.forEach((h, i) => prevHeaderIndex.set(String(h || ''), i));
+    const prevHeaderNormIndex = new Map();
+    if (prevHeaders) {
+      prevHeaders.forEach((h, i) => {
+        const key = String(h || '');
+        if (!prevHeaderIndex.has(key)) prevHeaderIndex.set(key, i);
+        const nkey = normalizeHeader(key);
+        if (nkey && !prevHeaderNormIndex.has(nkey)) prevHeaderNormIndex.set(nkey, i);
+      });
+    }
     const prevDeptRowMap = new Map();
     if (prevRows) prevRows.forEach(r => {
       const key = (r && r.length ? String(r[0] || '') : '').trim().toLowerCase();
@@ -2604,7 +2641,16 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
           let changeValue = null;
           const deptKey = String(row[0] || '').trim().toLowerCase();
           const prevRow = deptKey ? prevDeptRowMap.get(deptKey) : null;
-          const prevColIdx = prevHeaderIndex.has(header) ? prevHeaderIndex.get(header) : null;
+          // Try exact header match, then normalised match, then index fallback
+          let prevColIdx = prevHeaderIndex.has(header) ? prevHeaderIndex.get(header) : null;
+          if (prevColIdx == null) {
+            const n = normalizeHeader(header);
+            if (prevHeaderNormIndex.has(n)) prevColIdx = prevHeaderNormIndex.get(n);
+          }
+          if (prevColIdx == null && Array.isArray(prevHeaders)) {
+            // Fallback to same column index (headers exclude Department at index 0 consistently)
+            prevColIdx = originalColIndex;
+          }
           const currentNum = isPercentageHeader(header) ? parseNumberLike(value) : parseNumberLike(value);
           const prevNum = (prevRow != null && prevColIdx != null) ? (isPercentageHeader(header) ? parseNumberLike(prevRow[prevColIdx]) : parseNumberLike(prevRow[prevColIdx])) : null;
           
