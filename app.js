@@ -2659,8 +2659,30 @@ app.get('/api/colleges/:collegeId/reports/:reportId/excel', authService.requireA
             if (prevHeaderNormIndex.has(n)) prevColIdx = prevHeaderNormIndex.get(n);
           }
           if (prevColIdx == null && Array.isArray(prevHeaders)) {
-            // Fallback to same column index (headers exclude Department at index 0 consistently)
-            prevColIdx = originalColIndex;
+            const normalizedPrev = prevHeaders.map(normalizeHeader);
+            const normalizedCurr = headers.map(normalizeHeader);
+            const matches = normalizedCurr.reduce((map, key, idx) => {
+              if (!map.has(key)) map.set(key, []);
+              map.get(key).push(idx);
+              return map;
+            }, new Map());
+            const currentKey = normalizeHeader(header);
+            const prevIndexes = normalizedPrev
+              .map((key, idx) => ({ key, idx }))
+              .filter(item => item.key === currentKey)
+              .map(item => item.idx);
+            if (prevIndexes.length === 1) {
+              prevColIdx = prevIndexes[0];
+            } else if (prevIndexes.length > 1) {
+              // Choose the closest match based on position
+              prevColIdx = prevIndexes.reduce((best, idx) => {
+                if (best == null) return idx;
+                return Math.abs(idx - originalColIndex) < Math.abs(best - originalColIndex) ? idx : best;
+              }, null);
+            } else {
+              // Fallback to same column index (headers exclude Department at index 0 consistently)
+              prevColIdx = originalColIndex;
+            }
           }
           const currentNum = isPercentageHeader(header) ? parseNumberLike(value) : parseNumberLike(value);
           const prevNum = (prevRow != null && prevColIdx != null) ? (isPercentageHeader(header) ? parseNumberLike(prevRow[prevColIdx]) : parseNumberLike(prevRow[prevColIdx])) : null;
@@ -2997,21 +3019,17 @@ app.get('/api/previous-report/:collegeId', authService.requireAuth(), async (req
             const tk = r.templateKey || r.data?.meta?.templateKey || null;
             return tk && String(tk) === String(templateKey);
           });
-          if (match && match.data) {
+          if (!previousData && match && match.data) {
             const derived = { data: match.data, timestamp: match.createdAt };
-            const cachedTs = previousData && previousData.timestamp ? new Date(previousData.timestamp).getTime() : 0;
-            const derivedTs = derived.timestamp ? new Date(derived.timestamp).getTime() : 0;
-            if (!previousData || derivedTs >= cachedTs) {
-              previousData = derived;
-              // Cache it for future
-              try {
-                const previousReportsPath = 'previous-reports.json';
-                const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
-                if (!prevMap[collegeId] || typeof prevMap[collegeId] !== 'object' || Array.isArray(prevMap[collegeId])) prevMap[collegeId] = {};
-                prevMap[collegeId][String(templateKey)] = previousData;
-                await volumeService.writeFile(previousReportsPath, prevMap);
-              } catch (_) {}
-            }
+            previousData = derived;
+            // Cache it for future (only when none existed)
+            try {
+              const previousReportsPath = 'previous-reports.json';
+              const prevMap = await volumeService.readFile(previousReportsPath).catch(() => ({}));
+              if (!prevMap[collegeId] || typeof prevMap[collegeId] !== 'object' || Array.isArray(prevMap[collegeId])) prevMap[collegeId] = {};
+              prevMap[collegeId][String(templateKey)] = previousData;
+              await volumeService.writeFile(previousReportsPath, prevMap);
+            } catch (_) {}
           }
         }
       } catch (_) {}
@@ -3058,13 +3076,20 @@ async function getPreviousReportData(collegeId, templateKey) {
 }
 
 // Store current report as previous - use centralized method
-async function storeCurrentReportAsPrevious(collegeId, reportData, templateKey) {
+// By default, DO NOT overwrite an existing baseline unless force=true
+async function storeCurrentReportAsPrevious(collegeId, reportData, templateKey, opts = {}) {
   try {
     const previousReportsPath = 'previous-reports.json';
     const previousReports = await volumeService.readFile(previousReportsPath).catch(() => ({}));
     const tk = templateKey || '_default';
     if (!previousReports[collegeId] || typeof previousReports[collegeId] !== 'object' || Array.isArray(previousReports[collegeId])) {
       previousReports[collegeId] = {};
+    }
+    const existing = previousReports[collegeId][tk];
+    const force = !!opts.force;
+    if (existing && !force) {
+      console.log(`Previous baseline exists for college ${collegeId}, template ${tk}; not overwriting.`);
+      return; // keep existing baseline unless forced
     }
     previousReports[collegeId][tk] = {
       data: reportData,
@@ -5269,7 +5294,7 @@ app.post('/api/colleges/:collegeId/reports/:reportId/use-as-previous', authServi
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' });
     const tk = report.templateKey || report.data?.meta?.templateKey || null;
     if (!tk) return res.status(400).json({ success: false, error: 'Report has no template identity to mark as baseline' });
-    await storeCurrentReportAsPrevious(collegeId, report.data, tk);
+    await storeCurrentReportAsPrevious(collegeId, report.data, tk, { force: true });
     return res.json({ success: true });
   } catch (e) {
     console.error('Mark-as-previous error:', e);

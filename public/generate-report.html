@@ -3916,27 +3916,52 @@
               let prevColIdx = null;
               if (prevHeaders) {
                 const normalize = (h) => {
-                  const s = String(h || '').toLowerCase();
-                  let out = s.replace(/\s*\+\/-?\s*$/, '');
-                  out = out.replace(/\s*\[[^\]]+\]\s*$/g, '');
-                  out = out.replace(/\(([^)]+)\)/g, (_, inner) => {
-                    const v = String(inner || '').toLowerCase();
-                    if (/activities\s*combined/.test(v)) return ' activities combined ';
-                    if (/employer\s*(engagement|activity)/.test(v)) return ' employer activity ';
-                    if (/enrichment/.test(v)) return ' enrichment ';
-                    if (/placements?/.test(v)) return ' placements ';
-                    if (/assessments?/.test(v)) return ' assessments ';
-                    if (/careers?/.test(v)) return ' careers ';
-                    return ' ';
-                  });
-                  return out.replace(/\s+/g, ' ').trim();
+                  let s = String(h || '').toLowerCase();
+                  s = s.replace(/\s*\+\/-?\s*$/, '').replace(/\s*\[[^\]]+\]\s*$/g, '');
+                  let category = null;
+                  const parens = s.match(/\(([^)]+)\)/g) || [];
+                  const toCat = (txt) => {
+                    const v = String(txt || '').toLowerCase();
+                    if (/activities\s*combined/.test(v)) return 'activities-combined';
+                    if (/employer\s*(engagement|activity)/.test(v)) return 'employment';
+                    if (/enrichment/.test(v)) return 'enrichment';
+                    if (/placements?/.test(v)) return 'placements';
+                    if (/assessments?/.test(v)) return 'assessments';
+                    if (/careers?/.test(v)) return 'careers';
+                    if (/targets?/.test(v)) return 'targets';
+                    if (/login|access/.test(v)) return 'login';
+                    return null;
+                  };
+                  for (const p of parens) {
+                    const m = /\(([^)]+)\)/.exec(p);
+                    const cat = m ? toCat(m[1]) : null;
+                    if (cat) { category = cat; break; }
+                  }
+                  s = s.replace(/\([^)]*\)/g, ' ');
+                  if (!category) category = toCat(s);
+                  if (!category) category = 'default';
+                  const base = s.replace(/\s+/g, ' ').trim();
+                  return `${base}::${category}`;
                 };
                 prevColIdx = prevHeaders.indexOf(header);
                 if (prevColIdx === -1) {
-                  const normMap = new Map();
-                  prevHeaders.forEach((h, i) => { const k = normalize(h); if (k && !normMap.has(k)) normMap.set(k, i); });
-                  const nk = normalize(header);
-                  prevColIdx = normMap.has(nk) ? normMap.get(nk) : originalColIdx;
+                  const normalizedPrev = prevHeaders.map(normalize);
+                  const normalizedCurr = tableHeaders.map(normalize);
+                  const currentKey = normalize(header);
+                  const prevMatches = normalizedPrev
+                    .map((key, idx) => ({ key, idx }))
+                    .filter(item => item.key === currentKey)
+                    .map(item => item.idx);
+                  if (prevMatches.length === 1) {
+                    prevColIdx = prevMatches[0];
+                  } else if (prevMatches.length > 1) {
+                    prevColIdx = prevMatches.reduce((best, idx) => {
+                      if (best == null) return idx;
+                      return Math.abs(idx - originalColIdx) < Math.abs(best - originalColIdx) ? idx : best;
+                    }, null);
+                  } else {
+                    prevColIdx = originalColIdx;
+                  }
                 }
               }
               if (previousRow && prevColIdx != null && previousRow[prevColIdx] !== undefined) {
