@@ -4561,11 +4561,22 @@ app.put('/api/templates/:id', authService.requireAuth(), async (req, res) => {
     
     // Replace the template at the found index
     templates[templateIndex] = updatedTemplate;
-    
+
     console.log('💾 Writing updated templates to volume...');
     await writeTemplatesAllLocations(templates);
     console.log('✅ Templates file updated successfully');
-    
+
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log('🐘 Syncing updated template to database...');
+        await databaseUserManager.initialize();
+        await databaseUserManager.saveTemplate(updatedTemplate);
+        console.log('✅ Database template updated successfully');
+      } catch (dbError) {
+        console.warn('⚠️ Failed to update template in database:', dbError.message);
+      }
+    }
+
     // Also sync to legacy data path for backward compatibility
     try {
       const fs = require('fs-extra');

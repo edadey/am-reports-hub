@@ -1641,6 +1641,15 @@
       }
     }
 
+    function updateAccountManagerSelects() {
+      const filterSelect = document.getElementById('accountManagerFilter');
+      if (filterSelect) {
+        filterSelect.innerHTML = '<option value="">All Account Managers</option>' +
+          accountManagers.map(am => `<option value="${am.id}">${am.name}</option>`).join('');
+      }
+      updateCollegeSelect();
+    }
+
     function renderTemplateOptions(templateList, preserveSelection = true) {
       const sel = document.getElementById('templateSelect');
       if (!sel) return;
