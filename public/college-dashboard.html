@@ -3745,13 +3745,13 @@
           return `${base}::${category}`;
         };
         const keyExact = (h) => String(h ?? '').trim().toLowerCase();
-        const exact = {}; const norm = {}; const normalizedPrev = [];
+        const exact = {}; const norm = {}; const normalizedPrev = []; const rawPrevHeaders = [];
         (Array.isArray(prevHeaders) ? prevHeaders : []).forEach((ph, i) => {
           exact[keyExact(ph)] = i;
-          const k = normalize(ph); normalizedPrev[i] = k; if (norm[k] === undefined) norm[k] = i;
+          const k = normalize(ph); normalizedPrev[i] = k; rawPrevHeaders[i] = ph; if (norm[k] === undefined) norm[k] = i;
         });
-        return { exact, norm, normalizedPrev, normalize };
-      } catch (_) { return { exact: {}, norm: {}, normalizedPrev: [], normalize: (x) => String(x ?? '').toLowerCase() }; }
+        return { exact, norm, normalizedPrev, rawPrevHeaders, normalize };
+      } catch (_) { return { exact: {}, norm: {}, normalizedPrev: [], rawPrevHeaders: [], normalize: (x) => String(x ?? '').toLowerCase() }; }
     }
     function getPrevColumnIndex(header, fallbackIdx, maps) {
       try {
@@ -3771,6 +3771,33 @@
               return Math.abs(idx - fallbackIdx) < Math.abs(best - fallbackIdx) ? idx : best;
             }, null);
           }
+          // Fallback: try fuzzy match within the same category using token overlap
+          try {
+            const [base, cat] = String(nk).split('::');
+            const tokens = (t) => String(t || '')
+              .replace(/[%]/g, '')
+              .split(/[^a-z0-9]+/)
+              .filter(Boolean);
+            const baseTokens = new Set(tokens(base));
+            const isPercentLike = /percent|%/i.test(String(header));
+            let best = { idx: null, score: 0 };
+            maps.normalizedPrev.forEach((key, idx) => {
+              const [pbase, pcat] = String(key).split('::');
+              if (pcat !== cat) return; // only within same category (e.g., careers)
+              const prevHeaderText = (maps.rawPrevHeaders && maps.rawPrevHeaders[idx]) ? String(maps.rawPrevHeaders[idx]) : '';
+              const prevIsPercent = /percent|%/i.test(prevHeaderText);
+              if (isPercentLike !== prevIsPercent) return; // respect percent vs count
+              const ptoks = new Set(tokens(pbase));
+              // Jaccard similarity
+              const inter = [...baseTokens].filter(t => ptoks.has(t)).length;
+              const union = new Set([...baseTokens, ...ptoks]).size || 1;
+              const score = inter / union;
+              const posBonus = 1 / (1 + Math.abs(idx - fallbackIdx));
+              const total = score + 0.05 * posBonus; // small positional tie-breaker
+              if (total > best.score) best = { idx, score: total };
+            });
+            if (best.idx != null && best.score >= 0.3) return best.idx; // accept moderate similarity
+          } catch (_) {}
         }
       } catch (_) {}
       return fallbackIdx;
