@@ -3758,20 +3758,31 @@
         const kExact = String(header ?? '').trim().toLowerCase();
         if (maps && maps.exact && maps.exact[kExact] !== undefined) return maps.exact[kExact];
         const nk = maps && typeof maps.normalize === 'function' ? maps.normalize(header) : String(header ?? '').toLowerCase();
-        if (maps && maps.norm && maps.norm[nk] !== undefined) return maps.norm[nk];
+        const isPercentLike = /percent|%/i.test(String(header));
         if (Array.isArray(maps?.normalizedPrev)) {
-          const candidates = maps.normalizedPrev
+          // Gather all normalized duplicates
+          const dupIdxs = maps.normalizedPrev
             .map((key, idx) => ({ key, idx }))
             .filter(item => item.key === nk)
             .map(item => item.idx);
-          if (candidates.length === 1) return candidates[0];
-          if (candidates.length > 1) {
-            return candidates.reduce((best, idx) => {
+          if (dupIdxs.length) {
+            // Prefer percent parity within duplicates
+            const parity = dupIdxs.filter(idx => {
+              const prevHeaderText = (maps.rawPrevHeaders && maps.rawPrevHeaders[idx]) ? String(maps.rawPrevHeaders[idx]) : '';
+              const prevIsPercent = /percent|%/i.test(prevHeaderText);
+              return prevIsPercent === isPercentLike;
+            });
+            const pool = parity.length ? parity : dupIdxs;
+            return pool.reduce((best, idx) => {
               if (best == null) return idx;
               return Math.abs(idx - fallbackIdx) < Math.abs(best - fallbackIdx) ? idx : best;
             }, null);
           }
-          // Fallback: try fuzzy match within the same category using token overlap
+        }
+        // If no duplicates found, but a normalized mapping exists, use it
+        if (maps && maps.norm && maps.norm[nk] !== undefined) return maps.norm[nk];
+        // Fuzzy fallback within same category and parity
+        if (Array.isArray(maps?.normalizedPrev)) {
           try {
             const [base, cat] = String(nk).split('::');
             const tokens = (t) => String(t || '')
@@ -3779,24 +3790,22 @@
               .split(/[^a-z0-9]+/)
               .filter(Boolean);
             const baseTokens = new Set(tokens(base));
-            const isPercentLike = /percent|%/i.test(String(header));
             let best = { idx: null, score: 0 };
             maps.normalizedPrev.forEach((key, idx) => {
               const [pbase, pcat] = String(key).split('::');
-              if (pcat !== cat) return; // only within same category (e.g., careers)
+              if (pcat !== cat) return; // only within same category
               const prevHeaderText = (maps.rawPrevHeaders && maps.rawPrevHeaders[idx]) ? String(maps.rawPrevHeaders[idx]) : '';
               const prevIsPercent = /percent|%/i.test(prevHeaderText);
               if (isPercentLike !== prevIsPercent) return; // respect percent vs count
               const ptoks = new Set(tokens(pbase));
-              // Jaccard similarity
               const inter = [...baseTokens].filter(t => ptoks.has(t)).length;
               const union = new Set([...baseTokens, ...ptoks]).size || 1;
               const score = inter / union;
               const posBonus = 1 / (1 + Math.abs(idx - fallbackIdx));
-              const total = score + 0.05 * posBonus; // small positional tie-breaker
+              const total = score + 0.05 * posBonus;
               if (total > best.score) best = { idx, score: total };
             });
-            if (best.idx != null && best.score >= 0.3) return best.idx; // accept moderate similarity
+            if (best.idx != null && best.score >= 0.3) return best.idx;
           } catch (_) {}
         }
       } catch (_) {}
@@ -4099,7 +4108,7 @@
             
             // Calculate change from previous report
             if (window.previousReportData) {
-              const previousRow = window.previousReportData.rows ? window.previousReportData.rows.find(r => r[0] === row[0]) : null;
+              const previousRow = window.previousReportData.rows ? window.previousReportData.rows.find(r => String(r[0]) === String(row[0])) : null;
               const mappedPrevIdx = getPrevColumnIndex(header, originalColIdx, __prevMaps);
               if (previousRow && previousRow[mappedPrevIdx] !== undefined) {
                 const isPercentHeader = header.toLowerCase().includes('percent') || header.includes('%');
