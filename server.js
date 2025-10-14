@@ -4,8 +4,34 @@ const cookieParser = require('cookie-parser');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static assets from public so /index.html, /login etc. work immediately
-app.use(express.static(path.join(__dirname, 'public')));
+// Global safety: log and continue on unhandled errors (so container doesn't die silently)
+process.on('uncaughtException', (err) => {
+  try {
+    console.error('Uncaught exception:', err && err.stack ? err.stack : err);
+  } catch (_) {}
+});
+process.on('unhandledRejection', (reason) => {
+  try {
+    console.error('Unhandled rejection:', reason && reason.stack ? reason.stack : reason);
+  } catch (_) {}
+});
+
+// Serve static assets with no-cache so latest frontend is always fetched
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: false,
+  lastModified: false,
+  maxAge: 0,
+  cacheControl: true
+}));
+app.use((req, res, next) => {
+  if (req.path.endsWith('.html') || req.path === '/' || req.path === '/index.html') {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    res.set('Surrogate-Control', 'no-store');
+  }
+  next();
+});
 app.use(express.json());
 app.use(cookieParser());
 

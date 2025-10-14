@@ -3716,30 +3716,62 @@
     // Build previous header maps (exact + normalized) and helper to find column index
     function buildPrevHeaderMaps(prevHeaders) {
       try {
+        const normalize = (h) => {
+          let s = String(h || '').toLowerCase();
+          s = s.replace(/\s*\+\/\-?\s*$/, '').replace(/\s*\[[^\]]+\]\s*$/g, '');
+          let category = null;
+          const parens = s.match(/\(([^)]+)\)/g) || [];
+          const toCat = (txt) => {
+            const v = String(txt || '').toLowerCase();
+            if (/activities\s*combined/.test(v)) return 'activities-combined';
+            if (/employer\s*(engagement|activity)/.test(v)) return 'employment';
+            if (/enrichment/.test(v)) return 'enrichment';
+            if (/placements?/.test(v)) return 'placements';
+            if (/assessments?/.test(v)) return 'assessments';
+            if (/careers?/.test(v)) return 'careers';
+            if (/targets?/.test(v)) return 'targets';
+            if (/login|access/.test(v)) return 'login';
+            return null;
+          };
+          for (const p of parens) {
+            const m = /\(([^)]+)\)/.exec(p);
+            const cat = m ? toCat(m[1]) : null;
+            if (cat) { category = cat; break; }
+          }
+          s = s.replace(/\([^)]*\)/g, ' ');
+          if (!category) category = toCat(s);
+          if (!category) category = 'default';
+          const base = s.replace(/\s+/g, ' ').trim();
+          return `${base}::${category}`;
+        };
         const keyExact = (h) => String(h ?? '').trim().toLowerCase();
-        const keyNorm = (h) => String(h ?? '')
-          .replace(/\s*\+\/\-\s*$/, '')
-          .replace(/\s*\[[^\]]+\]\s*$/, '')
-          .trim()
-          .toLowerCase();
-        const exact = {}; const norm = {};
+        const exact = {}; const norm = {}; const normalizedPrev = [];
         (Array.isArray(prevHeaders) ? prevHeaders : []).forEach((ph, i) => {
           exact[keyExact(ph)] = i;
-          const k = keyNorm(ph); if (norm[k] === undefined) norm[k] = i;
+          const k = normalize(ph); normalizedPrev[i] = k; if (norm[k] === undefined) norm[k] = i;
         });
-        return { exact, norm };
-      } catch (_) { return { exact: {}, norm: {} }; }
+        return { exact, norm, normalizedPrev, normalize };
+      } catch (_) { return { exact: {}, norm: {}, normalizedPrev: [], normalize: (x) => String(x ?? '').toLowerCase() }; }
     }
     function getPrevColumnIndex(header, fallbackIdx, maps) {
       try {
-        const keyExact = (h) => String(h ?? '').trim().toLowerCase();
-        const keyNorm = (h) => String(h ?? '')
-          .replace(/\s*\+\/\-\s*$/, '')
-          .replace(/\s*\[[^\]]+\]\s*$/, '')
-          .trim()
-          .toLowerCase();
-        if (maps && maps.exact && maps.exact[keyExact(header)] !== undefined) return maps.exact[keyExact(header)];
-        if (maps && maps.norm && maps.norm[keyNorm(header)] !== undefined) return maps.norm[keyNorm(header)];
+        const kExact = String(header ?? '').trim().toLowerCase();
+        if (maps && maps.exact && maps.exact[kExact] !== undefined) return maps.exact[kExact];
+        const nk = maps && typeof maps.normalize === 'function' ? maps.normalize(header) : String(header ?? '').toLowerCase();
+        if (maps && maps.norm && maps.norm[nk] !== undefined) return maps.norm[nk];
+        if (Array.isArray(maps?.normalizedPrev)) {
+          const candidates = maps.normalizedPrev
+            .map((key, idx) => ({ key, idx }))
+            .filter(item => item.key === nk)
+            .map(item => item.idx);
+          if (candidates.length === 1) return candidates[0];
+          if (candidates.length > 1) {
+            return candidates.reduce((best, idx) => {
+              if (best == null) return idx;
+              return Math.abs(idx - fallbackIdx) < Math.abs(best - fallbackIdx) ? idx : best;
+            }, null);
+          }
+        }
       } catch (_) {}
       return fallbackIdx;
     }
