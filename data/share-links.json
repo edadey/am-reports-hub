@@ -12,8 +12,8 @@
       "createdByUser": 2,
       "createdAt": "2025-09-04T11:15:27.064Z",
       "revoked": false,
-      "live": false,
-      "expiresAt": "2025-09-11T11:15:27.064Z",
+      "live": true,
+      "expiresAt": null,
       "tokenHash": "eyJhbG...osef1Q"
     },
     {
@@ -28,8 +28,8 @@
       "createdByUser": 2,
       "createdAt": "2025-09-10T10:13:50.021Z",
       "revoked": false,
-      "live": false,
-      "expiresAt": "2025-09-17T10:13:50.021Z",
+      "live": true,
+      "expiresAt": null,
       "tokenHash": "eyJhbG...XOpDv4"
     }
   ]

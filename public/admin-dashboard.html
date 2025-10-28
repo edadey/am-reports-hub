@@ -45,6 +45,7 @@
                         <option value="MIS Contact">MIS Contact</option>
                         <option value="Marketing/Communications">Marketing/Communications</option>
                         <option value="Tutor Contact">Tutor Contact</option>
+                        <option value="Careers Contact">Careers Contact</option>
                     </select>
                     </div>
                 </div>
@@ -272,8 +273,15 @@
                             if (college.misContactName || college.misContactEmail) {
                                 contacts.push({ collegeId: college.id, collegeName: college.name, category: 'MIS Contact', name: college.misContactName || '', position: 'MIS Contact', email: college.misContactEmail || '', dataTransferMethod: college.dataTransferMethod || '' });
                             }
-                            if (college.tutorContactName || college.tutorContactEmail) {
-                                contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Tutor Contact', name: college.tutorContactName || '', position: 'Tutor Contact', email: college.tutorContactEmail || '' });
+                            const tutorPosition = college.tutorContactPosition || college.tutorposition || 'Tutor Contact';
+                            if (college.tutorContactName || college.tutorContactEmail || tutorPosition) {
+                                contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Tutor Contact', name: college.tutorContactName || '', position: tutorPosition, email: college.tutorContactEmail || '' });
+                            }
+                            const careersName = college.careersContactName || college.careerscontactname || '';
+                            const careersPosition = college.careersContactPosition || college.careerscontactposition || 'Careers Contact';
+                            const careersEmail = college.careersContactEmail || college.careerscontactemail || '';
+                            if (careersName || careersEmail || careersPosition) {
+                                contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Careers Contact', name: careersName, position: careersPosition, email: careersEmail });
                             }
                         });
                         if (category) {

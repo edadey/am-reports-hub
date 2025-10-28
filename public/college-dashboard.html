@@ -1338,7 +1338,11 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-              <input type="text" id="tutorContactName" placeholder="Enter tutor contact name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+              <input type="text" id="tutorContactName" placeholder="Enter name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+              <input type="text" id="tutorContactPosition" placeholder="Enter position" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Position</label>
@@ -1346,7 +1350,25 @@
             </div>
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" id="tutorContactEmail" placeholder="Enter tutor contact email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+              <input type="email" id="tutorContactEmail" placeholder="Enter email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+          </div>
+        </div>
+        <!-- Careers contact -->
+        <div class="mt-6 pt-4 border-t border-gray-200">
+          <h4 class="text-md font-semibold text-gray-900 mb-3">Careers contact</h4>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <input type="text" id="careersContactName" placeholder="Enter name" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+              <input type="text" id="careersContactPosition" placeholder="Enter position" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <input type="email" id="careersContactEmail" placeholder="Enter email" class="border border-gray-300 rounded-md px-3 py-2 w-full" onchange="formDataChanged = true">
             </div>
           </div>
         </div>
@@ -2061,7 +2083,11 @@
       const mkEmail = document.getElementById('marketingEmail'); if (mkEmail) mkEmail.value = collegeData.marketingEmail || '';
       const mkPosition = document.getElementById('marketingPosition'); if (mkPosition) mkPosition.value = collegeData.marketingPosition || '';
       const tutorName = document.getElementById('tutorContactName'); if (tutorName) tutorName.value = collegeData.tutorContactName || '';
+      const tutorPosition = document.getElementById('tutorContactPosition'); if (tutorPosition) tutorPosition.value = collegeData.tutorContactPosition || '';
       const tutorEmail = document.getElementById('tutorContactEmail'); if (tutorEmail) tutorEmail.value = collegeData.tutorContactEmail || '';
+      const careersName = document.getElementById('careersContactName'); if (careersName) careersName.value = collegeData.careersContactName || '';
+      const careersPosition = document.getElementById('careersContactPosition'); if (careersPosition) careersPosition.value = collegeData.careersContactPosition || '';
+      const careersEmail = document.getElementById('careersContactEmail'); if (careersEmail) careersEmail.value = collegeData.careersContactEmail || '';
     }
 
     // Function to update performance indicators display
@@ -6201,7 +6227,11 @@
           marketingPosition: (document.getElementById('marketingPosition') || {}).value || '',
           marketingEmail: (document.getElementById('marketingEmail') || {}).value || '',
           tutorContactName: (document.getElementById('tutorContactName') || {}).value || '',
-          tutorContactEmail: (document.getElementById('tutorContactEmail') || {}).value || ''
+          tutorContactPosition: (document.getElementById('tutorContactPosition') || {}).value || '',
+          tutorContactEmail: (document.getElementById('tutorContactEmail') || {}).value || '',
+          careersContactName: (document.getElementById('careersContactName') || {}).value || '',
+          careersContactPosition: (document.getElementById('careersContactPosition') || {}).value || '',
+          careersContactEmail: (document.getElementById('careersContactEmail') || {}).value || ''
         };
 
         // Collect modules data

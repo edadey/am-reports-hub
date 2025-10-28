@@ -33,6 +33,7 @@
                         <option value="MIS Contact">MIS Contact</option>
                         <option value="Marketing/Communications">Marketing/Communications</option>
                         <option value="Tutor Contact">Tutor Contact</option>
+                        <option value="Careers Contact">Careers Contact</option>
                     </select>
                 </div>
                 <div>
@@ -141,9 +142,16 @@
                         }
                         // Tutor contact (handle both camelCase and lowercase variants)
                         const tutorName = college.tutorContactName || college.tutorname || '';
+                        const tutorPosition = college.tutorContactPosition || college.tutorposition || 'Tutor Contact';
                         const tutorEmail = college.tutorContactEmail || college.tutoremail || '';
-                        if (tutorName || tutorEmail) {
-                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Tutor Contact', name: tutorName, position: 'Tutor Contact', email: tutorEmail });
+                        if (tutorName || tutorEmail || tutorPosition) {
+                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Tutor Contact', name: tutorName, position: tutorPosition, email: tutorEmail });
+                        }
+                        const careersName = college.careersContactName || college.careerscontactname || '';
+                        const careersPosition = college.careersContactPosition || college.careerscontactposition || 'Careers Contact';
+                        const careersEmail = college.careersContactEmail || college.careerscontactemail || '';
+                        if (careersName || careersEmail || careersPosition) {
+                            contacts.push({ collegeId: college.id, collegeName: college.name, category: 'Careers Contact', name: careersName, position: careersPosition, email: careersEmail });
                         }
                     });
                     if (category) contacts = contacts.filter(c => (c.category || '').toLowerCase() === String(category).toLowerCase());
