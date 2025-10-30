@@ -4150,7 +4150,7 @@ app.get('/api/templates', authService.requireAuth(), async (req, res) => {
           // Also sync to file system as backup
           await writeTemplatesAllLocations(dbTemplates);
           console.log('💾 Database templates synced to file system as backup');
-          return res.json(dbTemplates);
+          return res.json({ templates: dbTemplates });
         }
       } catch (dbError) {
         console.log('⚠️ Database template read failed, falling back to file system:', dbError.message);

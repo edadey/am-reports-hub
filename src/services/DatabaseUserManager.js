@@ -1,5 +1,6 @@
 const DatabaseService = require('./DatabaseService');
 const { User, AccountManager, College, Report, Session, SecurityLog } = require('../database/models');
+const { Op } = require('sequelize');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -658,6 +659,11 @@ class DatabaseUserManager {
 
   async saveTemplate(templateData) {
     try {
+      const normalisedId = String(templateData.id || templateData.data?.id || '');
+      if (!normalisedId) {
+        throw new Error('Template ID is required for database persistence');
+      }
+
       const reportData = {
         name: templateData.name,
         reportType: 'template',
@@ -671,18 +677,36 @@ class DatabaseUserManager {
       const existingTemplate = await Report.findOne({
         where: {
           reportType: 'template',
-          'data.id': templateData.id
+          [Op.and]: [
+            Report.sequelize.where(
+              Report.sequelize.json('data.id'),
+              normalisedId
+            )
+          ]
         }
       });
 
       if (existingTemplate) {
         // Update existing template
-        await existingTemplate.update(reportData);
+        await existingTemplate.update({
+          ...reportData,
+          data: {
+            ...reportData.data,
+            id: normalisedId
+          }
+        });
+        await existingTemplate.reload();
         console.log(`✅ Template '${templateData.name}' updated in database`);
         return existingTemplate.toJSON();
       } else {
         // Create new template
-        const newTemplate = await Report.create(reportData);
+        const newTemplate = await Report.create({
+          ...reportData,
+          data: {
+            ...reportData.data,
+            id: normalisedId
+          }
+        });
         console.log(`✅ Template '${templateData.name}' created in database`);
         return newTemplate.toJSON();
       }
@@ -694,10 +718,17 @@ class DatabaseUserManager {
 
   async deleteTemplate(templateId) {
     try {
+      const normalisedId = String(templateId);
+
       const deletedCount = await Report.destroy({
         where: {
           reportType: 'template',
-          'data.id': templateId
+          [Op.and]: [
+            Report.sequelize.where(
+              Report.sequelize.json('data.id'),
+              normalisedId
+            )
+          ]
         }
       });
       
